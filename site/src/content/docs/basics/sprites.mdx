@@ -1,0 +1,92 @@
+---
+title: Sprites and animation
+description: Importing a .bmp with its .json, bn::sprite_ptr, bn::fixed positions, animate actions and horizontal flip.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import sprites from '../../../../../snippets/sprites/src/main.cpp?raw';
+import heroJson from '../../../../../snippets/sprites/graphics/hero.json?raw';
+
+## When to use it
+
+For anything that moves on its own: characters, enemies, bullets, cursors. The GBA draws up to 128 sprites on top of (or between) the backgrounds, each one with its own position, flip and priority, and moving them costs almost nothing.
+
+For big things that don't move apart from the rest, like the level itself, use a background instead.
+
+## How to think about it
+
+**A sprite item is data, a `bn::sprite_ptr` is a sprite on screen.** Each `.bmp` with its `.json` in `graphics/` becomes, at build time, a header `bn_sprite_items_<name>.h` with a `bn::sprite_items::<name>` object. It lives in ROM and shows nothing. `create_sprite(x, y)` copies its tiles and palette to video memory and returns a `bn::sprite_ptr`. The sprite stays on screen while some `bn::sprite_ptr` pointing to it is alive.
+
+**`(0, 0)` is the center of the screen, and the position is the sprite's center.** x grows to the right and y grows down. The screen goes from -120 to 120 horizontally and from -80 to 80 vertically.
+
+**Positions are `bn::fixed`, not `int`.** `bn::fixed` is a fixed-point number, so a sprite can move half a pixel per frame: the halves add up and it moves one pixel every two frames. The hardware still draws at whole pixels.
+
+**An animation is a list of frames and a speed.** `bn::create_sprite_animate_action_forever` loops, `bn::create_sprite_animate_action_once` stops at the last frame and then `done()` returns `true`. Either way the action only advances when you call `update()`, once per frame.
+
+**Flip is a property of the sprite.** `set_horizontal_flip(true)` mirrors the sprite in hardware, with no extra tiles. It stays until you change it, whatever animation is playing.
+
+## The smallest thing that works
+
+**Left** and **right** turn the hero around. **A** swings the sword, with a small lunge forward.
+
+The image is a 160x32 indexed `.bmp`: five 32x32 frames side by side, the first one standing and the other four the swing.
+
+<figure>
+	<img src="/images/sprites/hero-sheet.png" width="640" height="128" style={{ imageRendering: 'pixelated' }} alt="The hero.bmp sheet: the hero standing, then four frames of a sword swing to the right." />
+	<figcaption>`hero.bmp`, 4x bigger.</figcaption>
+</figure>
+
+On screen, the sprite shows frame 0 while standing. The action plays frames 1 to 4 once, each for 4 screen frames (about 70 ms), and the code goes back to frame 0:
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+	<figure style={{ margin: 0 }}>
+		<img src="/images/sprites/hero-standing.png" width="128" height="128" style={{ imageRendering: 'pixelated' }} alt="The hero standing, facing right." />
+		<figcaption>Standing: frame 0.</figcaption>
+	</figure>
+	<figure style={{ margin: 0 }}>
+		<img src="/images/sprites/hero-swing.gif" width="128" height="128" style={{ imageRendering: 'pixelated' }} alt="The hero swinging the sword, then standing again, in a loop." />
+		<figcaption>The swing at real speed.</figcaption>
+	</figure>
+</div>
+
+The `.json` says how to cut it:
+
+<Code code={heroJson} lang="json" title="snippets/sprites/graphics/hero.json" />
+
+The `.bmp` has 16 colors, so the sprite uses 4 bits per pixel. The first color in the palette is the transparent one.
+
+<Code code={sprites} lang="cpp" title="snippets/sprites/src/main.cpp" />
+
+<Rom name="sprites" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The `.bmp` is made from it by [`snippets/tools/hero_sheet.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/hero_sheet.py).
+
+## Pitfalls
+
+**"no matching function for call to `bn::sprite_ptr::sprite_ptr()`".**
+`bn::sprite_ptr` has no default constructor: there is no "empty sprite". A class member of that type must be created in the constructor's initializer list. If the sprite really may not exist, use `bn::optional<bn::sprite_ptr>`, the same way the snippet does with its animation.
+
+**The animation is stuck on its first frame.**
+Either you never call `update()` on the action, or you create the action again every frame, for example inside an `if(bn::keypad::a_held())`. A new action starts at frame 0. Create it once, when the animation starts (`pressed` is usually the right moment), and update it every frame after that.
+
+**The character faces the wrong way after changing animation.**
+The flip belongs to the sprite, not to the animation, so a new animation keeps the flip of the previous one. Whenever you start an animation, set the flip too, even when it's `false`.
+
+**A box or a halo around the sprite.**
+Palette index 0 is transparent, whatever color it is. If your image editor put the background color somewhere else in the palette, the background is drawn. Semi-transparent pixels are another source: the GBA has no per-pixel alpha, so soft shadows and anti-aliased edges must become solid colors before import. That's why the snippet's tool blends the shadow onto the backdrop color.
+
+**The importer complains about the colors or the bits per pixel.**
+A 4bpp sprite has 16 colors, the transparent one included. With more colors the sprite becomes 8bpp, which takes twice the video memory, or the import fails if the `.json` asks for `"bpp_mode": "bpp_4"`. Reduce the colors in your editor, and make sure the `.bmp` is indexed and uncompressed.
+
+**The sprite looks off-center.**
+The position is the center of the frame, not of the drawing. If your art sits in a corner of a 32x32 cell, so does it on screen. Center the art in the cell, or account for the offset.
+
+## Read more
+
+- Butano example: [`examples/sprites`](https://github.com/GValiente/butano/tree/master/examples/sprites).
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), [`bn_sprite_animate_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_animate_actions.h).
+- Reference: [`bn::sprite_ptr`](https://gvaliente.github.io/butano/classbn_1_1sprite__ptr.html), and [importing assets](https://gvaliente.github.io/butano/import.html) for every `.json` field.
+- Tonc: [regular sprites](https://gbadev.net/tonc/regobj.html), for what the hardware does with tiles, sizes and flips.

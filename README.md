@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: writing the pilot pages. Nothing is published yet.
+> Status: the three pilot pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -53,7 +53,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 1. **First project and the game loop:** `bn::core::init`, `bn::core::update`, why everything runs inside `while(true)`, and what 60 frames per second means. There are no events: you ask for the state every frame.
 2. **Input:** `pressed`, `held` and `released`, and when to use each one.
 3. **Sprites and animation:**
-   - importing a `.bmp` with its `.json`;
+   - importing a `.bmp` with its `.json` (frames can sit side by side: `width` and `height` cut the image);
    - `bn::sprite_ptr`;
    - positions as `bn::fixed`;
    - `sprite_animate_action`;
@@ -81,13 +81,13 @@ These come from gg-game and belong in the pages above:
 
 ## To do
 
-- [ ] Find CC0 assets. Good options:
+- [x] Find CC0 assets: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, in `assets/zelda-like/`. Other good sources:
   - [Kenney.nl](https://kenney.nl): everything there is CC0. *Tiny Town* and *Tiny Dungeon* are 16x16 tiles with characters.
   - [OpenGameArt.org](https://opengameart.org), filtered by CC0. Beware: it also has CC-BY, which needs credit.
 - [x] Set up Starlight in `site/` and the Butano project in `snippets/`.
-- [ ] Write the three pilot pages.
-- [ ] Import the repository in Netlify (settings come from `netlify.toml`).
-- [ ] Point `gbadev.ggdaltoso.dev` at the published site.
+- [x] Write the three pilot pages.
+- [x] Import the repository in Netlify (settings come from `netlify.toml`).
+- [x] Point `gbadev.ggdaltoso.dev` at the published site.
 
 ## Credits
 
