@@ -9,18 +9,53 @@ const { name } = Astro.props;
 ---
 
 <gba-rom data-name={name}>
-	<canvas width="240" height="160"></canvas>
-	<button type="button">▶ Run {name}.gba</button>
+	<div class="bezel">
+		<span class="led"></span>
+		<div class="screen">
+			<canvas width="240" height="160"></canvas>
+			<button type="button">▶&#xFE0E; Run {name}.gba</button>
+		</div>
+	</div>
 	<p class="keys">Arrows: D-pad · X: A · Z: B · Enter: Start · Backspace: Select · A/S: L/R</p>
 </gba-rom>
 
 <style>
 	gba-rom {
 		display: block;
-		position: relative;
-		max-width: 480px;
+		max-width: 560px;
 		margin-inline: auto;
 		text-align: center;
+	}
+	/* A handheld-like frame: plain shapes, no logos. Starlight spaces sibling
+	   elements in content, so margins are reset inside. */
+	gba-rom * {
+		margin: 0;
+	}
+	.bezel {
+		position: relative;
+		padding: 5% 9% 7%;
+		border-radius: 0.5rem 0.5rem 1.75rem 1.75rem;
+		background: #34343f;
+		box-shadow:
+			inset 0 -4px 0 rgb(0 0 0 / 0.25),
+			0 6px 16px rgb(0 0 0 / 0.3);
+	}
+	.led {
+		position: absolute;
+		left: 3.5%;
+		top: 45%;
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background: #2a2a30;
+	}
+	gba-rom.on .led {
+		background: #7be37b;
+		box-shadow: 0 0 6px #7be37b;
+	}
+	.screen {
+		position: relative;
+		box-shadow: 0 0 0 2px #1d1d24;
 	}
 	canvas {
 		display: block;
@@ -31,8 +66,7 @@ const { name } = Astro.props;
 	}
 	button {
 		position: absolute;
-		inset: 0 0 auto 0;
-		aspect-ratio: 3 / 2;
+		inset: 0;
 		width: 100%;
 		border: 0;
 		background: transparent;
@@ -41,6 +75,7 @@ const { name } = Astro.props;
 		cursor: pointer;
 	}
 	.keys {
+		margin-top: 0.75rem;
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-3);
 	}
@@ -76,6 +111,7 @@ const { name } = Astro.props;
 			emulator.FS.writeFile(path, new Uint8Array(await response.arrayBuffer()));
 			emulator.loadGame(path);
 			button.remove();
+			this.classList.add('on');
 		}
 	}
 	customElements.define('gba-rom', GbaRom);

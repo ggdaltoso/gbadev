@@ -1,0 +1,61 @@
+---
+title: Input
+description: bn::keypad's pressed, held and released, and when to use each one.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import input from '../../../../../snippets/input/src/main.cpp?raw';
+
+## When to use it
+
+Whenever the player does something. `bn::keypad` is the only way to read the buttons in Butano, and there is no event or callback alternative: you ask every frame.
+
+Every button has three questions you can ask, as functions like `bn::keypad::a_pressed()` or as `bn::keypad::pressed(bn::keypad::key_type::A)` when the button is a variable.
+
+| Function | True when | For how many frames |
+|---|---|---|
+| `a_pressed()` | A was up last frame and is down now | one |
+| `a_held()` | A is down | every frame it stays down |
+| `a_released()` | A was down last frame and is up now | one |
+
+## How to think about it
+
+**The keypad is a snapshot, taken once per frame.** `bn::core::update()` reads the buttons and compares them with the previous frame's reading. Until the next update, every call gives the same answer, no matter how many times or from where you ask.
+
+**Pick the function by asking "how often should this happen?"**
+
+- Once per press (toggle, menu choice, jump, cycling an option): `pressed`.
+- Every frame while the button is down (walking, charging, accelerating): `held`.
+- Once, when the player lets go (fire a charged shot, end a drag): `released`.
+
+## The smallest thing that works
+
+Hold **A** to charge: the screen turns bluer each frame. Let go to fire: it flashes, longer after a longer charge. Press **B** to change the flash color.
+
+<Code code={input} lang="cpp" title="snippets/input/src/main.cpp" />
+
+<Rom name="input" />
+
+## Pitfalls
+
+**A toggle or a menu cursor goes crazy.**
+You used `held` for something that should happen once. At 60 frames per second, a short tap is several frames long, so the toggle flips several times and lands on a random side, and the cursor flies to the end of the list. Use `pressed`. If you want a cursor to repeat while the button stays down, count the frames it has been `held` and step every N frames.
+
+**One press does two things.**
+`pressed` is not consumed when you read it: it stays true for the whole frame. If A closes a dialog and your game code also checks A later in the same frame, that same press also makes the character jump. After handling a press, skip the rest of the input for that frame, for example by returning from the function or changing to a state that only reads input on the next frame.
+
+**Left and right at the same time.**
+A real D-pad can't press opposite directions together, but a keyboard in an emulator can. With two separate `if`s, both run and the moves cancel out or fight. Use `else if`, or decide which direction wins.
+
+**The button never seems to change.**
+You are waiting for it in a loop that doesn't call `bn::core::update()`, so the snapshot is never refreshed. See [the game loop](/basics/game-loop/#pitfalls).
+
+## Read more
+
+- Butano example: [`examples/keypad`](https://github.com/GValiente/butano/tree/master/examples/keypad).
+- Header: [`bn_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_keypad.h).
+- Reference: [`bn::keypad`](https://gvaliente.github.io/butano/namespacebn_1_1keypad.html).
+- Tonc: [the GBA keypad](https://gbadev.net/tonc/keys.html), especially the part on transitional states.
