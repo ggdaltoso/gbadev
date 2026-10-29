@@ -6,7 +6,16 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: planning. Nothing is published yet.
+> Status: writing the pilot pages. Nothing is published yet.
+
+## Building
+
+```sh
+cd snippets && make                              # needs devkitARM; Butano expected at ../../butano/butano
+                                                 # commit the rebuilt .gba files: the site runs them
+make LIBBUTANO=/path/to/butano/butano            # or point it elsewhere
+cd site && pnpm install && pnpm dev              # the site (build the snippets first: pages run their ROMs)
+```
 
 ## How each page works
 
@@ -22,7 +31,7 @@ The official reference stays the source of truth for signatures. Pages link to i
 
 ## Rules
 
-- **Every snippet compiles.** Snippets live in a Butano project under `snippets/`, and `make` builds them all. A guide with code that doesn't build is worse than no guide.
+- **Every snippet compiles.** Each snippet is its own ROM in a folder under `snippets/`, and `make` there builds them all. Pages import the source straight from that folder, so what you read is what was built. A guide with code that doesn't build is worse than no guide.
 - **Examples are our own.** They show the tool with a different example than the gg-game lesson challenges, so the guide never spoils a lesson.
 - **Only CC0 art** goes in `assets/`, with a `CREDITS.md` per pack. No assets with "use in games, don't redistribute" licenses.
 - **English** for pages, code and comments.
@@ -31,7 +40,7 @@ The official reference stays the source of truth for signatures. Pages link to i
 
 ```
 site/        Astro Starlight: the pages, in Markdown
-snippets/    a Butano project with every snippet in the guide
+snippets/    one Butano ROM per snippet; `make` builds them all
 assets/      CC0 art only, with CREDITS.md per pack
 ```
 
@@ -75,8 +84,9 @@ These come from gg-game and belong in the pages above:
 - [ ] Find CC0 assets. Good options:
   - [Kenney.nl](https://kenney.nl): everything there is CC0. *Tiny Town* and *Tiny Dungeon* are 16x16 tiles with characters.
   - [OpenGameArt.org](https://opengameart.org), filtered by CC0. Beware: it also has CC-BY, which needs credit.
-- [ ] Set up Starlight in `site/` and the Butano project in `snippets/`.
+- [x] Set up Starlight in `site/` and the Butano project in `snippets/`.
 - [ ] Write the three pilot pages.
+- [ ] Import the repository in Netlify (settings come from `netlify.toml`).
 - [ ] Point `gbadev.ggdaltoso.dev` at the published site.
 
 ## Credits

@@ -1,0 +1,50 @@
+---
+title: First project and the game loop
+description: bn::core::init, bn::core::update, and why everything runs inside while(true).
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import gameLoop from '../../../../../snippets/game-loop/src/main.cpp?raw';
+
+## When to use it
+
+Always. Every Butano game is one `main()` that calls `bn::core::init()` once and then runs `bn::core::update()` forever. There is no alternative to pick here, only a shape to learn.
+
+## How to think about it
+
+**The GBA draws 60 frames per second, and your loop runs once per frame.** Each pass of `while(true)` is one frame: read the state, change your objects, then call `bn::core::update()`. That call pushes your changes to the screen, waits for the next frame, and reads the buttons again.
+
+**There are no events.** Nothing calls you when a button is pressed or a timer ends. You ask every frame: "is A pressed *now*?", "has this counter reached 60?". Time is counted in frames, so 60 frames is one second.
+
+**`main()` never returns.** Anything after the loop never runs. Objects you create before the loop live for the whole game. Objects you create inside it live for one pass.
+
+## The smallest thing that works
+
+The backdrop switches between red and blue every second, counted in frames:
+
+<Code code={gameLoop} lang="cpp" title="snippets/game-loop/src/main.cpp" />
+
+<Rom name="game-loop" />
+
+To build it yourself, run `make` inside `snippets/game-loop` and open `game-loop.gba` in an emulator such as [mGBA](https://mgba.io).
+
+## Pitfalls
+
+**The screen freezes or never shows anything.**
+You forgot `bn::core::update()` in the loop, or a branch skips it (an early `continue`, a nested loop waiting for something). Without it nothing reaches the screen and the buttons are never read again, so a loop like `while(! bn::keypad::a_pressed()) {}` waits forever. Call `bn::core::update()` inside every loop that spans frames.
+
+**A sprite shows up for one frame, or never.**
+Butano objects like `bn::sprite_ptr` are removed from the screen when they are destroyed. One created inside the loop, or inside an `if`, dies at the closing brace. Create it before the loop, or keep it in a variable that outlives the frame.
+
+**The game runs slower when there is a lot going on.**
+Speed counted in frames assumes every frame finishes in time. If the work of one pass takes longer than a frame, the GBA misses screen refreshes and everything slows down. `bn::core::last_missed_frames()` tells you how many were missed, and `bn::core::current_cpu_usage()` above 1 means you are over budget.
+
+## Read more
+
+- Butano example: [`examples/core`](https://github.com/GValiente/butano/tree/master/examples/core).
+- Header: [`bn_core.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_core.h).
+- Reference: [`bn::core`](https://gvaliente.github.io/butano/namespacebn_1_1core.html).
+- Tonc: [the VBlank and the display](https://gbadev.net/tonc/video.html), for what "waiting for the next frame" means in hardware.

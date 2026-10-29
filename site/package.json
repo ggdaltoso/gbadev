@@ -1,0 +1,20 @@
+{
+  "name": "site",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "pnpm static && astro dev",
+    "start": "pnpm static && astro dev",
+    "build": "pnpm static && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "static": "mkdir -p public/roms public/mgba && cp ../snippets/*/*.gba public/roms/ && cp node_modules/@thenick775/mgba-wasm/dist/mgba.js node_modules/@thenick775/mgba-wasm/dist/mgba.wasm public/mgba/"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.7",
+    "@thenick775/mgba-wasm": "2.6.0",
+    "astro": "^7.2.10",
+    "sharp": "^0.35.3"
+  },
+  "packageManager": "pnpm@11.4.0"
+}

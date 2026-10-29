@@ -1,0 +1,9 @@
+# Netlify only builds the site. The snippet ROMs are committed, since
+# devkitARM can't be installed in Netlify's build image.
+[build]
+  base = "site"
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"

@@ -1,0 +1,82 @@
+---
+// Runs a snippet ROM in the page with mGBA (WebAssembly).
+// The page must be cross-origin isolated: see public/_headers.
+interface Props {
+	/** Snippet folder name: snippets/<name>/<name>.gba */
+	name: string;
+}
+const { name } = Astro.props;
+---
+
+<gba-rom data-name={name}>
+	<canvas width="240" height="160"></canvas>
+	<button type="button">▶ Run {name}.gba</button>
+	<p class="keys">Arrows: D-pad · X: A · Z: B · Enter: Start · Backspace: Select · A/S: L/R</p>
+</gba-rom>
+
+<style>
+	gba-rom {
+		display: block;
+		position: relative;
+		max-width: 480px;
+		margin-inline: auto;
+		text-align: center;
+	}
+	canvas {
+		display: block;
+		width: 100%;
+		aspect-ratio: 3 / 2;
+		background: #000;
+		image-rendering: pixelated;
+	}
+	button {
+		position: absolute;
+		inset: 0 0 auto 0;
+		aspect-ratio: 3 / 2;
+		width: 100%;
+		border: 0;
+		background: transparent;
+		color: #fff;
+		font-size: 1.25rem;
+		cursor: pointer;
+	}
+	.keys {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+</style>
+
+<script>
+	// shortcut: mGBA is one stateful runtime, so only one ROM per page; split into instances if a page needs two.
+	class GbaRom extends HTMLElement {
+		connectedCallback() {
+			const button = this.querySelector('button')!;
+			button.addEventListener('click', () => this.run(button), { once: true });
+		}
+
+		async run(button: HTMLButtonElement) {
+			const name = this.dataset.name!;
+			if (!crossOriginIsolated) {
+				button.textContent = 'This page is not cross-origin isolated, so the emulator cannot start.';
+				return;
+			}
+			button.textContent = 'Loading…';
+			// Absolute URL: Vite dev leaves it alone instead of adding ?import to a public/ file.
+			const mgbaUrl = new URL('/mgba/mgba.js', location.href).href;
+			const { default: mGBA } = await import(/* @vite-ignore */ mgbaUrl);
+			const emulator = await mGBA({ canvas: this.querySelector('canvas')! });
+			await emulator.FSInit();
+
+			const response = await fetch(`/roms/${name}.gba`);
+			if (!response.ok) {
+				button.textContent = `Could not load ${name}.gba (${response.status}).`;
+				return;
+			}
+			const path = `${emulator.filePaths().gamePath}/${name}.gba`;
+			emulator.FS.writeFile(path, new Uint8Array(await response.arrayBuffer()));
+			emulator.loadGame(path);
+			button.remove();
+		}
+	}
+	customElements.define('gba-rom', GbaRom);
+</script>

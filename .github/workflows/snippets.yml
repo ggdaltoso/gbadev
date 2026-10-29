@@ -1,0 +1,25 @@
+# Checks that every snippet compiles. The ROMs the site runs are the
+# committed ones, so rebuild and commit them when a snippet changes.
+name: Snippets
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: GValiente/butano
+          ref: '21.9.0'
+          path: butano
+
+      - name: Build snippets
+        run: >
+          docker run --rm -v "$PWD:/w" -w /w/snippets devkitpro/devkitarm
+          sh -c "apt-get update -qq && apt-get install -y -qq python3 && make -j4 LIBBUTANO=/w/butano/butano"
