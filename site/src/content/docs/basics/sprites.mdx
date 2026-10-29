@@ -41,13 +41,13 @@ The image is a 160x32 indexed `.bmp`: five 32x32 frames side by side, the first 
 
 On screen, the sprite shows frame 0 while standing. The action plays frames 1 to 4 once, each for 4 screen frames (about 70 ms), and the code goes back to frame 0:
 
-<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-	<figure style={{ margin: 0 }}>
-		<img src="/images/sprites/hero-standing.png" width="128" height="128" style={{ imageRendering: 'pixelated' }} alt="The hero standing, facing right." />
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '200px' }}>
+		<img src="/images/sprites/hero-standing.png" width="128" height="128" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero standing, facing right." />
 		<figcaption>Standing: frame 0.</figcaption>
 	</figure>
-	<figure style={{ margin: 0 }}>
-		<img src="/images/sprites/hero-swing.gif" width="128" height="128" style={{ imageRendering: 'pixelated' }} alt="The hero swinging the sword, then standing again, in a loop." />
+	<figure style={{ margin: 0, maxWidth: '200px' }}>
+		<img src="/images/sprites/hero-swing.gif" width="128" height="128" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero swinging the sword, then standing again, in a loop." />
 		<figcaption>The swing at real speed.</figcaption>
 	</figure>
 </div>

@@ -1,0 +1,152 @@
+---
+title: Backgrounds
+description: Regular backgrounds, the four layers, priorities, transparency and scrolling.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import backgrounds from '../../../../../snippets/backgrounds/src/main.cpp?raw';
+import landJson from '../../../../../snippets/backgrounds/graphics/land.json?raw';
+
+## When to use it
+
+For anything big that's made of repeating pieces: the level, the sky, the frame around a menu. A background covers the whole screen and costs almost nothing to draw or scroll, while covering the same area with sprites would use dozens of them.
+
+This page is about **regular** backgrounds: up to four of them at once, each one a map of 8x8 tiles. The alternatives are affine backgrounds, which can rotate and scale but give up two of the four layers, and bitmap backgrounds, where you draw pixel by pixel at a much higher cost.
+
+## How to think about it
+
+**A background is a map of tiles, not an image.** At build time, Butano cuts the `.bmp` into 8x8 tiles, keeps one copy of each tile (flipped copies count as the same tile), and writes a map saying which tile goes in each cell. Each 256x256 layer below has 1024 cells, but only 25 different tiles in the water and 19 in the land. Repetitive art is cheap; a unique painting is not.
+
+**Maps are 256 or 512 pixels per side.** The hardware draws those directly. Butano also accepts bigger maps, in multiples of 256, and streams the visible part to video memory as you scroll.
+
+**Four layers, stacked by priority.** Each background, and each sprite, has a priority from 0 to 3, and lower numbers are drawn in front. On a tie, sprites go in front of backgrounds. Between two backgrounds with the same priority, `set_z_order` decides, and after that the most recently created one goes in front.
+
+**Palette index 0 is a hole.** Wherever a layer has color 0, you see the layer behind it. Below all layers is the backdrop, the color set with `bn::bg_palettes::set_transparent_color`.
+
+**The position works like a sprite's, and the map wraps around.** `(0, 0)` puts the map's center at the screen's center, and a larger y moves the map down. Past the edge, the hardware starts again from the other side, so a map scrolled by 256 pixels looks exactly like one that didn't move. That makes endless scrolling free: water, clouds, a starfield.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="-48 -40 352 400" role="img" aria-label="The 256x256 river map surrounded by faded copies of itself. The 240x160 screen rectangle crosses the map's bottom edge, and below the edge it shows the top of the same map, with no seam." style={{ display: 'block', width: '100%', maxWidth: '440px', marginInline: 'auto' }}>
+		<defs>
+			<clipPath id="wrap-screen">
+				<rect x="8" y="176" width="240" height="160" />
+			</clipPath>
+		</defs>
+		<g opacity="0.35">
+			{[-256, 0, 256].flatMap((y) => [-256, 0, 256].map((x) => (
+				<image key={`${x},${y}`} href="/images/backgrounds/river-map.png" x={x} y={y} width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+			)))}
+		</g>
+		<image href="/images/backgrounds/river-map.png" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+		<g clip-path="url(#wrap-screen)">
+			<image href="/images/backgrounds/river-map.png" y="256" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+		</g>
+		<rect width="256" height="256" fill="none" stroke="currentColor" stroke-width="1.5" />
+		<rect x="8" y="176" width="240" height="160" fill="none" stroke="#ff4d8d" stroke-width="3" />
+		<g font-size="14" font-weight="600" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">
+			<text x="10" y="20">map, 256x256</text>
+			<text x="14" y="196">screen, 240x160</text>
+			<text x="14" y="276">the map again, from its top</text>
+		</g>
+	</svg>
+	<figcaption>The screen crossing the bottom edge of the map. Past the edge, the hardware draws the map again from the top, so the river goes on with no seam.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+A river: the water layer flows down by itself, and the land layer sits on top with a hole where the river is.
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '256px' }}>
+		<img src="/images/backgrounds/water.png" width="256" height="256" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="water.bmp: a 256x256 map of flowing water streaks." />
+		<figcaption>`water.bmp`, priority 3.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '256px' }}>
+		<img src="/images/backgrounds/land.png" width="256" height="256" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="land.bmp: grass on both sides and a checkerboard river channel down the middle, marking the transparent pixels." />
+		<figcaption>`land.bmp`, priority 2. The checkerboard is color 0.</figcaption>
+	</figure>
+</div>
+
+Stacked by priority, the land is in front, the water behind it shows through the hole, and the backdrop is behind everything:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 464 360" role="img" aria-label="Exploded view of the layers, from back to front: the backdrop, the water background with priority 3, and the land background with priority 2, whose river channel is a hole that shows the water." style={{ display: 'block', width: '100%', maxWidth: '464px', marginInline: 'auto' }}>
+		<g transform="translate(170 190) matrix(0.52 0.3 -0.52 0.3 0 0)">
+			<rect width="256" height="256" fill="#1d1d24" stroke="currentColor" stroke-opacity="0.35" vector-effect="non-scaling-stroke" />
+		</g>
+		<g transform="translate(170 110) matrix(0.52 0.3 -0.52 0.3 0 0)">
+			<image href="/images/backgrounds/water.png" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+			<rect width="256" height="256" fill="none" stroke="currentColor" stroke-opacity="0.35" vector-effect="non-scaling-stroke" />
+			<rect x="108" width="38" height="256" fill="#fff" fill-opacity="0.25" stroke="#fff" stroke-width="1.5" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" />
+		</g>
+		<g stroke="currentColor" stroke-opacity="0.6" stroke-dasharray="4 3">
+			<line x1="93" y1="139" x2="93" y2="219" />
+			<line x1="113" y1="151" x2="113" y2="231" />
+		</g>
+		<g transform="translate(170 30) matrix(0.52 0.3 -0.52 0.3 0 0)">
+			<image href="/images/backgrounds/land-alpha.png" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+			<rect width="256" height="256" fill="none" stroke="currentColor" stroke-opacity="0.35" vector-effect="non-scaling-stroke" />
+		</g>
+		<g fill="currentColor" stroke="currentColor" font-size="14">
+			<line x1="303" y1="107" x2="345" y2="107" stroke-opacity="0.5" />
+			<text x="352" y="104" stroke="none" font-weight="600">land.bmp</text>
+			<text x="352" y="122" stroke="none">priority 2</text>
+			<line x1="303" y1="187" x2="345" y2="187" stroke-opacity="0.5" />
+			<text x="352" y="184" stroke="none" font-weight="600">water.bmp</text>
+			<text x="352" y="202" stroke="none">priority 3</text>
+			<line x1="303" y1="267" x2="345" y2="267" stroke-opacity="0.5" />
+			<text x="352" y="264" stroke="none" font-weight="600">backdrop</text>
+			<text x="352" y="282" stroke="none">transparent color</text>
+			<line x1="14" y1="330" x2="14" y2="48" stroke-opacity="0.5" />
+			<path d="M8 50 L14 38 L20 50 Z" stroke="none" fill-opacity="0.5" />
+			<text x="4" y="28" stroke="none">front</text>
+			<text x="4" y="352" stroke="none">back</text>
+		</g>
+	</svg>
+	<figcaption>The same two layers, pulled apart. You look at the stack from the top, and the dashed strip of water is what shows through the hole.</figcaption>
+</figure>
+
+Both are indexed `.bmp`s with fewer than 16 colors, so they use 4 bits per pixel. For backgrounds, the `.json` must say so:
+
+<Code code={landJson} lang="json" title="snippets/backgrounds/graphics/land.json" />
+
+<Code code={backgrounds} lang="cpp" title="snippets/backgrounds/src/main.cpp" />
+
+<figure>
+	<img src="/images/backgrounds/river.gif" width="480" height="320" style={{ imageRendering: 'pixelated' }} alt="The river scene: water flowing down between two grass banks." />
+	<figcaption>The two layers together, as on screen (2x).</figcaption>
+</figure>
+
+<Rom name="backgrounds" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. Both `.bmp`s are built from its overworld tileset by [`snippets/tools/river_bgs.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/river_bgs.py).
+
+## Pitfalls
+
+**"bpp_mode field not found in graphics json file".**
+Sprites guess the bits per pixel from the colors, backgrounds don't. Add `"bpp_mode": "bpp_4"` (up to 16 colors) or `"bpp_mode": "bpp_8"` (up to 256) to the `.json`.
+
+**A background is in front of the wrong thing.**
+Two backgrounds with the same priority and z order are ordered by creation, and changing one's priority or z order later counts as creating it again. Don't rely on that: set the priority of every layer explicitly, as the snippet does. And remember that a sprite with the same priority as a background is drawn in front of it.
+
+**One layer hides everything behind it.**
+It has no pixels with color 0. Usually the image editor put the "empty" color somewhere else in the palette, so it's drawn as a solid color. Make sure the transparent color is the first one in the palette.
+
+**The colors of one background change when another one appears.**
+All 8bpp backgrounds share a single 256-color palette, so two 8bpp layers with different palettes fight over it. Use 4bpp when you can, or export every 8bpp layer with the exact same palette.
+
+**The other side of the map shows up at the edge.**
+That's the wrap-around. It's great for water and terrible for a level with borders. When something follows the player, stop it before it shows past the edge of the map (see the camera page, coming soon).
+
+**Map sizes in cells, not pixels.**
+`map_item().dimensions()` is measured in 8x8 cells: a 256x256 map is 32x32. Multiply by 8 before comparing with pixel positions.
+
+## Read more
+
+- Butano example: [`examples/regular_bgs`](https://github.com/GValiente/butano/tree/master/examples/regular_bgs).
+- Header: [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h).
+- Reference: [`bn::regular_bg_ptr`](https://gvaliente.github.io/butano/classbn_1_1regular__bg__ptr.html), and [importing assets](https://gvaliente.github.io/butano/import.html) for the `.json` fields.
+- Tonc: [regular tiled backgrounds](https://gbadev.net/tonc/regbg.html), for maps, screenblocks and scrolling in hardware.
