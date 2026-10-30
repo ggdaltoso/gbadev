@@ -31,6 +31,15 @@ Every button has three questions you can ask, as functions like `bn::keypad::a_p
 - Every frame while the button is down (walking, charging, accelerating): `held`.
 - Once, when the player lets go (fire a charged shot, end a drag): `released`.
 
+**The D-pad is a direction, not four buttons.** In a calculation, a `bool` is 1 when `true` and 0 when `false`, so subtracting the opposite directions gives -1, 0 or 1 per axis:
+
+```cpp
+bn::fixed_point direction(bn::keypad::right_held() - bn::keypad::left_held(),
+                          bn::keypad::down_held() - bn::keypad::up_held());
+```
+
+y is positive downwards, as on screen. Holding both opposite directions gives 0, so they cancel out instead of fighting. Multiply by a speed and add it to a position, as [the camera page](/basics/camera/) does. With `pressed` instead of `held`, the same subtraction moves a menu cursor: `down_pressed() - up_pressed()`. Diagonals are faster, by about 40%, because they move a full step on both axes. That's fine for a camera or a cursor; a character usually normalizes the vector.
+
 ## The smallest thing that works
 
 Hold **A** to charge: the screen turns bluer each frame. Let go to fire: it flashes, longer after a longer charge. Press **B** to change the flash color.
@@ -48,7 +57,7 @@ You used `held` for something that should happen once. At 60 frames per second, 
 `pressed` is not consumed when you read it: it stays true for the whole frame. If A closes a dialog and your game code also checks A later in the same frame, that same press also makes the character jump. After handling a press, skip the rest of the input for that frame, for example by returning from the function or changing to a state that only reads input on the next frame.
 
 **Left and right at the same time.**
-A real D-pad can't press opposite directions together, but a keyboard in an emulator can. With two separate `if`s, both run and the moves cancel out or fight. Use `else if`, or decide which direction wins.
+A real D-pad can't press opposite directions together, but a keyboard in an emulator can. With two separate `if`s, both run and the moves cancel out or fight. Use `else if`, decide which direction wins, or subtract them as shown above.
 
 **The button never seems to change.**
 You are waiting for it in a loop that doesn't call `bn::core::update()`, so the snapshot is never refreshed. See [the game loop](/basics/game-loop/#pitfalls).

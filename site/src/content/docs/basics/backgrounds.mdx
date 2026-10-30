@@ -139,7 +139,7 @@ It has no pixels with color 0. Usually the image editor put the "empty" color so
 All 8bpp backgrounds share a single 256-color palette, so two 8bpp layers with different palettes fight over it. Use 4bpp when you can, or export every 8bpp layer with the exact same palette.
 
 **The other side of the map shows up at the edge.**
-That's the wrap-around. It's great for water and terrible for a level with borders. When something follows the player, stop it before it shows past the edge of the map (see the camera page, coming soon).
+That's the wrap-around. It's great for water and terrible for a level with borders. When something follows the player, stop it before it shows past the edge of the map (see [the camera page](/basics/camera/#pitfalls)).
 
 **Map sizes in cells, not pixels.**
 `map_item().dimensions()` is measured in 8x8 cells: a 256x256 map is 32x32. Multiply by 8 before comparing with pixel positions.

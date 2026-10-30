@@ -1,0 +1,80 @@
+---
+title: Camera
+description: World and screen coordinates, set_camera, keeping the camera inside the map, and smooth follow.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import camera from '../../../../../snippets/camera/src/main.cpp?raw';
+
+## When to use it
+
+Whenever the world is bigger than the screen. Without a camera you'd move every background and every sprite yourself, in the opposite direction, every time the view changes. With `bn::camera_ptr`, you move one thing.
+
+## How to think about it
+
+**Screen positions become world positions.** Without a camera, a sprite at `(10, 0)` is 10 pixels right of the screen's center. After `sprite.set_camera(camera)`, `(10, 0)` is a spot in the world, and Butano draws the sprite at its position minus the camera's. The same goes for backgrounds.
+
+**The camera is the center of the screen.** A camera at `(0, 0)` shows the world from -120 to 120 horizontally and from -80 to 80 vertically. Move it right, and everything attached to it slides left on screen.
+
+**Whatever has no camera stays on the screen.** That's how you make a HUD: hearts, score and menus simply don't call `set_camera`.
+
+**The camera must stop half a screen before the edge.** A map centered on `(0, 0)` goes from minus half its size to plus half its size. Since the camera is the screen's center, it can go up to half the map minus half the screen: for a 512x512 map, ±136 horizontally and ±176 vertically. `bn::clamp` keeps it there.
+
+**Following is choosing where the camera goes each frame.** Set it on the target and it follows rigidly. Keep it within a box around the target and you get a dead zone, where small moves don't scroll the screen (that's another `clamp`). Or move it a fraction of the remaining distance every frame and you get a smooth follow: fast when far, slow when close. The snippet does the last one.
+
+## The smallest thing that works
+
+The **D-pad** moves the camera around a 512x512 map. **A** makes it glide to the sleeping stump, wherever you are.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="-260 -260 520 520" role="img" aria-label="The 512x512 world map. The world's origin is at the center. A pink rectangle is the screen, with the camera dot at its center, at (64, -96). A dashed rectangle shows where the camera can go: up to 136 from the center horizontally and 176 vertically. The stump sleeps at (-136, 168)." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<image href="/images/camera/world.png" x="-256" y="-256" width="512" height="512" style={{ imageRendering: 'pixelated' }} />
+		<rect x="-136" y="-176" width="272" height="352" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="6 5" />
+		<rect x="-56" y="-176" width="240" height="160" fill="none" stroke="#ff4d8d" stroke-width="3" />
+		<circle cx="64" cy="-96" r="4" fill="#ff4d8d" stroke="#fff" stroke-width="1.5" />
+		<path d="M-8 0 H8 M0 -8 V8" stroke="#fff" stroke-width="3" />
+		<g font-size="15" font-weight="600" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">
+			<text x="8" y="22">(0, 0)</text>
+			<text x="72" y="-90">camera (64, -96)</text>
+			<text x="-50" y="-158">screen</text>
+			<text x="-112" y="172">stump (-136, 168)</text>
+			<text x="130" y="168" text-anchor="end">camera limits</text>
+		</g>
+	</svg>
+	<figcaption>The world. The screen is wherever the camera is; the dashed box is where the camera's center can go.</figcaption>
+</figure>
+
+<Code code={camera} lang="cpp" title="snippets/camera/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/camera/glide.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Pressing A at the center of the map: the camera glides to the stump, fast at first and slowing down as it arrives." />
+	<figcaption>Pressing A at `(0, 0)`: a tenth of the distance per frame (2x).</figcaption>
+</figure>
+
+<Rom name="camera" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map and the stump are built by [`snippets/tools/camera_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/camera_assets.py).
+
+## Pitfalls
+
+**Something stays glued to the screen while the world moves.**
+It has no camera. Every sprite and background that belongs to the world needs `set_camera`, including the ones created later, like a bullet or an enemy that spawns mid-game.
+
+**The other side of the map shows up at the edge.**
+The camera went further than half a screen from the edge, and the background [wrapped around](/basics/backgrounds/#how-to-think-about-it). Clamp the camera after every change, whatever moved it.
+
+**The limits are off by a factor of 8.**
+`map_item().dimensions()` is in 8x8 cells. Half of a map's width in pixels is `dimensions().width() * 8 / 2`.
+
+**The camera stutters, or behaves differently on each side of `(0, 0)`.**
+`bn::clamp` needs its three arguments to have the same type. Calling `.integer()` on the position to match `int` limits throws the fraction away, so a smooth camera moves in uneven whole-pixel jumps. It also rounds toward zero, so everything from -1 to 1 becomes 0: around the center, one pixel takes twice as long as anywhere else. Make the limits `bn::fixed` instead, as the snippet does. When you do need an integer, `floor_integer()` always rounds down.
+
+## Read more
+
+- Butano example: [`examples/cameras`](https://github.com/GValiente/butano/tree/master/examples/cameras).
+- Header: [`bn_camera_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_camera_ptr.h).
+- Reference: [`bn::camera_ptr`](https://gvaliente.github.io/butano/classbn_1_1camera__ptr.html).
+- Tonc: [regular tiled backgrounds](https://gbadev.net/tonc/regbg.html). A camera is background scrolling done for you, plus moving every sprite by the same amount.
