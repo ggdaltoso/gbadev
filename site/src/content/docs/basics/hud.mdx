@@ -1,0 +1,100 @@
+---
+title: Text and HUD
+description: Sprite fonts, bn::sprite_text_generator, alignment, numbers that change, and text that stays on screen while the world moves.
+sidebar:
+  order: 8
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import hud from '../../../../../snippets/hud/src/main.cpp?raw';
+import fontHeader from '../../../../../snippets/hud/include/font.h?raw';
+
+## When to use it
+
+For anything written on screen: score, lives, coordinates, menus, a "Press START". A HUD (heads-up display) is the part that stays put while the game moves under it.
+
+## How to think about it
+
+**Text is sprites.** `bn::sprite_text_generator` draws a string into new sprites, 32 pixels wide each, and puts them in a `bn::vector<bn::sprite_ptr, N>` that you own. The text is on screen while that vector is alive and holds them. There is no "text object" to edit: to change the text, clear the vector and generate again.
+
+**A font is a sprite sheet plus widths.** The sheet has 94 glyphs, 8x8 or 8x16, from `!` to `~` in ASCII order, one below the other, in 16 colors. Without widths, every character takes the full 8 pixels. With a widths table, starting at the space, each character takes its own width, so an `i` doesn't leave a gap.
+
+**Generate when the text changes, not every frame.** Generating copies new tiles to video memory. Once is nothing; 60 times per second for text that didn't change is wasted time. Keep the last value you drew, and compare.
+
+**The HUD has no camera.** Text sprites are created without a camera, so they stay at their screen position while everything that called `set_camera` moves (see [the camera page](/basics/camera/#how-to-think-about-it)).
+
+**Alignment sets what x means.** With `set_left_alignment()`, the default, x is where the text starts. With `set_center_alignment()` it's the middle, and with `set_right_alignment()` the end. y is always the middle of the line. A number whose width changes, like 9 becoming 10 or -1, looks steady right-aligned: its last digit never moves.
+
+**Strings have a fixed size.** There is no heap in a typical Butano game. `bn::string<N>` holds up to N characters, and `bn::format<N>("X {}", value)` builds one, the way you'd use a template string.
+
+## The smallest thing that works
+
+The **D-pad** moves the camera over the map from [the camera page](/basics/camera/). The HUD shows where the camera is, top right, and a hint at the bottom.
+
+The font is made from the pack's `font.png`, with the letters lightened and a dark shadow one pixel below them, so they read over grass and water alike:
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/hud/font.png" width="486" height="294" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The font's 94 glyphs in ASCII order, 16 per row: punctuation and digits, uppercase letters, then lowercase. Characters the pack doesn't have are blank." />
+	<figcaption>`font.bmp`, 16 glyphs per row instead of one column (3x). The blanks are characters the pack doesn't have.</figcaption>
+</figure>
+
+A tool writes the font's header, with the widths it measured from each glyph:
+
+<Code code={fontHeader} lang="cpp" title="snippets/hud/include/font.h" />
+
+<Code code={hud} lang="cpp" title="snippets/hud/src/main.cpp" />
+
+The hint is 120 pixels wide, so the generator cuts it into four 32-pixel sprites:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="40 126 160 36" role="img" aria-label="The bottom of the screen with the text Arrows: look around. Four dashed rectangles, 32 by 16 pixels each, show the four sprites the text is cut into. The cuts fall in the middle of letters." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<image href="/images/hud/still.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+		<g fill="none" stroke="#ff4d8d" stroke-width="0.6" stroke-dasharray="1.5 1">
+			{[0, 1, 2, 3].map((i) => <rect key={i} x={60 + i * 32 + 0.3} y="142.3" width="31.4" height="15.4" />)}
+		</g>
+		<g font-size="4.5" font-weight="600" fill="#fff" stroke="#000" stroke-width="1" paint-order="stroke" text-anchor="middle">
+			{[0, 1, 2, 3].map((i) => <text key={i} x={76 + i * 32} y="139">sprite {i + 1}</text>)}
+		</g>
+	</svg>
+	<figcaption>One line of text, four sprites (4x). A cut can fall in the middle of a letter: each sprite gets whatever pixels land in it.</figcaption>
+</figure>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/hud/look.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Holding up and right: the map scrolls, the numbers top right count up to 136 and down to -176 and then stop, and the hint at the bottom never moves." />
+	<figcaption>Holding up and right, captured from the emulator (2x). The world moves, the text doesn't.</figcaption>
+</figure>
+
+<Rom name="hud" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The font is built from its `font.png` by [`snippets/tools/hud_font.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/hud_font.py), and the map is the camera page's.
+
+## Pitfalls
+
+**The text never shows up.**
+The vector holding its sprites was destroyed before the frame was drawn. A vector declared inside an `if`, a loop's body or a helper function dies at its closing brace, and the text goes with it. Declare it where it lives as long as the text should, usually before the loop.
+
+**"output_sprites vector is full".**
+The vector's capacity is too small. Each line needs its width divided by 32, rounded up: the hint above is 120 pixels, so 4 sprites. Add every line you put in the same vector.
+
+**The old text stays, or texts pile up.**
+`generate` adds sprites to the vector; it doesn't replace them. Call `clear()` first.
+
+**The game slows down, or other sprites flicker.**
+You generate text every frame, or keep too many lines alive. Text sprites count toward the 128 the hardware has. Regenerate only when the value changes.
+
+**Accented letters come out wrong or crash the game.**
+The font only covers ASCII, `!` to `~`. Anything else, like `ç` or `ã`, needs extra glyphs after the 94 and a `bn::utf8_characters_map` that says where each one is. Butano's `examples/text` does it.
+
+**The text is hidden behind a background.**
+Text sprites use the generator's background priority. Call `text_generator.set_bg_priority(0)` before generating so the HUD goes in front of everything.
+
+**The importer rejects the font.**
+Fonts must be 4bpp, with tiles that aren't compressed, and the `.json` must say the glyph height (`"height": 16` for 8x16).
+
+## Read more
+
+- Butano example: [`examples/text`](https://github.com/GValiente/butano/tree/master/examples/text), with fixed and variable width fonts, UTF-8 characters and text effects.
+- Headers: [`bn_sprite_text_generator.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_text_generator.h), [`bn_sprite_font.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_font.h), [`bn_format.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_format.h).
+- Reference: [`bn::sprite_text_generator`](https://gvaliente.github.io/butano/classbn_1_1sprite__text__generator.html), [`bn::sprite_font`](https://gvaliente.github.io/butano/classbn_1_1sprite__font.html).
+- Tonc: [text systems](https://gbadev.net/tonc/text.html), for the ways to draw text on the GBA and what each one costs.
