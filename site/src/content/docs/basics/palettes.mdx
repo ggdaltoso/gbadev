@@ -1,0 +1,128 @@
+---
+title: Palettes and colors
+description: 15-bit colors, palettes of indexes, the transparent index 0, shared palettes, and changing colors without touching tiles.
+sidebar:
+  order: 7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import palettes from '../../../../../snippets/palettes/src/main.cpp?raw';
+
+export const colors = ['#ff00ff', '#1e7cb8', '#1e7cb8', '#1e7cb8', '#1e7cb8', '#1e7cb8', '#1e7cb8', '#5aaee4', '#aad7f5', '#5aaee4', '#29973b', '#328e41', '#3abe41', '#5aaee4', '#6add4b', '#ffffff'];
+export const rotated = (i) => (i >= 1 && i <= 9 ? colors[1 + ((i - 2 + 9) % 9)] : colors[i]);
+export const waterIndex = (x, y) => 1 + ((Math.floor(y / 2) + Math.floor(x / 4) * 5) % 9);
+
+## When to use it
+
+Whenever you care about color, which is always: importing art, transparency, and every effect that changes colors on screen. Recoloring is the cheapest effect the GBA has. It never touches a tile, so it costs the same for one pixel or the whole screen.
+
+## How to think about it
+
+**Pixels store an index, not a color.** A 4bpp tile pixel is a number from 0 to 15, and the palette says which color each number is. Change color 3 of a palette, and every pixel with index 3, in every tile that uses that palette, changes in the same frame.
+
+**A color has 15 bits: 5 per channel.** `bn::color(r, g, b)` takes values from 0 to 31, so pure red is `bn::color(31, 0, 0)`. From the usual 0 to 255, divide by 8: `(90, 174, 228)` becomes `bn::color(11, 21, 28)`. The 3 lowest bits are lost, so colors closer than 8 apart become the same color on the GBA.
+
+**There are 16 palettes of 16 colors for backgrounds, and another 16 for sprites.** A 4bpp image uses one of them; an 8bpp image uses all 256 colors of its side as one big palette. When an item is created, Butano looks for an identical palette already in use and shares it, so a `bn::bg_palette_ptr` or `bn::sprite_palette_ptr` may belong to more than one thing.
+
+**Index 0 is never drawn.** Whatever color the image has there, index 0 is a hole (see [backgrounds](/basics/backgrounds/#how-to-think-about-it) and [sprites](/basics/sprites/#pitfalls)). Pick a color the art never uses, like magenta, so mistakes show.
+
+**Four ways to change colors without touching tiles.** All of them are methods of the palette, and most have [actions](https://gvaliente.github.io/butano/group__action.html) that animate them:
+
+| Method | What it does |
+|---|---|
+| `set_color`, `set_colors` | Replaces one color, or all of them, for example from another palette item. |
+| `set_fade` | Mixes every color with one color: 0 is the original, 1 is that color. |
+| `set_grayscale_intensity`, `set_inverted`, `set_hue_shift_intensity` | Ready-made filters, with the same 0 to 1 intensity. |
+| `set_rotate_range`, `set_rotate_count` | Rotates a range of colors: each index shows the color of its neighbor. |
+
+`bn::bg_palettes` and `bn::sprite_palettes` have the same effects for all palettes of a side at once, which is how you fade the whole screen.
+
+## The smallest thing that works
+
+The river from [the backgrounds page](/basics/backgrounds/), flowing again. This time it's a single layer that never scrolls: only nine colors of its palette move. Press **A** to make the river flow upstream.
+
+The water is painted with indexes 1 to 9, in short slanted stripes. Six of those colors are plain water, and three are a light streak:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="-4 -4 336 252" role="img" aria-label="A 16 by 12 pixel patch of the water, zoomed in. Each pixel shows its palette index, from 1 to 9. Indexes grow by one every two rows, and each 4-pixel column starts at a different index, so the light indexes 7, 8 and 9 form short dashes." style={{ display: 'block', width: '100%', maxWidth: '336px', marginInline: 'auto' }}>
+		{Array.from({ length: 12 * 16 }, (_, i) => {
+			const x = i % 16, y = Math.floor(i / 16), index = waterIndex(112 + x, 48 + y);
+			return (
+				<g key={i}>
+					<rect x={x * 20} y={y * 20} width="20" height="20" fill={colors[index]} />
+					<text x={x * 20 + 10} y={y * 20 + 14.5} font-size="11" text-anchor="middle" fill={index >= 7 ? '#1d1d24' : '#fff'}>{index}</text>
+				</g>
+			);
+		})}
+		<rect width="320" height="240" fill="none" stroke="currentColor" stroke-opacity="0.35" />
+	</svg>
+	<figcaption>A patch of the water, 16x16 bigger, with each pixel's index. The light streaks are indexes 7, 8 and 9.</figcaption>
+</figure>
+
+Rotating indexes 1 to 9 by one makes each index show the color of the one before it. The light colors move to higher indexes, and on this water higher indexes are lower on screen, so the streaks move down. Index 0 and the grass colors, 10 to 15, are outside the range and stay put:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="-60 -18 420 98" role="img" aria-label="The 16 colors of the river's palette, before and after one rotation of indexes 1 to 9. After the rotation, the three light colors are one index further right, and index 9's light color wrapped around to index 1. Indexes 0 and 10 to 15 didn't change." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor" text-anchor="middle">
+			{colors.map((_, i) => <text key={i} x={i * 22 + 10} y="-6">{i}</text>)}
+		</g>
+		{colors.map((c, i) => <rect key={`a${i}`} x={i * 22} y="0" width="20" height="20" fill={c} stroke="currentColor" stroke-opacity="0.35" />)}
+		{colors.map((_, i) => <rect key={`b${i}`} x={i * 22} y="48" width="20" height="20" fill={rotated(i)} stroke="currentColor" stroke-opacity="0.35" />)}
+		<g stroke="#ff4d8d" stroke-width="1.5" fill="none">
+			<path d="M20 26 v6 h196 v-6" />
+			<path d="M118 32 v10" />
+			<path d="M114 38 l4 5 l4 -5" />
+		</g>
+		<g font-size="11" fill="currentColor">
+			<text x="-56" y="14">before</text>
+			<text x="-56" y="62">after</text>
+			<text x="124" y="42">rotate 1 to 9 by one</text>
+		</g>
+	</svg>
+	<figcaption>The river's palette before and after one step. Index 1 gets the color that was at index 9.</figcaption>
+</figure>
+
+<Code code={palettes} lang="cpp" title="snippets/palettes/src/main.cpp" />
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '480px' }}>
+		<img src="/images/palettes/river.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="river.bmp as on screen: grass on both sides and a river with short light streaks." />
+		<figcaption>`river.bmp`, the part on screen (2x).</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '480px' }}>
+		<img src="/images/palettes/flow.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The same picture with its water colors rotating: the streaks flow down." />
+		<figcaption>The same pixels, rotating colors 1 to 9 (2x).</figcaption>
+	</figure>
+</div>
+
+<Rom name="palettes" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The `.bmp` is built from its overworld tileset by [`snippets/tools/palettes_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/palettes_assets.py), which also paints the stripes.
+
+## Pitfalls
+
+**Two colors that were different in the image look the same.**
+5 bits per channel: colors less than 8 apart in every channel become one. Compare colors after dividing by 8, not in your editor.
+
+**Changing one thing's colors changes another thing too.**
+They share the palette, because Butano gives identical palettes to the same `bn::sprite_palette_ptr` or `bn::bg_palette_ptr`. A palette effect applies to everyone that uses it. For the whole side, use `bn::bg_palettes` or `bn::sprite_palettes` instead.
+
+**Pixels that shouldn't move are blinking.**
+They use an index inside the rotation range. An image editor reuses an index for every pixel of the same color, so if the banks and a water stripe share a color, the banks rotate too. Give the pixels that must stay put their own index, even with a duplicated color. The tool for this snippet does exactly that.
+
+**"Invalid delta count", or the rotation wraps at the wrong place.**
+`bn::bg_palette_rotate_by_action` reads the range size when it's created. Call `set_rotate_range` first, then create the action, as the snippet does.
+
+**The backdrop isn't the color at index 0.**
+Index 0 is never drawn, in any palette. The color behind every layer comes from `bn::bg_palettes::set_transparent_color`.
+
+**Colors of an 8bpp image change when another one appears.**
+All 8bpp images of a side share the one 256-color palette. See [backgrounds](/basics/backgrounds/#pitfalls).
+
+## Read more
+
+- Butano example: [`examples/palettes`](https://github.com/GValiente/butano/tree/master/examples/palettes), with a scene for each effect, including rotation.
+- Headers: [`bn_color.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_color.h), [`bn_bg_palette_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_bg_palette_ptr.h), [`bn_bg_palette_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_bg_palette_actions.h), [`bn_bg_palettes.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_bg_palettes.h).
+- Reference: [`bn::bg_palette_ptr`](https://gvaliente.github.io/butano/classbn_1_1bg__palette__ptr.html), [`bn::sprite_palette_ptr`](https://gvaliente.github.io/butano/classbn_1_1sprite__palette__ptr.html), [`bn::color`](https://gvaliente.github.io/butano/classbn_1_1color.html).
+- Tonc: [video introduction](https://gbadev.net/tonc/video.html), for the 15-bit color format and palette memory.
