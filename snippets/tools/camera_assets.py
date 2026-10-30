@@ -30,7 +30,8 @@ def save_indexed(img, path):
     out.save(path)
 
 
-grass = [tile(0, 9), tile(1, 9), tile(0, 10)]
+# (0, 0) is the only grass tile with no shadow from a neighbor at its edges; the mirrored copy adds variety for free.
+grass = [tile(0, 0), tile(0, 0).transpose(Image.Transpose.FLIP_LEFT_RIGHT), tile(0, 0)]
 world = Image.new('RGB', (512, 512))
 for y in range(32):
     for x in range(32):

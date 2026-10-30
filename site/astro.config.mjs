@@ -8,6 +8,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'gbadev',
+			customCss: ['@fontsource-variable/jetbrains-mono', './src/styles/custom.css'],
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ggdaltoso/gbadev' }],
 			sidebar: [
 				{

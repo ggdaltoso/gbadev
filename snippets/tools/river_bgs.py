@@ -39,7 +39,8 @@ save_indexed(water, f'{out_folder}/water.bmp')
 
 # The pond's left and right borders, with their own water made transparent.
 pond_water = {tile(3, 7).getpixel((8, 8))}
-grass = [tile(0, 9), tile(1, 9), tile(0, 10)]
+# (0, 0) is the only grass tile with no shadow from a neighbor at its edges; the mirrored copy adds variety for free.
+grass = [tile(0, 0), tile(0, 0).transpose(Image.Transpose.FLIP_LEFT_RIGHT), tile(0, 0)]
 columns = {6: tile(2, 7), 7: None, 8: None, 9: tile(4, 7)}
 land = Image.new('RGB', (256, 256), TRANSPARENT)
 for y in range(16):

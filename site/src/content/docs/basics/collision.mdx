@@ -1,0 +1,116 @@
+---
+title: Map collision
+description: A collision map of cells, from a position to a cell, checking before moving, and one axis at a time.
+sidebar:
+  order: 6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import collision from '../../../../../snippets/collision/src/main.cpp?raw';
+import roomHeader from '../../../../../snippets/collision/include/room.h?raw';
+
+## When to use it
+
+Whenever something must not walk through the level: walls, water, furniture, the edge of the map. Collision between two moving things, like a player and an enemy, is a different problem: compare their boxes directly.
+
+## How to think about it
+
+**Collision is a second map, made of cells.** The GBA doesn't know what is solid; your game does. Keep a grid that says, for each cell, whether it blocks. It can be a list written by hand, an export from a map editor, or the tile indexes of the background itself (the Butano example does that). Cells are usually 16x16, bigger than the 8x8 hardware tiles, because that's the size of a "block" in most art.
+
+**From a position to a cell: shift, floor, divide.** Butano positions have `(0, 0)` at the center, cells start at the top-left corner. So:
+
+1. Add half the area's size: now `(0, 0)` is the top-left corner. With `floor_integer()`, -0.5 becomes -1, not 0.
+2. Anything below 0 or past the size is outside. Check it now, in pixels: in C++, `-1 / 16` is `0`, which looks like the first cell.
+3. Divide by the cell size: that's the column and the row.
+
+**Check before moving.** Compute where the thing would be, ask whether that spot is solid, and move only if it isn't. Nothing is ever inside a wall, not even for a frame, so there is nothing to undo.
+
+**A box, not a point.** Test the corners of a box around the thing. If the box is smaller than a cell, four corners are enough: no cell fits between them. A bigger box needs points along its sides, every cell size or less.
+
+**One axis at a time.** Check the horizontal step, then the vertical one, separately. Against a wall, only the blocked axis stops. A character slides along the wall instead of sticking to it; a bouncing thing reflects on that axis and keeps the other.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="-132 -92 264 184" role="img" aria-label="The room with its 16x16 collision grid. The coin's 10x10 box is next to a crate. Its next step to the right would put its two right corners inside the crate, so the coin bounces back horizontally, while its vertical step is free." style={{ display: 'block', width: '100%', maxWidth: '528px', marginInline: 'auto' }}>
+		<image href="/images/collision/room.png" x="-120" y="-80" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="#fff" stroke-opacity="0.45" stroke-width="0.5">
+			{Array.from({ length: 14 }, (_, i) => <line key={`c${i}`} x1={-104 + i * 16} y1="-80" x2={-104 + i * 16} y2="80" />)}
+			{Array.from({ length: 9 }, (_, i) => <line key={`r${i}`} x1="-120" y1={-64 + i * 16} x2="120" y2={-64 + i * 16} />)}
+		</g>
+		<g font-size="6" fill="currentColor" text-anchor="middle">
+			{Array.from({ length: 15 }, (_, i) => <text key={`ct${i}`} x={-112 + i * 16} y="-84">{i}</text>)}
+			{Array.from({ length: 10 }, (_, i) => <text key={`rt${i}`} x="-126" y={-70 + i * 16}>{i}</text>)}
+		</g>
+		<svg x="-85" y="-48" width="16" height="16" viewBox="0 0 16 16">
+			<image href="/images/collision/coin-sheet.png" width="64" height="16" style={{ imageRendering: 'pixelated' }} />
+		</svg>
+		<rect x="-82" y="-45" width="10" height="10" fill="none" stroke="#fff" stroke-width="0.75" />
+		<rect x="-80.75" y="-45" width="10" height="10" fill="none" stroke="#ff4d8d" stroke-width="0.75" stroke-dasharray="1.5 1" />
+		<g fill="#ff4d8d" stroke="#fff" stroke-width="0.4">
+			<circle cx="-71.75" cy="-45" r="1.4" />
+			<circle cx="-71.75" cy="-36" r="1.4" />
+		</g>
+		<g font-size="6.5" font-weight="600" fill="#fff" stroke="#000" stroke-width="1.5" paint-order="stroke">
+			<text x="-82" y="-24">next step to the right:</text>
+			<text x="-82" y="-16">corners in column 3, row 2: '#'</text>
+		</g>
+	</svg>
+	<figcaption>The room and its grid, in screen pixels. The coin's next step to the right (dashed) would put its right corners in the crate at column 3, row 2, so it bounces horizontally.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+A coin bounces around a room of crates. Press a **D-pad** direction to kick it that way.
+
+The room is a list of strings, one character per cell. A tool draws the background from the same list, so the picture and the collision can't disagree:
+
+<Code code={roomHeader} lang="cpp" title="snippets/collision/include/room.h" />
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '480px' }}>
+		<img src="/images/collision/room.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="room.bmp as on screen: grass with crates around the edges and in a few spots inside, matching room.h." />
+		<figcaption>`room.bmp`, the part on screen (2x).</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '256px' }}>
+		<img src="/images/collision/coin-sheet.png" width="256" height="64" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="coin.bmp: four 16x16 frames of a spinning gold coin." />
+		<figcaption>`coin.bmp`, four 16x16 frames (4x).</figcaption>
+	</figure>
+</div>
+
+<Code code={collision} lang="cpp" title="snippets/collision/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/collision/bounce.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The coin bouncing around the room, reflecting off the crates one axis at a time." />
+	<figcaption>Ten seconds of bouncing, with no kicks (2x).</figcaption>
+</figure>
+
+<Rom name="collision" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. Both `.bmp`s are built by [`snippets/tools/collision_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/collision_assets.py), which reads the room from `room.h`.
+
+## Pitfalls
+
+**It walks into a wall near the top or the left, but not elsewhere.**
+Negative numbers. `integer()` turns -0.5 into 0, and `-1 / 16` is 0 too, so a spot just past the top-left edge looks like the first cell. Use `floor_integer()` and check the bounds in pixels before dividing.
+
+**Everything is off by a factor of 2, or the grid is shifted.**
+The cell size is not the tile size: the hardware's 8x8 tiles have nothing to do with your 16x16 cells. And you forgot to add half the area before dividing, so `(0, 0)` became the corner instead of the center.
+
+**The wrong cell blocks.**
+With a flat array, the index is `row * columns + column`. `x * y` is not an index: column 2 of row 3 and column 3 of row 2 would be the same cell.
+
+**It sticks to the wall when moving diagonally.**
+You checked both axes in one step: the diagonal spot is blocked, so neither axis moves. Check and move one axis at a time.
+
+**It passes through thin walls when it's fast.**
+A step longer than a cell can jump over a whole cell without ever landing on it. Keep the speed below the cell size, or split a big step into smaller ones and check each.
+
+**It goes through corners, or a cell between two corners.**
+The box is bigger than a cell and you only check its four corners. Add points along the sides, no more than a cell size apart.
+
+## Read more
+
+- Butano example: [`examples/map_collision`](https://github.com/GValiente/butano/tree/master/examples/map_collision), which reads the collision from the background's own tile indexes.
+- Header: [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), for `floor_integer` and `integer`.
+- Reference: [`bn::regular_bg_map_item`](https://gvaliente.github.io/butano/classbn_1_1regular__bg__map__item.html), whose `cell` reads a map cell.
+- Tonc: [regular tiled backgrounds](https://gbadev.net/tonc/regbg.html), for how a map is laid out in memory.

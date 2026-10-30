@@ -18,7 +18,7 @@ This page is about **regular** backgrounds: up to four of them at once, each one
 
 ## How to think about it
 
-**A background is a map of tiles, not an image.** At build time, Butano cuts the `.bmp` into 8x8 tiles, keeps one copy of each tile (flipped copies count as the same tile), and writes a map saying which tile goes in each cell. Each 256x256 layer below has 1024 cells, but only 25 different tiles in the water and 19 in the land. Repetitive art is cheap; a unique painting is not.
+**A background is a map of tiles, not an image.** At build time, Butano cuts the `.bmp` into 8x8 tiles, keeps one copy of each tile (flipped copies count as the same tile), and writes a map saying which tile goes in each cell. Each 256x256 layer below has 1024 cells, but only 25 different tiles in the water and 13 in the land. Repetitive art is cheap; a unique painting is not.
 
 **Maps are 256 or 512 pixels per side.** The hardware draws those directly. Butano also accepts bigger maps, in multiples of 256, and streams the visible part to video memory as you scroll.
 

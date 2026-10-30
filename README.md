@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the three pilot pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -63,7 +63,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 
 4. **Backgrounds:** regular backgrounds, the 4 layers, priorities, scrolling.
 5. **Camera:** world and screen coordinates, `set_camera`, keeping the camera inside the map, and dead zone or smooth follow.
-6. **Map collision:** turning a world position into a cell index, "try, check, accept", sliding along walls one axis at a time, and a debug view of the collision drawn with a dynamic regular background (`bn::regular_bg_map_ptr`).
+6. **Map collision:** turning a position into a cell, checking before moving, and one axis at a time.
 7. **Palettes and colors:** 15-bit colors, the transparent index 0, shared palettes, palette swaps, and fades.
 8. Later: text and HUD, timers and random numbers, SRAM saves, audio, and effects (blending, windows, mosaic, affine, HDMA).
 

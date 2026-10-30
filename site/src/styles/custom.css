@@ -1,0 +1,4 @@
+/* Ship the code font: system stacks like ui-monospace fall back to a proportional font in some browsers. */
+:root {
+	--sl-font-mono: 'JetBrains Mono Variable', monospace;
+}
