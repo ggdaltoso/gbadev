@@ -1,0 +1,112 @@
+---
+title: Timers and random numbers
+description: Counting frames, countdowns kept per object, bn::seed_random, seeding from the player, and replaying the same numbers.
+sidebar:
+  order: 9
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import timers from '../../../../../snippets/timers/src/main.cpp?raw';
+
+export const spawns = [0, 34, 85, 121, 178, 211];
+export const x = (frame) => 40 + frame * 1.5;
+
+## When to use it
+
+Timers, whenever something should happen later or last a while: a power-up for 10 seconds, an enemy every half second, a blink before something disappears. Random numbers, whenever the game shouldn't be the same every time: where things appear, what drops, which way an enemy turns.
+
+## How to think about it
+
+**A timer is a frame counter.** The game loop runs once per frame, about 60 times per second, so time in a game is a number of frames. Set a counter, subtract 1 every frame, and act when it reaches zero. 60 frames is about one second, 30 is half a second.
+
+**Each thing keeps its own counter.** A coin that disappears after 2 seconds carries its `frames_left`. There is no global clock to ask; every countdown is a plain `int` next to the thing it times.
+
+**Frame time stops when the game stops.** If you skip updating the counters, during a pause for example, they wait. That's usually what a game wants. For real time, like measuring how long your code takes, there's `bn::timer`, which counts hardware ticks whether the game is paused or not.
+
+**Random numbers come from a formula.** The GBA has no source of randomness. A generator takes a number, the seed, and turns it into a sequence that looks random. Butano has two:
+
+- `bn::random`, which starts from a fixed state. Call `update()` every frame so that its state depends on how long the game has run.
+- `bn::seed_random`, whose seed you set and read back. The snippet uses this one.
+
+**The same seed gives the same sequence.** Every time, on every GBA and emulator. That's a feature: store the seed and you can replay a whole game, reproduce a bug, or give everyone the same daily challenge.
+
+**Seed with something the player does.** Every power-on starts from the same state, so the seed must come from outside the game. Counting frames until the player presses START works: no one presses it on the same frame twice.
+
+**`get_int(limit)` goes from 0 to `limit - 1`.** `get_int(15)` picks one of 15 columns, 0 to 14. `get_int(20, 60)` goes from 20 to 59.
+
+## The smallest thing that works
+
+Coins appear in random free cells of the room from [the collision page](/basics/collision/). Each stays 2 seconds and blinks in its last half second. The next one comes between a third of a second and one second later. **START** sets the seed; **B** goes back to it, and the same coins appear again in the same places.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 152" role="img" aria-label="A timeline of the first 240 frames, 4 seconds. Six coins appear at frames 0, 34, 85, 121, 178 and 211. Each bar lasts 120 frames: solid for 90 frames, then striped while it blinks for the last 30. The gaps between appearances are random, from 20 to 59 frames, plus one." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<defs>
+			<pattern id="blink" width="6" height="12" patternUnits="userSpaceOnUse">
+				<rect width="3" height="12" fill="#f2c94c" />
+			</pattern>
+		</defs>
+		<g stroke="currentColor" stroke-opacity="0.25">
+			{[0, 60, 120, 180, 240].map((f) => <line key={f} x1={x(f)} y1="12" x2={x(f)} y2="122" />)}
+		</g>
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			{[0, 60, 120, 180, 240].map((f) => <text key={f} x={x(f)} y="136">{f}</text>)}
+			{[0, 1, 2, 3, 4].map((s) => <text key={s} x={x(s * 60)} y="148" fill-opacity="0.6">{s} s</text>)}
+		</g>
+		{spawns.map((f, i) => (
+			<g key={f}>
+				<text x="34" y={24 + i * 18} font-size="9" fill="currentColor" text-anchor="end">coin {i + 1}</text>
+				<rect x={x(f)} y={15 + i * 18} width={(Math.min(f + 90, 240) - f) * 1.5} height="12" rx="2" fill="#f2c94c" />
+				{f + 90 < 240 && <rect x={x(f + 90)} y={15 + i * 18} width={(Math.min(f + 120, 240) - f - 90) * 1.5} height="12" fill="url(#blink)" stroke="#f2c94c" />}
+			</g>
+		))}
+	</svg>
+	<figcaption>The first 4 seconds of one seed, frame by frame. Solid: the coin is there. Striped: it blinks, 4 frames on and 4 off. Each start is the previous one plus a random wait.</figcaption>
+</figure>
+
+<Code code={timers} lang="cpp" title="snippets/timers/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/timers/rain.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The title says Press START. Then the seed shows at the top, and coins appear one by one in free cells, spin, blink and disappear." />
+	<figcaption>The same seed as the timeline, captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="timers" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The room, the coin and the font come from [the collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The game is the same every time you turn it on.**
+The generator starts from the same state at every power-on. Seed it from the player, as above. With `bn::random`, call `update()` every frame, including on the title screen.
+
+**Two games look almost the same.**
+`bn::seed_random` adds 1 to its seed for every number it gives, so seed 138 gives the sequence of seed 137 shifted by one. Two players who pressed START one frame apart get nearly the same game:
+
+| Seed | First eight `get_int(15)` |
+|---|---|
+| 137 | 14, 4, 7, 2, 7, 5, 13, 4 |
+| 138 | 4, 7, 2, 7, 5, 13, 4, 6 |
+| 137 × 2654435761 | 1, 2, 3, 8, 6, 0, 3, 3 |
+| 138 × 2654435761 | 14, 4, 11, 4, 12, 11, 3, 13 |
+
+Multiplying the count by a big odd number, as the snippet does, puts close counts far apart.
+
+**A die never rolls 6.**
+`get_int(6)` goes from 0 to 5. Use `get_int(1, 7)`.
+
+**A countdown of 33 waits 34 frames.**
+The frame that sets the counter, plus 33 frames counting down to 0, and the spawn happens on the next one. That's why the timeline above has a gap of 34 after a wait of 33. It rarely matters, but pick one convention and keep it.
+
+**One second of frames isn't one second.**
+The GBA draws 59.73 frames per second, so 60 frames last a bit more than a second, and a clock made of frames runs about 16 seconds late per hour. Fine for gameplay; for a real clock, use `bn::timer`.
+
+**A replay goes wrong after you change unrelated code.**
+Every number depends on how many came before it. One extra `get_int`, anywhere, shifts everything after it. When replays matter, draw numbers in a fixed order, or keep a separate generator for things that don't affect the game, like particles.
+
+## Read more
+
+- Butano examples: [`examples/random`](https://github.com/GValiente/butano/tree/master/examples/random) and [`examples/timer`](https://github.com/GValiente/butano/tree/master/examples/timer).
+- Headers: [`bn_seed_random.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_seed_random.h), [`bn_random.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_random.h), [`bn_timer.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_timer.h).
+- Reference: [`bn::seed_random`](https://gvaliente.github.io/butano/classbn_1_1seed__random.html), [`bn::random`](https://gvaliente.github.io/butano/classbn_1_1random.html), [`bn::timer`](https://gvaliente.github.io/butano/classbn_1_1timer.html).
+- Tonc: [timers](https://gbadev.net/tonc/timers.html), for the hardware timers behind `bn::timer`.

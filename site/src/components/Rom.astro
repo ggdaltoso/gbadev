@@ -95,6 +95,11 @@ const { name } = Astro.props;
 				button.textContent = 'This page is not cross-origin isolated, so the emulator cannot start.';
 				return;
 			}
+			// mGBA only draws with WebGL2. Without it the game runs on a black screen and logs nothing.
+			if (!document.createElement('canvas').getContext('webgl2')) {
+				button.textContent = 'This browser has no WebGL2, so the emulator cannot draw. Check that hardware acceleration is on.';
+				return;
+			}
 			button.textContent = 'Loading…';
 			// Absolute URL: Vite dev leaves it alone instead of adding ?import to a public/ file.
 			const mgbaUrl = new URL('/mgba/mgba.js', location.href).href;
