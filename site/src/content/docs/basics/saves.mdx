@@ -1,0 +1,114 @@
+---
+title: SRAM saves
+description: Keeping data after the power goes off, bn::sram, a save struct, recognizing a save with a format value, and restarting the game.
+sidebar:
+  order: 10
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import saves from '../../../../../snippets/saves/src/main.cpp?raw';
+
+export const bytes = ['31', '56', '41', '53', '30', '00', '00', '00', '18', '00', '00', '00', '01', '00', '00', '00'];
+export const fields = [
+	{ name: 'format', value: '0x53415631' },
+	{ name: 'x', value: '48' },
+	{ name: 'y', value: '24' },
+	{ name: 'times_saved', value: '1' },
+];
+
+## When to use it
+
+For anything that must still be there next time the game is turned on: progress, a high score, options. Everything else the game keeps in memory is gone when the power goes off.
+
+## How to think about it
+
+**SRAM is 32 KB of memory on the cartridge.** A small battery keeps it alive while the GBA is off. `bn::sram::size()` tells you the size, and `bn::sram` has the functions to read and write it. Cartridges can also save to flash or EEPROM, but `bn::sram` only talks to SRAM.
+
+**A save is a struct copied byte by byte.** Put what you want to keep in a struct, and `bn::sram::write(save)` copies its bytes to the start of SRAM. `bn::sram::read(save)` copies them back. Nothing is converted or checked: SRAM has no idea what those bytes mean.
+
+**So you have to recognize your own save.** The first time a game runs, SRAM holds whatever it holds, and `read` hands you that as if it were a save. Keep a known value in the first field. If it's there on start, the save is yours; if not, start a new game.
+
+**Save at moments, not all the time.** At a checkpoint, on a menu option, when a level ends. The player loses what happened since then, and that's the deal every save point makes.
+
+**The emulator needs to know the ROM saves.** Butano puts the text `SRAM_V113` in the ROM, which is how mGBA and other emulators detect the save type. Their `.sav` file is a copy of those 32 KB.
+
+## The smallest thing that works
+
+Walk with the **D-pad**. **A** saves where the hero is, and a coin marks the spot. **START** restarts the game, and the hero comes back to the coin, no matter how far it walked since. **B** erases the save.
+
+<Code code={saves} lang="cpp" title="snippets/saves/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/saves/checkpoint.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks to the top right and saves: the counter goes to 1 and a coin appears at that spot. The hero walks away to the left, the game restarts, and the hero is back on the coin with the counter still at 1." />
+	<figcaption>Save, walk away, restart. Captured from the emulator (2x).</figcaption>
+</figure>
+
+This is what one save looks like in SRAM, with the hero at (48, 24). The GBA stores the lowest byte of a number first, so `0x53415631` reads backwards, and -1 would be `ff ff ff ff`:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 410 90" role="img" aria-label="The first 16 bytes of SRAM, in four groups of four. Bytes 31 56 41 53 are format, 0x53415631. Bytes 30 00 00 00 are x, 48. Bytes 18 00 00 00 are y, 24. Bytes 01 00 00 00 are times_saved, 1." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="9" fill="currentColor" fill-opacity="0.6" text-anchor="middle">
+			{[0, 4, 8, 12].map((offset) => <text key={offset} x={offset * 24 + 13 + Math.floor(offset / 4) * 8} y="10">{offset}</text>)}
+		</g>
+		{bytes.map((byte, i) => {
+			const left = i * 24 + Math.floor(i / 4) * 8 + 2;
+			return (
+				<g key={i}>
+					<rect x={left} y="16" width="22" height="24" rx="2" fill="none" stroke="currentColor" stroke-opacity="0.45" />
+					<text x={left + 11} y="32" font-size="11" text-anchor="middle" fill="currentColor">{byte}</text>
+				</g>
+			);
+		})}
+		{fields.map((field, i) => {
+			const left = i * 104 + 2;
+			return (
+				<g key={field.name}>
+					<path d={`M${left} 46 v5 h94 v-5`} fill="none" stroke="#ff4d8d" stroke-width="1.5" />
+					<text x={left + 47} y="68" font-size="11" font-weight="600" text-anchor="middle" fill="currentColor">{field.name}</text>
+					<text x={left + 47} y="84" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity="0.75">{field.value}</text>
+				</g>
+			);
+		})}
+	</svg>
+	<figcaption>The first 16 bytes of SRAM after one save, read from the emulator. The other 32,752 aren't used.</figcaption>
+</figure>
+
+<Rom name="saves" />
+
+The save here lives in your browser, so it survives reloading the page. Press **B** to start over.
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, coin and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The first run starts with nonsense.**
+You used what `read` returned without checking it. Compare the format value first, as the snippet does.
+
+**A save from an older build loads wrong.**
+You changed the struct, and the old bytes now land in the wrong fields. Change the format value whenever the struct changes. To keep old saves working, keep the old struct too, and when the old format shows up, read it and copy its fields to the new one.
+
+**Your first-run code never runs.**
+The emulator keeps the `.sav` next to the ROM, and it outlives every rebuild. Delete it, or erase from the game, to test a new cart.
+
+**"Source is not trivially copyable".**
+The struct holds something that manages a resource, like a `bn::sprite_ptr`. Save the numbers you need to create it again. A plain pointer compiles, but what it points to won't be there after a restart, so don't save those either.
+
+**A second value overwrites the first.**
+`write` always starts at the beginning of SRAM. Keep everything in one struct, or use `bn::sram::write_offset` with an offset past the first one, like `sizeof(save_data)`.
+
+**The power goes off in the middle of a save.**
+Half the bytes are new and half are old, and the format value still looks right. If that would hurt, keep two copies at different offsets, write them in turns, and store a counter and a checksum in each. On start, load the valid copy with the highest counter.
+
+**Saving every frame.**
+SRAM is written one byte at a time over a slow 8-bit bus. A struct like this one on a button press is fine; there's no reason to repeat it 60 times per second.
+
+**A destructor was supposed to save.**
+`bn::core::reset()` goes back to the start of `main()` without destroying what's alive, so that code never runs. Neither does anything when the player turns the GBA off. Save first, then restart.
+
+## Read more
+
+- Butano example: [`examples/sram`](https://github.com/GValiente/butano/tree/master/examples/sram), which formats SRAM with a text tag instead of a number.
+- Header: [`bn_sram.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sram.h).
+- Reference: [`bn::sram`](https://gvaliente.github.io/butano/namespacebn_1_1sram.html), [`bn::core::reset`](https://gvaliente.github.io/butano/namespacebn_1_1core.html).
+- GBATEK: [backup SRAM and FRAM](http://problemkaputt.de/gbatek.htm#gbacartbackupsramfram), for the hardware and the other save types.
