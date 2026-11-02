@@ -106,6 +106,8 @@ const { name } = Astro.props;
 			const { default: mGBA } = await import(/* @vite-ignore */ mgbaUrl);
 			const emulator = await mGBA({ canvas: this.querySelector('canvas')! });
 			await emulator.FSInit();
+			// These pages teach what a ROM does on start, and a state restored over a newer ROM would break it.
+			emulator.setCoreSettings({ autoSaveStateEnable: false, restoreAutoSaveStateOnLoad: false });
 
 			const response = await fetch(`/roms/${name}.gba`);
 			if (!response.ok) {

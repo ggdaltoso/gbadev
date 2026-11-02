@@ -1,0 +1,130 @@
+---
+title: Music and sound
+description: Modules and recordings, bn::music and bn::sound, volume, what a song costs in ROM, and why a recording can't be paused.
+sidebar:
+  order: 11
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import audio from '../../../../../snippets/audio/src/main.cpp?raw';
+
+## When to use it
+
+Music for what plays underneath the game, and sound effects for what the player just did. A coin without its sound feels like nothing happened.
+
+## How to think about it
+
+**Files in `audio/` become items.** A file named `coin.wav` becomes `bn::sound_items::coin`, and `song.it` becomes `bn::music_items::song`. Call `.play()` on them.
+
+**Sound effects are recordings, music is a module.** `.wav` files become sounds. `.mod`, `.xm`, `.s3m` and `.it` files become music. A module is a small score: short instrument samples, plus which note each one plays and when. Its instruments are reused for every note, so a whole song can fit in a few hundred KB.
+
+**A recording costs bytes per second.** The GBA has no audio decoder to spare for MP3, so a recording is stored as raw samples. At 16,000 samples per second, 1 byte each, a minute is almost 1 MB. It's fine for one song in a small game. It's a lot for ten.
+
+**Everything is mixed in software, a little every frame.** The GBA plays two streams of samples, and Butano's audio library mixes all active channels into them. By default that's up to 16 channels for music and 4 for sound effects, at 16 kHz. Mixing costs CPU, and more at higher rates.
+
+**Audio commands wait for the next update.** `play`, `stop` and `set_volume` are queued, and `bn::core::update()` carries them out. There's room for a few per frame, enough for ordinary use.
+
+## The smallest thing that works
+
+**A** plays a coin sound over the music. **B** stops the music, and starts it over. **Up** and **Down** change its volume.
+
+<Code code={audio} lang="cpp" title="snippets/audio/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/audio/still.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="A coin spinning in the middle of a grass map. The top says Playing, Volume 7. The bottom lists the keys." />
+	<figcaption>All the action here is in your ears (2x).</figcaption>
+</figure>
+
+Here's exactly what the ROM plays, without the emulator:
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0 }}>
+		<audio controls preload="metadata" src="/audio/song.wav"><a href="/audio/song.wav">song.wav</a></audio>
+		<figcaption>The song: mono, 8 bits, 16 kHz.</figcaption>
+	</figure>
+	<figure style={{ margin: 0 }}>
+		<audio controls preload="metadata" src="/audio/coin.wav"><a href="/audio/coin.wav">coin.wav</a></audio>
+		<figcaption>The coin sound.</figcaption>
+	</figure>
+</div>
+
+And running on the emulator:
+
+<Rom name="audio" />
+
+This song started as an MP3, so `bn::music` shouldn't be able to play it. [`snippets/tools/audio_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/audio_assets.py) wraps it in a module anyway: it cuts the song into slices of about 2 seconds, makes each slice an instrument, and plays one per row:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 118" role="img" aria-label="Two modules side by side. In a normal module, a pattern has many notes, and each one points to one of two short samples. In this song's module, the pattern has one note per row, and each note points to its own sample, a slice of the song." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<text x="4" y="12" font-weight="600">A normal module</text>
+			<text x="224" y="12" font-weight="600">This song</text>
+			<text x="4" y="110" fill-opacity="0.7">many notes, short samples</text>
+			<text x="224" y="110" fill-opacity="0.7">one note per slice of the song</text>
+		</g>
+		<g fill="none" stroke="currentColor" stroke-opacity="0.45">
+			<rect x="4" y="20" width="192" height="26" rx="2" />
+			<rect x="224" y="20" width="192" height="26" rx="2" />
+		</g>
+		<g fill="#f2c94c">
+			{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => <rect key={i} x={10 + i * 17} y={i % 3 === 0 ? 25 : 34} width="12" height="7" rx="1" />)}
+			{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <rect key={i} x={230 + i * 23} y="29" width="12" height="7" rx="1" />)}
+		</g>
+		<g fill="#5aaee4">
+			<rect x="30" y="72" width="34" height="18" rx="2" />
+			<rect x="120" y="72" width="34" height="18" rx="2" />
+			{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <rect key={i} x={224 + i * 24} y="72" width="22" height="18" rx="1" />)}
+		</g>
+		<g stroke="#ff4d8d" stroke-width="1.2" fill="none">
+			<path d="M16 46 L44 72" />
+			<path d="M67 46 L50 72" />
+			<path d="M118 46 L132 72" />
+			<path d="M169 46 L142 72" />
+			{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <path key={i} d={`M${236 + i * 23} 46 L${235 + i * 24} 72`} />)}
+		</g>
+	</svg>
+	<figcaption>Top row: the pattern, with its notes in yellow. Bottom row: the samples, in blue.</figcaption>
+</figure>
+
+This gives it a real module's loop, volume and stop, at the cost of a recording's size: this 87-second song takes 1.4 MB of a 1.5 MB ROM. The tool also makes the song mono, drops it to 16 kHz and 8 bits, and raises its level until the loudest point reaches the limit. With 8 bits there are only 256 levels, and a quiet recording wastes most of them:
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/audio/level.png" width="720" height="252" style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }} alt="The song's waveform twice. On top, as it came, it fills about a third of the height. Below, after the tool raises its level, its peaks reach the top and bottom." />
+	<figcaption>The whole song, as it came (top) and in the ROM (bottom).</figcaption>
+</figure>
+
+Music: [Build](https://opengameart.org/content/build) by Chasersgaming, CC0. The coin sound is two square wave notes made by the tool, and the map, coin and font come from [the camera](/basics/camera/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**After `bn::music::resume()`, a recording stays silent for a moment.**
+`pause` silences the channels in use, and they only sound again when the next note starts. In a normal module, that's right away. Here, it's the next slice, up to 2 seconds later. That's why **B** stops and starts over; to keep the position without the gap, set the volume to 0 instead.
+
+**One note can't hold a whole song.**
+Our first version had a single note and a single sample, and it went silent after about 23 seconds, with the rest of the song still to play. We didn't find out why, and slicing it fixed it. After changing a tool like this one, listen to the song to the end, past the loop.
+
+**"There's no music playing".**
+`bn::music::set_volume` and friends need a song playing, and they stop the game otherwise. Check `bn::music::playing()` first, as the snippet does.
+
+**The sound effect doesn't play when many are going on.**
+There are 4 channels by default, so a new sound may take the place of another. Raise `BN_CFG_AUDIO_MAX_SOUND_CHANNELS` in `USERFLAGS`, and remember that each channel costs CPU.
+
+**"No more audio commands available".**
+Too many `play` calls in a single frame, usually one sound per object in a loop. Play it once, or raise `BN_CFG_AUDIO_MAX_COMMANDS`.
+
+**The ROM grew by megabytes.**
+A recording went in with its original quality. Convert it first: stereo at 44.1 kHz is 11 times more samples than mono at 16 kHz, and the mixer doesn't run faster than its rate anyway.
+
+**The players on this page sound, but the ROM doesn't.**
+The emulator plays through the browser's Web Audio, and the players don't. We saw this in Microsoft Edge on Linux, where even a plain Web Audio tone never reached the system, while Firefox played the ROM fine. Try another browser. The game itself is fine.
+
+**Nothing sounds at all.**
+Browsers keep audio off until you click something, and the **Run** button counts. Check that your tab isn't muted, too.
+
+## Read more
+
+- Butano examples: [`examples/audio`](https://github.com/GValiente/butano/tree/master/examples/audio) and [`examples/audio_player`](https://github.com/GValiente/butano/tree/master/examples/audio_player), with modules you can compare in size.
+- Headers: [`bn_music.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_music.h), [`bn_sound_item.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sound_item.h), [`bn_config_audio.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_audio.h).
+- Reference: [`bn::music`](https://gvaliente.github.io/butano/namespacebn_1_1music.html), [`bn::sound_item`](https://gvaliente.github.io/butano/classbn_1_1sound__item.html).
+- Tonc: [sound](https://gbadev.net/tonc/sndsqr.html), for the hardware behind it.
