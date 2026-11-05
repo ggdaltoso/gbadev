@@ -1,0 +1,83 @@
+---
+title: Rotation and scaling
+description: Affine backgrounds and sprites, turning and zooming a map, tile and size limits, and the 32 matrices sprites share.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import affine from '../../../../../snippets/affine/src/main.cpp?raw';
+
+## When to use it
+
+A boss that spins, a coin that grows when you pick it up, a map you can turn or zoom out of. "Affine" is the word for any mix of rotation, scale and shear, and the GBA can do it in hardware for both sprites and backgrounds.
+
+## How to think about it
+
+**The hardware reads the picture at an angle.** For each pixel on screen, it computes which pixel of the image lands there, and draws that. No image data changes, so turning a sprite doesn't take CPU at all, once it's set.
+
+**For sprites, there's nothing to prepare.** Any sprite can call `set_rotation_angle` or `set_scale`. Butano handles the rest behind the scenes.
+
+**Backgrounds have to be of a different kind.** A regular background can't rotate. An affine one is another type, with stricter rules:
+
+| | Regular | Affine |
+|---|---|---|
+| Type in the `.json` | `regular_bg` | `affine_bg` |
+| Class | `bn::regular_bg_ptr` | `bn::affine_bg_ptr` |
+| Tiles | Up to 1024, and each can be flipped | Up to 256, and no flips |
+| Colors | 16 or 256 per tile | 256, always |
+| How many fit | 4 | 2, or 1 with 2 regular ones |
+
+**Zoom can leave you with something to fill.** Zoom out or turn a map, and the screen sees past its edges. By default an affine map wraps around, so it repeats. You can see that in the capture below, where the sand patch appears more than once.
+
+## The smallest thing that works
+
+**Left** and **Right** turn the map, **Up** and **Down** zoom it, and **A** spins the hero. The JSON of the map only changes its type:
+
+```json title="snippets/affine/graphics/world.json"
+{
+    "type": "affine_bg"
+}
+```
+
+<Code code={affine} lang="cpp" title="snippets/affine/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/affine/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The map turns and grows around the hero, then shrinks until it repeats on all sides. Then the hero spins in place. The text stays upright." />
+	<figcaption>The same bitmap as the camera page, 74 different tiles. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="affine" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The importer says there are too many tiles.**
+256 is the limit, and it's easy to reach. A flipped copy of a tile counts as another tile, because affine maps can't flip. Reuse tiles, or use more than one bitmap.
+
+**A rotated sprite has its corners cut off.**
+A turned sprite takes more room than its box. By default Butano doubles the area when it needs to, but you can force it with `set_double_size_mode`. See [the sprites page](/basics/sprites/) for sprite sizes.
+
+**The game stops with an invalid angle.**
+`set_rotation_angle` needs a value from 0 to 360. When adding to an angle, use `set_rotation_angle_safe`, or `bn::safe_degrees_angle`.
+
+**"No more sprite affine mats".**
+The hardware has 32 of them, and each rotated or scaled sprite takes one. Sprites that turn together can share one: make a `bn::sprite_affine_mat_ptr` and give it to all of them.
+
+**The map turns around the wrong point.**
+It turns around its center by default. `set_pivot_position` changes that.
+
+**You don't want it to repeat.**
+`set_wrapping_enabled(false)` shows the backdrop past the edges instead.
+
+**There's no room for one more background.**
+The hardware only has room for 2 affine layers, or 1 next to 2 regular ones. If you add an affine background, count again.
+
+## Read more
+
+- Butano examples: [`examples/affine_bgs`](https://github.com/GValiente/butano/tree/master/examples/affine_bgs), [`examples/sprite_affine_mats`](https://github.com/GValiente/butano/tree/master/examples/sprite_affine_mats), and [`examples/mode_7`](https://github.com/GValiente/butano/tree/master/examples/mode_7), for a floor in perspective.
+- Headers: [`bn_affine_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_affine_bg_ptr.h), [`bn_sprite_affine_mat_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_affine_mat_ptr.h).
+- Reference: [`bn::affine_bg_ptr`](https://gvaliente.github.io/butano/classbn_1_1affine__bg__ptr.html), [importing affine backgrounds](https://gvaliente.github.io/butano/import.html).
+- Tonc: [affine sprites](https://gbadev.net/tonc/affobj.html) and [affine backgrounds](https://gbadev.net/tonc/affbg.html), for the math.

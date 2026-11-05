@@ -1,0 +1,124 @@
+---
+title: HDMA
+description: A hardware copy on every screen line, a sky gradient with 160 colors on one palette entry, and how it differs from H-Blank effects.
+sidebar:
+  order: 6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import hdma from '../../../../../snippets/hdma/src/main.cpp?raw';
+
+export const lines = Array.from({ length: 16 }, (_, i) => i * 10);
+export const sky = (line) => {
+	const red = 2 + Math.floor((line * 29) / 159);
+	const green = 6 + Math.floor((line * 12) / 159);
+	const blue = 24 - Math.floor((line * 18) / 159);
+	return `rgb(${red * 8}, ${green * 8}, ${blue * 8})`;
+};
+
+## When to use it
+
+When you need a value in memory to change on every screen line and [an H-Blank effect](/effects/hblank/) doesn't cover it. Here, a sky with 160 colors on a single palette entry. For anything Butano already has an effect for, use the effect: it's simpler and safer.
+
+## How to think about it
+
+**DMA is a copy the hardware makes for you.** It moves memory without the CPU running a loop. HDMA is the mode that copies a little during each [H-Blank](/effects/hblank/#how-to-think-about-it), the pause after each screen line.
+
+**You give it an array and a destination.** `bn::hdma::start(source, destination)` copies from the array to that address, one line at a time, every frame, until you stop it. The array must hold 160 values, or a multiple of that if you write more than one per line.
+
+**It's a low-level tool.** The destination is a raw address. Nothing checks that it makes sense, and Butano doesn't know you changed it.
+
+**How it differs from an H-Blank effect:**
+
+| | [H-Blank effect](/effects/hblank/) | HDMA |
+|---|---|---|
+| Who copies | A small routine, run by an interrupt | The DMA hardware |
+| What it can change | The settings that have a class | Any memory address |
+| At most | 6, by default | 1, plus 1 high priority |
+| Knows about Butano | Yes | No |
+
+## The smallest thing that works
+
+A sky behind the hero. Nothing here is a background: the gradient is the backdrop, the color behind every layer, which has one palette entry. HDMA changes that entry 160 times per frame. **A** turns it on or off.
+
+<Code code={hdma} lang="cpp" title="snippets/hdma/src/main.cpp" />
+
+Here's the array against the screen, with one bar for every ten lines:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 176" role="img" aria-label="On the left, the array of colors, from deep blue at the top to orange at the bottom. An arrow labeled before each line goes to a single box in the middle: palette color 0. On the right, the screen shows the same gradient, each line drawn with the value it had at that moment." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			<text x="40" y="10">sky[160]</text>
+			<text x="180" y="66">palette color 0</text>
+			<text x="180" y="112" fill-opacity="0.7">changes before</text>
+			<text x="180" y="123" fill-opacity="0.7">each line</text>
+			<text x="320" y="10">screen</text>
+		</g>
+		{lines.map((line, i) => (
+			<g key={line}>
+				<rect x="10" y={16 + i * 10} width="60" height="9.5" fill={sky(line)} />
+				<rect x="270" y={16 + i * 10} width="100" height="10" fill={sky(line)} />
+			</g>
+		))}
+		<rect x="160" y="74" width="40" height="22" rx="2" fill="url(#hdma-cell)" stroke="currentColor" stroke-opacity="0.5" />
+		<defs>
+			<linearGradient id="hdma-cell" x1="0" y1="0" x2="0" y2="1">
+				<stop offset="0" stop-color={sky(0)} />
+				<stop offset="1" stop-color={sky(159)} />
+			</linearGradient>
+		</defs>
+		<g stroke="#ff4d8d" stroke-width="1.5" fill="none">
+			<path d="M76 85 H154" />
+			<path d="M149 81 l5 4 l-5 4" />
+			<path d="M206 85 H264" />
+			<path d="M259 81 l5 4 l-5 4" />
+		</g>
+	</svg>
+	<figcaption>One palette entry, 160 values per frame. Each line of the screen sees the value of its own moment.</figcaption>
+</figure>
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '360px' }}>
+		<img src="/images/hdma/on.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="The hero in front of a sky that goes from deep blue at the top to orange at the bottom." />
+		<figcaption>HDMA running.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '360px' }}>
+		<img src="/images/hdma/off.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="The hero in front of a single flat color." />
+		<figcaption>Stopped: one flat color.</figcaption>
+	</figure>
+</div>
+
+<Rom name="hdma" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The hero and font come from [the sprites](/basics/sprites/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The top line of the screen has the wrong color.**
+HDMA copies after a line is drawn, so `sky[0]` shows up on line 1, and line 0 gets the last value of the array. The snippet shifts its values by one line for that.
+
+**Garbage on screen after the array goes away.**
+HDMA holds a reference, not a copy. Stop it before the array dies, or keep the array alive for as long as HDMA runs.
+
+**The source has the wrong size.**
+It has to be a multiple of 160 values, and if it's more than 160, each line gets that many values, which are written to consecutive addresses.
+
+**Audio crackles.**
+The high priority version, `bn::hdma::high_priority_start`, can cause issues with audio, as Butano's header warns. Use the normal one unless you need it.
+
+**"Not supported by the audio backend".**
+HDMA needs a DMA channel, and some audio backends use it. The default one, maxmod, leaves it free.
+
+**The gradient doesn't show behind a background.**
+The backdrop only shows where nothing is drawn. Any tile with a color other than index 0 hides it. To paint a color inside a background, write to that color's palette entry instead.
+
+**A flat color stays after you stop it.**
+The entry keeps the last value HDMA copied. Set the backdrop again with `bn::bg_palettes::set_transparent_color` if you want a specific one.
+
+## Read more
+
+- Butano examples: [`examples/hdma_palette`](https://github.com/GValiente/butano/tree/master/examples/hdma_palette), which writes a whole palette per line, and [`examples/hdma_polygons`](https://github.com/GValiente/butano/tree/master/examples/hdma_polygons).
+- Header: [`bn_hdma.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_hdma.h).
+- Reference: [`bn::hdma`](https://gvaliente.github.io/butano/namespacebn_1_1hdma.html).
+- Tonc: [DMA](https://gbadev.net/tonc/dma.html), for the hardware.

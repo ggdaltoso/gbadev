@@ -1,0 +1,87 @@
+---
+title: Blending
+description: Transparency, intensity and fade, what they apply to, and why every blended thing shares one alpha.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import blending from '../../../../../snippets/blending/src/main.cpp?raw';
+
+## When to use it
+
+A ghost, a shadow, water over the ground, a sprite flashing white when hit, a fade to black. Anything that mixes a layer with what's under it, or with white or black.
+
+## How to think about it
+
+**You choose what takes part, and the hardware does the math.** Call `set_blending_enabled(true)` on a sprite or background. `bn::blending` sets how strong the effect is. Nothing else is touched, so tiles and palettes stay as they are, and it costs the same for one sprite or the whole screen.
+
+**There are three kinds:**
+
+| Kind | Function | What it does |
+|---|---|---|
+| Transparency | `set_transparency_alpha` | Mixes with what's below: 1 is solid, 0 is invisible. |
+| Intensity | `set_intensity_alpha` | Mixes with white: 0 is normal, 1 is all white. |
+| Fade | `set_fade_alpha` | Mixes with black or white: 0 is normal, 1 is all that color. |
+
+**There's only one of each per screen.** Alpha isn't a property of a sprite. Everything with blending enabled uses the same values, the same way a palette is shared.
+
+**The steps are coarse.** The hardware has about 16 levels, so a slow fade moves in visible steps.
+
+## The smallest thing that works
+
+The hero has blending enabled, and the coin next to it doesn't, so it never changes. **A** switches between the three kinds, and **Up** and **Down** change the alpha.
+
+<Code code={blending} lang="cpp" title="snippets/blending/src/main.cpp" />
+
+<div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '300px' }}>
+		<img src="/images/blending/transparency.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="The hero is half transparent, with the sand showing through. The coin next to it is solid." />
+		<figcaption>Transparency: the sand shows through.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '300px' }}>
+		<img src="/images/blending/intensity.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="The hero is washed out towards white. The coin next to it is normal." />
+		<figcaption>Intensity: toward white.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '300px' }}>
+		<img src="/images/blending/fade.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="The hero is almost a black silhouette. The coin next to it is normal." />
+		<figcaption>Fade: toward black, by default.</figcaption>
+	</figure>
+</div>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/blending/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero goes through the three kinds of blending as the alpha changes, while the coin next to it and the text stay the same." />
+	<figcaption>All three, captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="blending" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, coin and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The game stops when you set a fade.**
+Fade can't be on together with transparency or intensity. Set the others back to their neutral values first, as the snippet does.
+
+**Two transparent sprites don't show through each other.**
+All sprites are one layer to the blending hardware, so a transparent sprite only mixes with the backgrounds below it. The sprite on top wins where they overlap.
+
+**Two sprites need different alphas.**
+Not at the same time on one screen, with this. If it's a color change instead, use a [palette effect](/basics/palettes/), which belongs to each palette.
+
+**Nothing happens.**
+The sprite or background doesn't have blending enabled, or its alpha is at the neutral value: 1 for transparency, 0 for the others.
+
+**A whole-screen fade misses something.**
+Only what has blending enabled fades. For everything at once, including sprites you didn't think of, `bn::bg_palettes::set_fade` and `bn::sprite_palettes::set_fade` work on colors instead.
+
+**Transparency and a white flash at once.**
+That's the one allowed mix: `set_transparency_and_intensity_alpha`.
+
+## Read more
+
+- Butano example: [`examples/blending`](https://github.com/GValiente/butano/tree/master/examples/blending), with actions that animate each value and a blending H-Blank effect.
+- Header: [`bn_blending.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_blending.h).
+- Reference: [`bn::blending`](https://gvaliente.github.io/butano/namespacebn_1_1blending.html).
+- Tonc: [graphic effects](https://gbadev.net/tonc/gfx.html), for the registers behind blending.

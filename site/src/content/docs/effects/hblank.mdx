@@ -1,0 +1,100 @@
+---
+title: H-Blank effects
+description: Changing the picture line by line, a wave made from one offset per screen line, and the rules for the array behind it.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import hblank from '../../../../../snippets/hblank/src/main.cpp?raw';
+
+export const lines = Array.from({ length: 14 }, (_, i) => i);
+export const offset = (line) => Math.round(Math.sin((line * 28 * Math.PI) / 180) * 26);
+
+## When to use it
+
+Water that ripples, heat over a desert, a sky with more colors than a palette holds, a split screen. Any effect where the top of the screen and the bottom should have different settings in the same frame.
+
+## How to think about it
+
+**The screen is drawn one line at a time.** The GBA draws 160 lines, and pauses for a moment after each one. That pause is the H-Blank.
+
+**An H-Blank effect changes a setting in that pause.** Butano runs a small routine in fast memory on every H-Blank, which moves the next value from your array to a hardware register. It's a little CPU time, 160 times per frame.
+
+**Each class is one setting that varies per line:**
+
+| Class | What varies per line |
+|---|---|
+| `bn::regular_bg_position_hbe_ptr` | A background's position |
+| `bn::bg_palette_color_hbe_ptr` | A background palette color |
+| `bn::bg_palettes_transparent_color_hbe_ptr` | The backdrop color |
+| `bn::rect_window_boundaries_hbe_ptr` | A window's sides |
+| `bn::blending_fade_alpha_hbe_ptr` | The fade alpha |
+| `bn::sprite_position_hbe_ptr` | A sprite's position |
+
+There are more, for almost every setting. For a setting they don't cover, there's [HDMA](/effects/hdma/), a different mechanism.
+
+**Your array is the effect.** You give it 160 values, one per line. The effect keeps a reference to your array, and reads it again each frame only if you say so. To animate, change the values and tell it.
+
+## The smallest thing that works
+
+Each line of the map shifts left or right by a sine wave, and the wave moves a little each frame. **A** makes the waves bigger. The hero and the text stay still, because they aren't part of the background.
+
+<Code code={hblank} lang="cpp" title="snippets/hblank/src/main.cpp" />
+
+Here is what the array does, with fewer and thicker lines than the real 160:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 158" role="img" aria-label="A stack of 14 screen lines. On the right, each line is shifted left or right by the value next to it, following a sine wave. A vertical line marks where the map's edge would be without the effect." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<text x="28" y="9" font-size="9" fill="currentColor" text-anchor="middle" fill-opacity="0.7">line_offsets</text>
+		{lines.map((line) => {
+			const y = 14 + line * 10;
+			return (
+				<g key={line}>
+					<text x="28" y={y + 7} font-size="8" fill="currentColor" text-anchor="middle">{offset(line)}</text>
+					<rect x={84 + offset(line)} y={y} width="170" height="9" fill="#3abe41" />
+					<rect x={84 + offset(line) + 170} y={y} width="50" height="9" fill="#1e7cb8" />
+				</g>
+			);
+		})}
+		<line x1="254" y1="12" x2="254" y2="156" stroke="#ff4d8d" stroke-width="1" stroke-dasharray="3 2" />
+	</svg>
+	<figcaption>Each value moves one line of the map. Dashed: where the river's edge would be with no effect.</figcaption>
+</figure>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/hblank/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The river's edge and the sand patch ripple gently, then strongly, while the hero and the text stay still." />
+	<figcaption>One background and one array. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="hblank" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The picture doesn't change, or changes once.**
+You updated the array and didn't call `reload_deltas_ref()`. The other effects have their own `reload_..._ref()`, too.
+
+**Garbage on screen, or a crash, after a scene change.**
+The array died before the effect did. The effect holds a reference, not a copy, so declare the array first, as the snippet does, and C++ destroys the effect first.
+
+**The array has the wrong size.**
+It needs exactly `bn::display::height()`, 160, values, even if you only care about a few lines. Leave the others at 0.
+
+**The game stops when you add one more.**
+"No more H-Blank effects available": there can be 6 at a time by default. `BN_CFG_HBES_MAX_ITEMS` raises it.
+
+**The whole game got slower.**
+Each active effect takes time on every line, and the loop that fills 160 values isn't free either. Use `bn::degrees_lut_sin`, as the snippet does, instead of computing a sine, and don't rebuild arrays that haven't changed.
+
+**Sprites don't ripple with the map.**
+This effect only moves one background. `bn::sprite_position_hbe_ptr` does the same for a sprite.
+
+## Read more
+
+- Butano example: [`examples/regular_bgs`](https://github.com/GValiente/butano/tree/master/examples/regular_bgs), with the position effect. Most effect examples have an H-Blank scene.
+- Headers: [`bn_regular_bg_position_hbe_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_position_hbe_ptr.h), [`bn_config_hbes.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_hbes.h).
+- Reference: [`bn::regular_bg_position_hbe_ptr`](https://gvaliente.github.io/butano/classbn_1_1regular__bg__position__hbe__ptr.html).
+- Tonc: [interrupts](https://gbadev.net/tonc/interrupts.html), for what H-Blank is and how it's handled.

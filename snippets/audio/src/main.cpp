@@ -29,7 +29,7 @@ int main()
     text_generator.set_center_alignment();
 
     bn::vector<bn::sprite_ptr, 8> hint_sprites;
-    text_generator.generate(0, 70, "A: coin  B: stop  Up/Down: volume", hint_sprites);
+    text_generator.generate(0, 70, "A: coin  B: stop  Up, Down: volume", hint_sprites);
 
     // In steps of 1 to 10, so that the screen shows a round number.
     int volume_steps = 7;

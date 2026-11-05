@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first eleven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first seventeen pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -69,7 +69,15 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 9. **Timers and random numbers:** frame counters, seeding from the player, and replaying a seed.
 10. **SRAM saves:** a save struct, recognizing it with a format value, and restarting the game.
 11. **Music and sound:** modules and recordings, sound effects, volume, and what a recording can't do.
-12. Later: effects (blending, windows, mosaic, affine, HDMA).
+
+### Effects
+
+12. **Blending:** transparency, intensity and fade.
+13. **Windows:** a rectangle that chooses which layers show, and the four kinds of window.
+14. **Mosaic:** bigger pixels, and a teleport transition.
+15. **Rotation and scaling:** affine sprites and backgrounds.
+16. **H-Blank effects:** a setting that changes line by line.
+17. **HDMA:** a hardware copy on every line, for what H-Blank effects don't cover.
 
 ### Pitfalls already collected
 

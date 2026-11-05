@@ -1,0 +1,94 @@
+---
+title: Windows
+description: Rectangles that choose which layers show where, a flashlight that follows the hero, and the four kinds of window.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import windows from '../../../../../snippets/windows/src/main.cpp?raw';
+
+## When to use it
+
+A flashlight in a dark room, a minimap with a hard edge, a dialog box that hides what's behind it, a door that wipes the screen open. Anything that shows different layers in different parts of the screen.
+
+## How to think about it
+
+**A window says what shows inside it.** It's not a picture, and it draws nothing. It's a region of the screen with a list: this background yes, that one no, sprites yes or no, blending yes or no.
+
+**There are four:**
+
+| Window | Shape | Get it with |
+|---|---|---|
+| Internal | A rectangle | `bn::rect_window::internal()` |
+| External | A rectangle | `bn::rect_window::external()` |
+| Sprites | Wherever sprites with `set_window_enabled(true)` have pixels | `bn::window::sprites()` |
+| Outside | Everywhere else | `bn::window::outside()` |
+
+**Every pixel belongs to one of them.** If two overlap, internal wins over external, and both win over the sprites window. What's left is outside.
+
+**They all start by showing everything.** So a window does nothing until you hide something. The usual way is what the snippet does: hide things in *outside*, and leave them on inside the rectangle.
+
+## The smallest thing that works
+
+The room is dark, except for a square around the hero, and there are three coins to find. Walk with the **D-pad**. **A** makes the light bigger or smaller.
+
+<Code code={windows} lang="cpp" title="snippets/windows/src/main.cpp" />
+
+Nothing here erases anything: the whole map and all the coins are still there, in the dark. The four numbers of `set_boundaries` are the sides of the rectangle, in screen coordinates with (0, 0) at the center:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="-12 -12 264 184" role="img" aria-label="The game screen, mostly black, with a bright square of map around the hero. Dashed lines mark the square's four sides: top, left, bottom and right. The square is labeled internal window, and the black area is labeled outside." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<image href="/images/windows/still.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+		<rect width="240" height="160" fill="none" stroke="currentColor" stroke-opacity="0.45" stroke-width="0.6" />
+		<rect x="88" y="48" width="64" height="64" fill="none" stroke="#ff4d8d" stroke-width="1" stroke-dasharray="2.5 1.5" />
+		<g font-size="6" font-weight="600" fill="#fff" text-anchor="middle">
+			<text x="44" y="78">outside</text>
+			<text x="44" y="87" font-weight="400" fill-opacity="0.75">map and sprites off</text>
+			<text x="196" y="78">internal window</text>
+			<text x="196" y="87" font-weight="400" fill-opacity="0.75">everything on</text>
+			<text x="120" y="44">top -32</text>
+			<text x="120" y="120">bottom 32</text>
+			<text x="84" y="108" text-anchor="end">left -32</text>
+			<text x="156" y="108" text-anchor="start">right 32</text>
+		</g>
+	</svg>
+	<figcaption>The hero at (0, 0), with a light of radius 32. Move the hero, and the rectangle has to move with it: a window isn't attached to anything.</figcaption>
+</figure>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/windows/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="A square of light follows the hero through a black screen, and coins appear as it reaches them. The square gets bigger, then smaller again." />
+	<figcaption>Coins only exist where the light is. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="windows" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero and coin come from [the camera](/basics/camera/), [sprites](/basics/sprites/) and [collision](/basics/collision/) pages.
+
+## Pitfalls
+
+**The HUD disappeared.**
+`set_show_sprites(false)` hides every sprite in that window, and text is sprites too (see [the HUD page](/basics/hud/)). That's why this snippet has no text. To keep a HUD visible, hide things another way, or give the HUD its own window.
+
+**Black isn't what shows behind.**
+Where every layer is hidden, you see the backdrop. Set it with `bn::bg_palettes::set_transparent_color`.
+
+**The window stays behind when the camera moves.**
+Boundaries are in screen coordinates. Either move them by hand, as here, or attach the window to a camera with `set_camera`.
+
+**A soft edge isn't possible.**
+Windows are all or nothing, pixel by pixel. For a circle or an odd shape, use the sprites window, or change the boundaries line by line with [an H-Blank effect](/effects/hblank/).
+
+**Blending stops inside a window.**
+Each window also has `set_show_blending`. If an effect turns off in one region, check that list.
+
+**A window never shows up.**
+Its boundaries start out empty. Set them before expecting anything.
+
+## Read more
+
+- Butano example: [`examples/windows`](https://github.com/GValiente/butano/tree/master/examples/windows), with each kind of window, actions and H-Blank effects.
+- Headers: [`bn_window.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_window.h), [`bn_rect_window.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_rect_window.h).
+- Reference: [`bn::window`](https://gvaliente.github.io/butano/classbn_1_1window.html), [`bn::rect_window`](https://gvaliente.github.io/butano/classbn_1_1rect__window.html).
+- Tonc: [graphic effects](https://gbadev.net/tonc/gfx.html), for the window registers.

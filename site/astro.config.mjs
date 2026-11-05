@@ -15,6 +15,10 @@ export default defineConfig({
 					label: 'The basics',
 					items: [{ autogenerate: { directory: 'basics' } }],
 				},
+				{
+					label: 'Effects',
+					items: [{ autogenerate: { directory: 'effects' } }],
+				},
 			],
 		}),
 	],
