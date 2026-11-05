@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first seventeen pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first eighteen pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -78,6 +78,10 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 15. **Rotation and scaling:** affine sprites and backgrounds.
 16. **H-Blank effects:** a setting that changes line by line.
 17. **HDMA:** a hardware copy on every line, for what H-Blank effects don't cover.
+
+### Structure
+
+18. **Scenes:** a title, a game and a result as functions, what each one owns, and fading between them.
 
 ### Pitfalls already collected
 

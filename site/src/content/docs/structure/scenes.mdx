@@ -1,0 +1,129 @@
+---
+title: Scenes
+description: A title screen, a game and a result as plain functions, what each one owns, passing a score between them, and a fade in between.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import scenes from '../../../../../snippets/scenes/src/main.cpp?raw';
+
+export const owners = [
+	{ name: 'text_generator, coins_taken', from: 0, to: 3 },
+	{ name: 'world, player', from: 0, to: 2 },
+	{ name: 'coins', from: 1, to: 2 },
+	{ name: 'result text', from: 2, to: 3 },
+];
+
+## When to use it
+
+As soon as your game has more than one screen: a title, a level, a game over. Without some structure, `main` turns into one loop full of `if(on_title)`, and every sprite has to be hidden by hand when the screen changes.
+
+## How to think about it
+
+**A scene is a function with its own loop.** It creates what it needs, runs until it's done, and returns which scene comes next. `main` only calls whichever one was returned.
+
+**C++ does the cleanup.** A `bn::sprite_ptr` or `bn::regular_bg_ptr` releases its memory when it's destroyed. Local variables are destroyed when the function returns, so a scene can't forget anything on screen, and the next one starts with all the room it needs.
+
+**What has to survive lives in `main`.** The score outlives the scene that counted it, so it's declared outside and passed by reference. If it's in a scene, it's gone when that scene ends.
+
+**The screen doesn't reset by itself.** Fades belong to the palettes, not to a scene. A scene that ends in black leaves the next one black, until something fades it back in.
+
+## The smallest thing that works
+
+A complete little game, called Coin dash. **START** leaves the title, the **D-pad** moves the hero to take five coins in ten seconds, and the result offers **A** to play again or **B** to go back to the title.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 112" role="img" aria-label="Three screens in a row. An arrow labeled START goes from the title to play. An arrow labeled coins or time goes from play to result. An arrow labeled A goes from result back to play, and an arrow labeled B goes from result back to the title." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="40" y="10">title_scene</text>
+			<text x="180" y="10">play_scene</text>
+			<text x="320" y="10">result_scene</text>
+			<text x="110" y="35">START</text>
+			<text x="250" y="29">all coins,</text>
+			<text x="250" y="39">or no time</text>
+			<text x="250" y="84">A</text>
+			<text x="180" y="108">B</text>
+		</g>
+		<image href="/images/scenes/title.png" x="0" y="14" width="80" height="53.3" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/scenes/play.png" x="140" y="14" width="80" height="53.3" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/scenes/result.png" x="280" y="14" width="80" height="53.3" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="#ff4d8d" stroke-width="1.2" fill="none">
+			<path d="M84 42 H136" /><path d="M132 39 l4 3 l-4 3" />
+			<path d="M224 45 H276" /><path d="M272 42 l4 3 l-4 3" />
+			<path d="M300 70 V76 H200 V70" /><path d="M197 74 l3 -4 l3 4" />
+			<path d="M340 70 V98 H40 V70" /><path d="M37 74 l3 -4 l3 4" />
+		</g>
+	</svg>
+	<figcaption>Each scene returns the name of the next one, and <code>main</code> calls it.</figcaption>
+</figure>
+
+<Code code={scenes} lang="cpp" title="snippets/scenes/src/main.cpp" />
+
+Here's who owns what. Each bar lasts only as long as the function that declared it:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 92" role="img" aria-label="A timeline split into title, play and result. The text generator and the coin count live in main and span all three. A map and hero exist in title and play, but those are separate variables, created again in each. The coins exist only in play, and the result text only in result." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="170" y="9">title</text>
+			<text x="240" y="9">play</text>
+			<text x="310" y="9">result</text>
+		</g>
+		<g stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="2 2">
+			<path d="M205 12 V88" /><path d="M275 12 V88" />
+		</g>
+		{owners.map((owner, row) => {
+			const y = 16 + row * 18;
+			return (
+				<g key={owner.name}>
+					<text x="130" y={y + 9} font-size="8" fill="currentColor" text-anchor="end">{owner.name}</text>
+					{row === 1 ? (
+						<>
+							<rect x="137" y={y} width="66" height="13" fill="#3abe41" />
+							<rect x="207" y={y} width="66" height="13" fill="#3abe41" />
+						</>
+					) : (
+						<rect x={135 + owner.from * 70 + (row === 0 ? 0 : 2)} y={y} width={(owner.to - owner.from) * 70 - (row === 0 ? 0 : 4)} height="13" fill={row === 0 ? '#1e7cb8' : '#3abe41'} />
+					)}
+				</g>
+			);
+		})}
+	</svg>
+	<figcaption>Blue lives in <code>main</code>. Green lives in a scene: the map and the hero of the title aren't the ones of the game, they're created again.</figcaption>
+</figure>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/scenes/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The title fades into the game. The hero takes five coins while the time counts down, the screen fades to a black result that says 5 of 5, and B fades back to the title." />
+	<figcaption>One round, and back to the title. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="scenes" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, coin and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**A scene gets skipped.**
+`a_pressed` stays true until the next `bn::core::update()`. If one scene ends on **A** and the next one reads **A** before any update, it sees the same press. Here the fades run updates in between, so it doesn't happen. Without them, call `bn::core::update()` before returning.
+
+**"no matching function for call to 'bn::sprite_ptr::sprite_ptr()'".**
+A `bn::sprite_ptr` always holds a real sprite, so a class member has to be created in the constructor's initializer list, as `hero` does. If it should only exist later, use `bn::optional<bn::sprite_ptr>`.
+
+**A white screen, and `main` never runs.**
+A global `bn::sprite_ptr` is created before `main`, so before `bn::core::init()`. Create Butano objects after that call, which is another reason to keep them inside scenes.
+
+**The screen stays black after a scene change.**
+The last scene faded out and nothing faded back in. Every scene here starts with `fade_to(0)`. If you add a scene, it needs one too.
+
+**"switch missing default case".**
+Butano builds with `-Wswitch-default`, so the warning appears even when all enum values are covered. Add a `default`, as `main` does here.
+
+**Something from the last scene is still on screen.**
+It's declared outside the scene, in `main` or as a global, or the scene's function hasn't returned. Keep it local.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), which keeps each scene in a class with an `update()` that returns the next one. See [`bf_scene.h`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/include/bf_scene.h).
+- Header: [`bn_bg_palettes_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_bg_palettes_actions.h), for the fade.
+- Reference: [`bn::sprite_ptr`](https://gvaliente.github.io/butano/classbn_1_1sprite__ptr.html), [`bn::optional`](https://gvaliente.github.io/butano/classbn_1_1optional.html).

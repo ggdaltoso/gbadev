@@ -19,6 +19,10 @@ export default defineConfig({
 					label: 'Effects',
 					items: [{ autogenerate: { directory: 'effects' } }],
 				},
+				{
+					label: 'Structure',
+					items: [{ autogenerate: { directory: 'structure' } }],
+				},
 			],
 		}),
 	],
