@@ -1,0 +1,120 @@
+---
+title: Game objects
+description: A class for each kind of thing, many of them in a bn::vector with no allocation, updating them by reference, removing them with erase_if, and what copying a sprite_ptr really copies.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import objects from '../../../../../snippets/objects/src/main.cpp?raw';
+
+export const slots = [
+	{ state: 'awake' },
+	{ state: 'asleep' },
+	{ state: 'gone' },
+	{ state: 'awake' },
+	{ state: 'awake' },
+	{ state: 'free' },
+	{ state: 'free' },
+	{ state: 'free' },
+];
+export const slotColor = { awake: '#3abe41', asleep: '#1e7cb8', gone: '#ff4d8d', free: 'none' };
+
+## When to use it
+
+Enemies, bullets, coins, particles: anything that comes in numbers, each with its own position and state, appearing and disappearing while the game runs.
+
+## How to think about it
+
+**One class per kind of thing.** The class keeps what one of them needs: its sprite, its animation, what it's doing. `update()` runs one frame of it. Nothing outside needs to know how it works, only when to update it and when it's done.
+
+**Many of them go in a `bn::vector`.** Its size is fixed when you write it, `bn::vector<log_enemy, 8>`, and the room for all 8 is reserved up front. Adding and removing never allocates memory, so it never fails halfway through a level, and there's no `new` or `delete` to forget. When it's full, it's full: decide what happens then.
+
+**Each frame has the same three steps:** add what was born, update everything, remove what's done.
+
+**A `bn::sprite_ptr` is a handle, not a sprite.** Copying it gives you a second handle to the *same* sprite. That's why a class can hold one and hand it to an animation, and also why copying an object by accident leads to strange bugs.
+
+## The smallest thing that works
+
+Logs come out of the corners, one per second, up to eight, and walk toward the hero. When one reaches them, it falls asleep for two seconds and disappears. Move with the **D-pad**.
+
+The log's sheet, built from the pack by `snippets/tools/objects_assets.py`: four frames to walk, four to sleep.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/objects/log.png" width="512" height="64" style={{ imageRendering: 'pixelated', marginInline: 'auto', maxWidth: '100%', height: 'auto' }} alt="Eight frames of a walking tree stump with eyes. The first four walk, the last four sit with Zs floating above." />
+	<figcaption>Frames 0 to 3 walk, 4 to 7 sleep.</figcaption>
+</figure>
+
+<Code code={objects} lang="cpp" title="snippets/objects/src/main.cpp" />
+
+A few pieces of C++ doing the work:
+
+| In the code | What it does |
+|---|---|
+| `explicit log_enemy(...)` | A constructor that has to be called on purpose. Without `explicit`, a `bn::fixed_point` could turn into a log by itself where a log is expected. |
+| `: _sprite(...), _animation(...)` | The initializer list, run in the order the members are declared. `_animation` needs `_sprite`, so `_sprite` comes first in the class. |
+| `const bn::fixed_point&` | Reads the value without copying it, and promises not to change it. |
+| `emplace_back(spawn_points[next_spawn])` | Builds the log inside the vector, with the constructor's arguments. No temporary log is made and copied. |
+| `for(log_enemy& log : logs)` | `log` is each element itself, not a copy of it. |
+| `[](const log_enemy& log) { return log.gone(); }` | A lambda: a small function written where it's used. `erase_if` calls it on every log and removes those that return `true`. |
+
+Here's the vector during one frame. It only grows at the end, and `erase_if` closes the gaps:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 100" role="img" aria-label="Two rows of eight slots. Above, before erase_if: awake, asleep, gone, awake, awake, then three free slots. Below, after: awake, asleep, awake, awake, and four free slots. The gone log was removed and the ones after it moved left." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="8" fill="currentColor">
+			<text x="0" y="24">before</text>
+			<text x="0" y="74">after</text>
+			<text x="300" y="98" text-anchor="end" fill-opacity="0.7">capacity 8, reserved up front</text>
+		</g>
+		{slots.map((slot, i) => (
+			<g key={'b' + i}>
+				<rect x={50 + i * 31} y="10" width="28" height="22" rx="2" fill={slotColor[slot.state]} stroke="currentColor" stroke-opacity="0.45" />
+				<text x={64 + i * 31} y="45" font-size="6.5" fill="currentColor" text-anchor="middle" fill-opacity="0.8">{slot.state}</text>
+			</g>
+		))}
+		{slots.filter((slot) => slot.state !== 'gone').concat([{ state: 'free' }]).map((slot, i) => (
+			<g key={'a' + i}>
+				<rect x={50 + i * 31} y="60" width="28" height="22" rx="2" fill={slotColor[slot.state]} stroke="currentColor" stroke-opacity="0.45" />
+			</g>
+		))}
+		<g stroke="#ff4d8d" stroke-width="1" fill="none">
+			<path d="M157 49 L127 59" /><path d="M188 49 L158 59" />
+		</g>
+	</svg>
+	<figcaption>Green: awake. Blue: asleep. Pink: done, removed by <code>erase_if</code>. The logs after it move one slot to the left.</figcaption>
+</figure>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/objects/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Tree stumps walk out of the corners toward the hero, who runs away. The ones that catch up fall asleep with Zs above them and disappear." />
+	<figcaption>Each log has its own state, in one vector. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="objects" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**Objects move, but never change state.**
+The loop is `for(log_enemy log : logs)`, with no `&`. Each log updates a copy of itself, and the copy is thrown away. The sprite still moves, because the copy's `sprite_ptr` is a handle to the same sprite, so it looks almost right: here the logs pile up on the hero and never fall asleep.
+
+**Moving one object moves another.**
+`bn::sprite_ptr twin = hero;` doesn't make a second sprite. `twin.set_x(50)` moves the hero. To get another sprite, call `create_sprite` again.
+
+**"Vector is full".**
+`emplace_back` on a full `bn::vector` stops the game with that message. Check `full()` first, as the snippet does, and decide what happens when there's no room: wait, as here, or replace the oldest.
+
+**Removing objects inside the loop that updates them.**
+Erasing from a vector moves the elements after it, so a range `for` that erases skips one and can run past the end. Update first, then remove with `bn::erase_if`.
+
+**Too many sprites.**
+The hardware shows 128 at once, and fewer on a single line before some vanish. Count the sprites each object uses, text included, when you pick the vector's size.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), whose enemies and bullets are classes in a `bn::forward_list`, also with a fixed size, where removing one doesn't move the others. See [`bf_game_enemies.h`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/include/bf_game_enemies.h).
+- Headers: [`bn_vector.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_vector.h), [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h).
+- Reference: [`bn::vector`](https://gvaliente.github.io/butano/classbn_1_1vector.html).
+- C++: [range-based `for`](https://en.cppreference.com/w/cpp/language/range-for), [lambdas](https://en.cppreference.com/w/cpp/language/lambda) and [`explicit`](https://en.cppreference.com/w/cpp/language/explicit), on cppreference.
