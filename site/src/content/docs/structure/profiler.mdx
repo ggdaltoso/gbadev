@@ -1,0 +1,143 @@
+---
+title: Performance
+description: Watching the CPU while playing, measuring blocks of code with bn::profiler, finding the slow part, fixing it and measuring again.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import profiler from '../../../../../snippets/profiler/src/main.cpp?raw';
+import makefile from '../../../../../snippets/profiler/Makefile?raw';
+
+export const usage = [
+	{ label: '8', cpu: 8 },
+	{ label: '16', cpu: 19 },
+	{ label: '24', cpu: 26 },
+	{ label: '32', cpu: 43 },
+	{ label: '40', cpu: 58 },
+	{ label: '48', cpu: 81 },
+	{ label: '56', cpu: 104 },
+	{ label: '64', cpu: 132 },
+	{ label: '64', cpu: 56, split: true },
+];
+export const chartTop = 14;
+export const chartHeight = 120;
+export const yFor = (cpu) => chartTop + chartHeight - (cpu * chartHeight) / 140;
+
+## When to use it
+
+When the game slows down, or before it does: when you add many objects, a big loop, or anything that runs every frame for every enemy. Measure first, because the slow part is rarely the one you'd guess.
+
+## How to think about it
+
+**Each frame has a budget.** The screen refreshes 60 times per second, so all of a frame's work has to fit in about 16.7 ms. `bn::core::last_cpu_usage()` says how much of the last frame was used: 1 is all of it. Past 1, the frame wasn't ready in time, the screen showed the old one again, and the game runs slower.
+
+**First, watch the number.** Put the CPU usage on screen while you play. It tells you *when* it gets heavy, not *why*.
+
+**Then, measure blocks.** `BN_PROFILER_START("name")` and `BN_PROFILER_STOP()` around a piece of code add its time to a table. `bn::profiler::show()` stops the game and shows that table, sorted by who took the longest.
+
+**Then fix the biggest one, and measure again.** A fix that doesn't change the number wasn't a fix.
+
+**It costs nothing when it's off.** The profiler only exists when the build has `BN_CFG_PROFILER_ENABLED`. Without it, the `BN_PROFILER_` lines turn into nothing, so you can leave them in the code.
+
+## The smallest thing that works
+
+A stress test. **A** adds 8 logs that chase the hero, up to 64, and **B** removes 8. The top line shows how many there are and the CPU usage. **START** stops the game and shows the profiler's table, and **A** on that screen switches between the two views. **SELECT** turns the fix on and off, which comes later on this page.
+
+The profiler is turned on in the snippet's Makefile:
+
+<Code code={makefile} lang="makefile" title="snippets/profiler/Makefile" />
+
+<Code code={profiler} lang="cpp" title="snippets/profiler/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/profiler/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Logs keep arriving from the top and bottom in groups of eight and crowd around the hero. The CPU number at the top climbs past 100 percent at 56 logs, then drops to about half when the mode switches from all to split." />
+	<figcaption>From 0 to 64 logs, then SELECT. Captured from the emulator (2x, fewer frames).</figcaption>
+</figure>
+
+<Rom name="profiler" />
+
+### What the numbers said
+
+Reading the top line after each **A**, in the emulator:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 164" role="img" aria-label="Bar chart of CPU usage by number of logs. 8 logs: 8 percent. 16: 19. 24: 26. 32: 43. 40: 58. 48: 81. 56: 104. 64: 132. A dashed line marks 100 percent, the whole frame. A last bar, 64 logs split, is at 56 percent." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g stroke="currentColor" stroke-opacity="0.15">
+			{[0, 50, 100].map((cpu) => <path key={cpu} d={`M34 ${yFor(cpu)} H352`} />)}
+		</g>
+		<g font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="end">
+			{[0, 50, 100].map((cpu) => <text key={cpu} x="30" y={yFor(cpu) + 3}>{cpu}%</text>)}
+		</g>
+		<path d={`M34 ${yFor(100)} H352`} stroke="currentColor" stroke-opacity="0.6" stroke-dasharray="3 2" />
+		<text x="352" y={yFor(100) - 4} font-size="7.5" fill="currentColor" fill-opacity="0.8" text-anchor="end">a whole frame</text>
+		{usage.map((bar, i) => {
+			const x = 44 + i * 34 + (bar.split ? 6 : 0);
+			const top = yFor(bar.cpu);
+			const bottom = yFor(0);
+			return (
+				<g key={i}>
+					<title>{`${bar.label} logs${bar.split ? ', split' : ''}: ${bar.cpu}% of the frame`}</title>
+					<path d={`M${x} ${bottom} V${top + 3} q0 -3 3 -3 h12 q3 0 3 3 V${bottom} z`} fill={bar.split ? '#2f9e36' : '#1e7cb8'} />
+					<text x={x + 9} y={top - 3} font-size="7.5" fill="currentColor" text-anchor="middle">{bar.cpu}</text>
+					<text x={x + 9} y={bottom + 10} font-size="8" fill="currentColor" fill-opacity="0.8" text-anchor="middle">{bar.label}</text>
+				</g>
+			);
+		})}
+		<text x="160" y="160" font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="middle">logs, all checked every frame</text>
+		<text x="334" y="160" font-size="8" fill="#2f9e36" text-anchor="middle">split</text>
+	</svg>
+	<figcaption>CPU usage, in percent of a frame. Twice the logs costs more than twice the time. The number moves a little between readings, so these are one reading each.</figcaption>
+</figure>
+
+At 56 logs the game misses frames. The profiler's table, after a run up to 64:
+
+<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
+	<figure style={{ margin: 0, maxWidth: '360px' }}>
+		<img src="/images/profiler/total.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="Profiler table, total ticks. separate: 82 percent. chase: 16 percent. stats text: 1 percent." />
+		<figcaption>Total: all the time each block took, added up.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, maxWidth: '360px' }}>
+		<img src="/images/profiler/max.png" width="480" height="320" style={{ imageRendering: 'pixelated', width: '100%', height: 'auto' }} alt="Profiler table, max ticks. separate: 5748. chase: 705. stats text: 679." />
+		<figcaption>Max: each block's single slowest run.</figcaption>
+	</figure>
+</div>
+
+`separate` takes 82% of the time. Its slowest run took 5748 ticks, and a frame has 4389 at Butano's default timer: that one block alone took longer than a whole frame.
+
+### The fix
+
+The reason is in the loop: it checks every pair of logs. Twice the logs means four times the pairs, which is why the bars curve up.
+
+Logs don't need to be pushed apart every frame. With **SELECT**, each frame only checks a quarter of the logs against the others, taking turns, and pushes four times as hard. Every pair is still checked every 4 frames, and nobody can see the difference. With 64 logs, the CPU went from 132% to 56%.
+
+Splitting a job across frames is a common fix. The others are doing less work, such as only checking nearby logs, or doing the same work faster.
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, log and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [HUD](/basics/hud/) and [game objects](/structure/objects/) pages.
+
+## Pitfalls
+
+**"'bn::profiler' has not been declared".**
+The build doesn't have `BN_CFG_PROFILER_ENABLED`. The `BN_PROFILER_` lines compile to nothing without it, but a call to `bn::profiler::show()` doesn't. Add the flag to `USERFLAGS` in the Makefile, or remove the call.
+
+**"There's already an active id".**
+Blocks can't be nested, and every `START` needs its `STOP` before the next `START`. To measure a part of a block, give it its own `START` and `STOP` instead of nesting.
+
+**Measuring once.**
+One frame can be quiet and the next one heavy. Play for a while before **START**, so the table adds up many frames, and look at both views: total for what costs the most overall, max for what causes the spikes.
+
+**Doing the heavy job every few frames.**
+Running all of `separate` every fourth frame, instead of splitting it, makes three frames light and one as heavy as before. With 64 logs that one frame would still need more than a whole frame, going by the table above. Spread the work evenly.
+
+**The meter changes the result.**
+Writing text every frame costs time too. The snippet updates its numbers every 30 frames, and measures that in its own block to be sure.
+
+**The emulator isn't the console.**
+These numbers come from mGBA in a browser. Run on real hardware before trusting a number close to 100%.
+
+## Read more
+
+- Butano example: [`examples/profiler`](https://github.com/GValiente/butano/tree/master/examples/profiler).
+- Headers: [`bn_profiler.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_profiler.h), [`bn_config_profiler.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_profiler.h), and [`bn_core.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_core.h) for `last_cpu_usage`.
+- Reference: [profiler](https://gvaliente.github.io/butano/group__profiler.html).
