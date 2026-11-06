@@ -1,0 +1,117 @@
+---
+title: Files and headers
+description: Moving a class out of main.cpp into a header and a source file, include guards, what goes where, and the compiler and linker errors you'll meet.
+sidebar:
+  order: 3
+---
+
+import { Code, TabItem, Tabs } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import header from '../../../../../snippets/files/include/log_enemy.h?raw';
+import source from '../../../../../snippets/files/src/log_enemy.cpp?raw';
+import main from '../../../../../snippets/files/src/main.cpp?raw';
+
+## When to use it
+
+When `main.cpp` gets long enough that you scroll to find things, or when two files need the same class. Each kind of thing gets its own pair of files, and `main.cpp` goes back to just running the game.
+
+## How to think about it
+
+**Every `.cpp` is compiled on its own.** The compiler reads one `.cpp` at a time, from top to bottom, and knows nothing about the others. Each one becomes an object file, `.o`. Then the *linker* joins all of them into the ROM.
+
+**A header is a promise.** `log_enemy.h` says that a class `log_enemy` exists, what's inside it, and which functions it has. That's enough for `main.cpp` to create logs and call `update()`, even without seeing how `update()` works.
+
+**The `.cpp` keeps the promise.** `log_enemy.cpp` has the bodies of those functions, once, for the whole game. The linker connects each call in `main.o` to its body in `log_enemy.o`.
+
+**`#include` pastes the file in.** It's a copy and paste, done before compiling. That's why a header can't be pasted twice in the same `.cpp`, and why it needs an include guard.
+
+**You don't list the files anywhere.** Butano's build compiles every `.cpp` in the folders of `SOURCES`, and looks for headers in the folders of `INCLUDES`. By default those are `src` and `include`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="On the left, the header log_enemy.h is included by both main.cpp and log_enemy.cpp. Each cpp is compiled on its own into main.o and log_enemy.o. The linker joins the two into files.gba. Labels show that a redefinition error comes from the compiler, and that multiple definition and undefined reference errors come from the linker." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<rect x="4" y="60" width="72" height="22" rx="3" fill="none" stroke="#1e7cb8" stroke-width="1.2" />
+			<text x="40" y="74">log_enemy.h</text>
+			<rect x="104" y="24" width="72" height="22" rx="3" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+			<text x="140" y="38">main.cpp</text>
+			<rect x="104" y="96" width="72" height="22" rx="3" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+			<text x="140" y="110">log_enemy.cpp</text>
+			<rect x="200" y="24" width="60" height="22" rx="3" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+			<text x="230" y="38">main.o</text>
+			<rect x="200" y="96" width="60" height="22" rx="3" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+			<text x="230" y="110">log_enemy.o</text>
+			<rect x="284" y="60" width="72" height="22" rx="3" fill="#3abe41" fill-opacity="0.25" stroke="#3abe41" />
+			<text x="320" y="74">files.gba</text>
+			<text x="58" y="44" fill-opacity="0.7">#include</text>
+			<text x="58" y="108" fill-opacity="0.7">#include</text>
+			<text x="188" y="14" fill-opacity="0.7">compiler, one .cpp at a time</text>
+			<text x="300" y="14" fill-opacity="0.7">linker</text>
+			<text x="188" y="142" font-size="7" fill="#ff4d8d">redefinition of…</text>
+			<text x="320" y="134" font-size="7" fill="#ff4d8d">multiple definition,</text>
+			<text x="320" y="143" font-size="7" fill="#ff4d8d">undefined reference</text>
+		</g>
+		<g stroke="currentColor" stroke-opacity="0.6" stroke-width="1" fill="none">
+			<path d="M76 66 L104 38" /><path d="M76 76 L104 104" />
+			<path d="M176 35 H200" /><path d="M176 107 H200" />
+			<path d="M260 35 L284 66" /><path d="M260 107 L284 76" />
+		</g>
+	</svg>
+	<figcaption>The header is pasted into both <code>.cpp</code> files. Each one compiles alone, and the linker joins them. Errors at the bottom, by who reports them.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The same game as [the game objects page](/structure/objects/), with the log class moved into its own files. Nothing else changed, and the ROM behaves the same.
+
+<Tabs>
+	<TabItem label="log_enemy.h">
+		<Code code={header} lang="cpp" title="snippets/files/include/log_enemy.h" />
+	</TabItem>
+	<TabItem label="log_enemy.cpp">
+		<Code code={source} lang="cpp" title="snippets/files/src/log_enemy.cpp" />
+	</TabItem>
+	<TabItem label="main.cpp">
+		<Code code={main} lang="cpp" title="snippets/files/src/main.cpp" />
+	</TabItem>
+</Tabs>
+
+What goes where:
+
+| In the header | In the `.cpp` |
+|---|---|
+| The class, with its members, so the compiler knows its size | The bodies of the functions, written as `log_enemy::update` |
+| Includes for the members' and parameters' types | Includes only the bodies need, such as the sprite item |
+| Short functions written inside the class, like `asleep()` | Everything else |
+
+`main.cpp` doesn't include `bn_sprite_items_log.h` anymore. It doesn't need to know what a log looks like, only that logs exist.
+
+A short function written inside the class is *inline*: it can be in the header, which is pasted into many files, without being defined twice. That's not true for functions outside a class, as the pitfalls show.
+
+`log_enemy.cpp` includes its own header first. If the header ever forgets an include it needs, this is where it fails, instead of working by luck in a file that happened to include it earlier.
+
+<Rom name="files" />
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, log and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [HUD](/basics/hud/) and [game objects](/structure/objects/) pages.
+
+## Pitfalls
+
+**"redefinition of 'class log_enemy'".**
+The header was pasted twice into one `.cpp`, often through another header, and it has no include guard. Wrap it in `#ifndef`, `#define` and `#endif`, with a name no other header uses. `#pragma once` does the same in one line; Butano's own headers use guards.
+
+**"multiple definition of `sleep_duration()'", from `ld`.**
+A function outside the class has its body in the header. Every `.cpp` that includes it gets a copy, and the linker finds two. Move the body to the `.cpp` and leave only `int sleep_duration();` in the header, or mark it `inline`.
+
+**"undefined reference to `log_enemy::update(...)'".**
+The linker found the promise but not the body. Either the function isn't defined in any `.cpp`, its name or parameters differ from the header, or the `.cpp` isn't being compiled at all. A `.cpp` in a subfolder, like `src/enemies/`, is ignored until you add that folder to `SOURCES` in the Makefile.
+
+**Two files with the same name in different folders.**
+`src/log_enemy.cpp` and `src/enemies/log_enemy.cpp` both become `log_enemy.o`, and one replaces the other. You get "undefined reference" for functions that are clearly there. Give every `.cpp` a different name.
+
+**"'log_enemy' was not declared in this scope".**
+The file uses the class but doesn't include its header. Each `.cpp` needs its own `#include`: the compiler doesn't remember what another file included.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), with one header and one source file for each class, in [`include`](https://github.com/GValiente/butano/tree/master/games/butano-fighter/include) and [`src`](https://github.com/GValiente/butano/tree/master/games/butano-fighter/src).
+- Butano FAQ: [can I use subfolders for code and assets?](https://gvaliente.github.io/butano/faq.html#faq_subfolder), for `SOURCES` in the Makefile.
+- C++: [`#include`](https://en.cppreference.com/w/cpp/preprocessor/include), [include guards](https://en.cppreference.com/w/cpp/preprocessor/impl#.23pragma_once) and [`inline`](https://en.cppreference.com/w/cpp/language/inline), on cppreference.
