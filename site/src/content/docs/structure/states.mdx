@@ -1,0 +1,112 @@
+---
+title: State machines
+description: An enemy that sleeps, notices you, chases and gives up, with an enum class, one switch, and a single place where the state changes.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import states from '../../../../../snippets/states/src/main.cpp?raw';
+
+export const nodes = [
+	{ name: 'SLEEP', x: 60, y: 40 },
+	{ name: 'ALERT', x: 300, y: 40 },
+	{ name: 'CHASE', x: 300, y: 130 },
+	{ name: 'RETURN', x: 60, y: 130 },
+];
+
+## When to use it
+
+When something behaves differently depending on what it's doing: an enemy that patrols, then chases, then gives up; a door that's closed, opening, open; a player that can be walking, jumping or hurt. The sign you need one is a pile of `bool`s, like `is_chasing` and `is_returning`, that should never be true together but sometimes are.
+
+## How to think about it
+
+**One value says what it's doing.** An `enum class` lists every state, and a single variable holds the current one. It can't be in two states at once, because a variable holds one value.
+
+**Each state only asks "do I stay or go?".** In the `switch`, each `case` does what that state does every frame, then checks the conditions to leave it. It doesn't need to know about the other states, only their names.
+
+**Changing state happens in one place.** `_enter` sets the new state and does what should happen once, on the way in: reset the timer, start an animation. Every transition goes through it, so none of them forgets a step.
+
+**The diagram is the design.** Draw the states as boxes and the conditions as arrows before writing code. If an arrow is missing, the code will be too.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 170" role="img" aria-label="Four states. SLEEP goes to ALERT when the hero is near. ALERT goes to CHASE after 30 frames. CHASE goes to RETURN when the hero is far. RETURN goes back to SLEEP when the log is home, or to ALERT if the hero comes near again." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="states-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+				<path d="M0 0 L8 4 L0 8 z" fill="#ff4d8d" />
+			</marker>
+		</defs>
+		<g stroke="#ff4d8d" stroke-width="1.2" fill="none" marker-end="url(#states-arrow)">
+			<path d="M100 40 H258" />
+			<path d="M300 54 V114" />
+			<path d="M258 130 H106" />
+			<path d="M60 114 V56" />
+			<path d="M96 118 L264 52" />
+		</g>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="180" y="34">hero within 48</text>
+			<text x="326" y="88">30 frames</text>
+			<text x="180" y="146">hero past 96</text>
+			<text x="30" y="82">home</text>
+			<text x="196" y="96">hero within 48</text>
+		</g>
+		{nodes.map((node) => (
+			<g key={node.name}>
+				<rect x={node.x - 40} y={node.y - 14} width="80" height="28" rx="14" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+				<text x={node.x} y={node.y + 3} font-size="9" font-weight="600" fill="currentColor" text-anchor="middle">{node.name}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>Every arrow is one <code>_enter</code> call in the code.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+A log guards its spot. It sleeps until the hero comes close, stops for a moment with a "!", then chases. If the hero gets far enough away, it gives up, walks home and goes back to sleep. Move with the **D-pad**. The top line shows the current state.
+
+<Code code={states} lang="cpp" title="snippets/states/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/states/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="A sleeping log wakes with an exclamation mark when the hero walks up, chases the hero, gives up when the hero runs away, walks back to its spot and falls asleep again. The top line reads sleep, alert, chase, return, sleep." />
+	<figcaption>One full loop around the diagram. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="states" />
+
+Some of the C++ that helps:
+
+| In the code | Why |
+|---|---|
+| `enum class log_state` | The names live inside the type: `log_state::CHASE`, not just `CHASE`, so they don't clash with anything else. And it doesn't turn into an `int` by accident. |
+| `static_cast<int>(_state)` | Turns it into a number on purpose, here to pick its name from `state_names`. |
+| `default: BN_ERROR(...)` | A state with no `case` stops the game with a message, instead of the log doing nothing. |
+| `[[nodiscard]] bool near(...)` | A free function: it doesn't need a log, so it isn't part of the class. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/) and [HUD](/basics/hud/) pages, and the log from [game objects](/structure/objects/), with one more frame for being awake.
+
+## Pitfalls
+
+**"this statement may fall through".**
+A `case` without `break` runs into the next one. Without the `break` after `ALERT`, every frame of the pause also runs the code of `CHASE`, so the log moves and can give up before it was supposed to start. The compiler warns, so read the warnings.
+
+**The animation is stuck on its first frame.**
+The animation is created inside the `case`, so it starts over every frame and never gets to frame two. Testing it, the index was still 0 after a second of chasing. Start animations in `_enter`, once.
+
+**A new state does nothing, and the compiler says nothing.**
+With a `default`, the compiler stops warning about states with no `case`. Without one, you'd get "enumeration value 'STUNNED' not handled in switch", but also Butano's `-Wswitch-default` warning. The `BN_ERROR` in `default` is how you find it here, the first time the state is used.
+
+**The state changes, but the timer doesn't reset.**
+Something set `_state` directly instead of calling `_enter`. Keep `_state` private, so only the class can change it, and only `_enter` writes to it.
+
+**Names and states out of order.**
+`state_names` must follow the order of `log_state`. Add a state to one and not the other, and the text is wrong or reads past the end of the array.
+
+**It flickers between two states.**
+Two transitions with the same condition, in opposite directions, fire one after the other. Here the log wakes within 48 and gives up past 96: the gap between them is what keeps it from switching every frame.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), where scenes are states too, with [`bf_scene_type.h`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/include/bf_scene_type.h) listing them.
+- C++: [`enum class`](https://en.cppreference.com/w/cpp/language/enum#Scoped_enumerations), [`switch`](https://en.cppreference.com/w/cpp/language/switch) and [`static_cast`](https://en.cppreference.com/w/cpp/language/static_cast), on cppreference.
+- Game Programming Patterns: [State](https://gameprogrammingpatterns.com/state.html), by Robert Nystrom.

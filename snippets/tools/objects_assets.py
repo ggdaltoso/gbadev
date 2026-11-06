@@ -1,9 +1,10 @@
-"""Builds snippets/objects/graphics/log.bmp from the Zelda-like pack.
+"""Builds graphics/log.bmp for the objects, files and states snippets, from the Zelda-like pack.
 
 Frames 0-3: the log walking, facing right. Frames 4-7: asleep, with its Zs.
+Frame 8: awake, sitting. The objects and files snippets were built before frame 8 existed, and don't use it.
 The shadow is semi-transparent, so it's blended onto the most common grass color.
 
-Usage: python3 objects_assets.py <assets/zelda-like folder> <snippets/objects folder>
+Usage: python3 objects_assets.py <assets/zelda-like folder> <snippet folder>
 """
 import sys
 
@@ -32,8 +33,10 @@ grass_color = max(set(grass), key=grass.count)
 log = Image.open(f'{assets}/log.png').convert('RGBA')
 walk = [(column * 32, 0) for column in range(4)]
 sleep = [(128, row * 32) for row in range(4)]
-sheet = Image.new('RGB', (32 * 8, 32), TRANSPARENT)
-for i, (left, top) in enumerate(walk + sleep):
+awake = [(160, 0)]
+frames = walk + sleep + awake
+sheet = Image.new('RGB', (32 * len(frames), 32), TRANSPARENT)
+for i, (left, top) in enumerate(frames):
     frame = log.crop((left, top, left + 32, top + 32))
     for index, (r, g, b, a) in enumerate(frame.getdata()):
         if a == 0:
