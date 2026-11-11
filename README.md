@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first twenty-three pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first twenty-four pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -90,6 +90,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 ### Math
 
 23. **Fixed-point numbers:** why `bn::fixed` and not `float`, sine and cosine from a table, and where precision and range run out.
+24. **Vectors and angles:** the same speed in every direction, aiming with `atan2`, and distance without a square root.
 
 ### Pitfalls already collected
 

@@ -1,0 +1,116 @@
+---
+title: Vectors and angles
+description: Moving at the same speed in every direction, aiming at a target with atan2, and checking distance without a square root, all with bn::fixed_point.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import vectors from '../../../../../snippets/vectors/src/main.cpp?raw';
+
+export const unit = 50;
+export const diagonal = unit * 0.7071;
+
+## When to use it
+
+When something moves in a direction that isn't just left, right, up or down: a hero walking diagonally, a shot aimed at the player, an enemy that walks toward you. And when you need to know whether two things are close, with a circle instead of a box.
+
+## How to think about it
+
+**A `bn::fixed_point` is a vector.** It's a pair of `bn::fixed`, x and y, and it means either a place or a movement. Butano gives it `+`, `-`, `*` and `/`, so `position + velocity` moves a thing one frame, and `direction * speed` turns a direction into a velocity.
+
+**A direction is a vector of length 1.** Multiply it by a speed, and the thing moves exactly that far each frame, whatever the angle. The D-pad doesn't give you that: right is (1, 0), length 1, but right and down is (1, 1), length 1.41.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="Left: a dashed circle of radius 1. An arrow to the right reaches the circle at length 1. An arrow toward the bottom right, from pressing right and down, goes past the circle at length 1.41. A shorter arrow along it, multiplied by 0.7071, stops on the circle. Right: the angles on the GBA screen. 0 degrees points right, 90 down, 180 left, and up is -90 from atan2, which is 270 for the sine table." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="vec-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<g transform="translate(70 72)">
+			<circle r={unit} fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-dasharray="3 2" />
+			<line x1="0" y1="0" x2={unit} y2={unit} stroke="#ff4d8d" stroke-width="1.5" marker-end="url(#vec-arrow)" />
+			<line x1="0" y1="0" x2={diagonal} y2={diagonal} stroke="#2f9e36" stroke-width="2.5" marker-end="url(#vec-arrow)" />
+			<line x1="0" y1="0" x2={unit} y2="0" stroke="#1e7cb8" stroke-width="2" marker-end="url(#vec-arrow)" />
+			<g font-size="8" fill="currentColor">
+				<text x={unit + 4} y="3">(1, 0): 1</text>
+				<text x={unit + 4} y={unit + 6}>(1, 1): 1.41</text>
+				<text x={diagonal - 8} y={diagonal + 3} text-anchor="end">× 0.7071: 1</text>
+			</g>
+			<text x="10" y="-60" font-size="9" fill="currentColor" text-anchor="middle">D-pad steps</text>
+		</g>
+		<g transform="translate(270 80)">
+			<line x1="0" y1="0" x2="42" y2="0" stroke="#1e7cb8" stroke-width="2" marker-end="url(#vec-arrow)" />
+			<line x1="0" y1="0" x2="0" y2="42" stroke="#1e7cb8" stroke-width="2" marker-end="url(#vec-arrow)" />
+			<line x1="0" y1="0" x2="-42" y2="0" stroke="#1e7cb8" stroke-width="2" marker-end="url(#vec-arrow)" />
+			<line x1="0" y1="0" x2="0" y2="-42" stroke="#ff4d8d" stroke-width="2" marker-end="url(#vec-arrow)" />
+			<g font-size="8" fill="currentColor" text-anchor="middle">
+				<text x="62" y="3">0°</text>
+				<text x="0" y="58">90° (y grows down)</text>
+				<text x="-60" y="3">180°</text>
+				<text x="0" y="-48">-90° from atan2, 270° for sin</text>
+			</g>
+			<text x="0" y="-68" font-size="9" fill="currentColor" text-anchor="middle">Angles on the screen</text>
+		</g>
+	</svg>
+	<figcaption>Left: two D-pad directions make a longer step, and 0.7071 brings it back to 1. Right: y points down, so angles turn clockwise.</figcaption>
+</figure>
+
+**An angle turns into a direction with sine and cosine.** For an angle in degrees, `(cos, sin)` is the direction of length 1. The sine table from [the fixed-point page](/math/fixed/) does the work.
+
+**A direction turns into an angle with `atan2`.** `bn::degrees_atan2(y, x)` gives the angle of the vector (x, y). That's how something aims: take the difference between the target and itself, get its angle, and turn the angle back into a direction of length 1.
+
+**Comparing distances doesn't need the distance.** The real distance is `sqrt(x² + y²)`. But if `x² + y²` is less than `r²`, the distance is less than `r`, so you can skip the square root and compare the squares.
+
+## The smallest thing that works
+
+The **D-pad** walks the hero. **A** turns the diagonal fix on and off, and the bottom line shows how far the hero moves in 100 frames. Every second, the log throws a coin at the hero, aimed with `atan2`, and the top counts the hits.
+
+<Code code={vectors} lang="cpp" title="snippets/vectors/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/vectors/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The log throws coins that fly straight at the hero. The hero walks right at 150 pixels per 100 frames, then up and right at 149. With the fix off, the diagonal goes to 212, and the coins keep following the hero." />
+	<figcaption>150 in a straight line, 149 on the diagonal with the fix, 212 without it. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="vectors" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `auto [sin, cos] = ...` | A structured binding: gives a name to each half of the `bn::pair`, instead of `.first` and `.second`. |
+| `shot{ sprite, velocity }` | Fills a `struct` in the order of its members. No constructor needed. |
+| `[&](const shot& flying)` | A lambda that sees the variables around it by reference, so it can count `hits` while `erase_if` decides what to remove. |
+| `bn::keypad::right_held() - bn::keypad::left_held()` | A `bool` becomes 0 or 1 in arithmetic, so this is -1, 0 or 1, and both keys at once cancel out. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, log, coin and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [game objects](/structure/objects/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**The hero is faster on the diagonal.**
+Two directions at once are (1, 1), and the hero covered 212 pixels in 100 frames instead of 150. Multiply diagonals by 0.7071, which is 1/√2, as the snippet does.
+
+**"Angle must be in the range [0..360]: -90".**
+`bn::degrees_atan2` answers from -180 to 180, and everything above the shooter is negative. The sine table stops the game for those. Add 360 when the angle is negative, as `direction` does, or use `bn::degrees_lut_sin_and_cos_safe`.
+
+**Things aim the wrong way up and down.**
+On the screen, y grows downward, so 90° points down, not up. As long as the angle comes from `atan2` and goes back through the same sine table, it works out. Mixing in an angle from a math book, where 90° is up, flips it.
+
+**`cannot convert 'bn::fixed_t<12>' to 'int'`.**
+`bn::degrees_atan2` takes `int`s, not `bn::fixed`. Round the difference first, with `round_integer()`. The lost fraction only matters when the two points are a few pixels apart.
+
+**Two far things count as touching.**
+The squared length has to fit in a `bn::fixed`, about 524287, so it breaks past 724 pixels. At 800 pixels apart, it came out as -408576, which is less than any `r²`, so `closer_than` said yes. Check with a box first, or keep the squares in `int`.
+
+**The square root is less precise than you expect.**
+`bn::sqrt` of a `bn::fixed` keeps only 6 bits of fraction, so `bn::sqrt(bn::fixed(4.5))` gave 2.10937, not 2.1213. The snippet scales the value to a whole number first and takes the square root of the `int` instead.
+
+## Read more
+
+- Header: [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h), with `degrees_atan2`, `degrees_diamond_angle` (an approximation of it), `sqrt` and the sine table, and [`bn_fixed_point.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_point.h).
+- Reference: [`bn::fixed_point_t`](https://gvaliente.github.io/butano/classbn_1_1fixed__point__t.html).
+- Tonc: [vector and matrix math](https://gbadev.net/tonc/matrix.html), for vectors and matrices.
+- C++: [structured bindings](https://en.cppreference.com/w/cpp/language/structured_binding) and [lambdas](https://en.cppreference.com/w/cpp/language/lambda), on cppreference.
