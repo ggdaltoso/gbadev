@@ -11,6 +11,26 @@ import vectors from '../../../../../snippets/vectors/src/main.cpp?raw';
 
 export const unit = 50;
 export const diagonal = unit * 0.7071;
+export const raceScale = 0.8;
+export const races = [
+	{ name: 'unfixed', color: '#ff4d8d', x: 150, y: 150, label: '212, fix off', ghosts: true },
+	{ name: 'fixed', color: '#2f9e36', x: 106, y: 106, label: '149, fix on', ghosts: false },
+	{ name: 'right', color: '#1e7cb8', x: 150, y: 0, label: '150', ghosts: true },
+];
+export const raceSteps = [0.25, 0.5, 0.75];
+export const aimScale = 1.5;
+export const aimLog = { x: 110, y: 40 };
+export const aimHero = { x: aimLog.x + 60 * aimScale, y: aimLog.y + 64 * aimScale };
+export const aimVelocity = { x: 1.37011, y: 1.45703 };
+export const aimCoins = [16, 24, 32];
+export const aimArc = 26;
+export const aimAngle = (46.8457 * Math.PI) / 180;
+export const nearScale = 6;
+export const nearCenter = { x: 180, y: 95 };
+export const nearCoins = [
+	{ dx: -6, dy: -7, hit: true },
+	{ dx: 9, dy: 8, hit: false },
+];
 
 ## When to use it
 
@@ -58,11 +78,100 @@ When something moves in a direction that isn't just left, right, up or down: a h
 	<figcaption>Left: two D-pad directions make a longer step, and 0.7071 brings it back to 1. Right: y points down, so angles turn clockwise.</figcaption>
 </figure>
 
+Here is the same 100 frames three ways, starting from one spot, with the distances the snippet measured:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 170" role="img" aria-label="Three heroes leave the same spot. One walks right and stops 150 pixels away. One walks down and right with the fix and stops at 149, on the same dashed arc. One walks down and right without the fix and ends at 212, well past the arc." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g transform="translate(60 26)">
+			<path d={`M ${150 * raceScale} 0 A ${150 * raceScale} ${150 * raceScale} 0 0 1 0 ${150 * raceScale}`} fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-dasharray="3 2" />
+			{races.map((race) => (
+				<g key={race.name}>
+					<line x1="0" y1="0" x2={race.x * raceScale} y2={race.y * raceScale} stroke={race.color} stroke-width={race.ghosts ? 2 : 3} />
+					{race.ghosts && raceSteps.map((step) => (
+						<image key={step} href="/images/vectors/hero.png" x={race.x * raceScale * step - 10} y={race.y * raceScale * step - 12} width="20" height="20" opacity="0.35" style={{ imageRendering: 'pixelated' }} />
+					))}
+					<image href="/images/vectors/hero.png" x={race.x * raceScale - 10} y={race.y * raceScale - 12} width="20" height="20" style={{ imageRendering: 'pixelated' }} />
+					<text x={race.x * raceScale + 12} y={race.y * raceScale + 3} font-size="8" fill="currentColor">{race.label}</text>
+				</g>
+			))}
+			<image href="/images/vectors/hero.png" x="-10" y="-12" width="20" height="20" style={{ imageRendering: 'pixelated' }} />
+			<text x="-14" y="2" font-size="8" fill="currentColor" text-anchor="end">start</text>
+		</g>
+	</svg>
+	<figcaption>Pixels covered in 100 frames at 1.5 per frame. Dashed: everything 150 pixels from the start.</figcaption>
+</figure>
+
 **An angle turns into a direction with sine and cosine.** For an angle in degrees, `(cos, sin)` is the direction of length 1. The sine table from [the fixed-point page](/math/fixed/) does the work.
 
 **A direction turns into an angle with `atan2`.** `bn::degrees_atan2(y, x)` gives the angle of the vector (x, y). That's how something aims: take the difference between the target and itself, get its angle, and turn the angle back into a direction of length 1.
 
+Here is one throw, with the numbers Butano gave for it:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 180" role="img" aria-label="The log at the top left and the hero below and to the right. A dashed line joins them, with its horizontal part labeled x 60 and its vertical part y 64. An arc at the log marks the angle, 46.85 degrees. A green arrow from the log shows the direction of length 1, and coins along the dashed line show where the coin is every 8 frames, moving 1.37 and 1.46 pixels per frame. On the right, the three steps: the difference, atan2, and cos and sin times 2." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="aim-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<g stroke="currentColor" stroke-opacity="0.45" stroke-width="1" fill="none">
+			<line x1={aimLog.x} y1={aimLog.y} x2={aimHero.x} y2={aimLog.y} stroke-dasharray="2 2" />
+			<line x1={aimHero.x} y1={aimLog.y} x2={aimHero.x} y2={aimHero.y} stroke-dasharray="2 2" />
+			<line x1={aimLog.x} y1={aimLog.y} x2={aimHero.x} y2={aimHero.y} stroke-dasharray="4 2" stroke-opacity="0.8" />
+		</g>
+		<path d={`M ${aimLog.x + aimArc} ${aimLog.y} A ${aimArc} ${aimArc} 0 0 1 ${aimLog.x + aimArc * Math.cos(aimAngle)} ${aimLog.y + aimArc * Math.sin(aimAngle)}`} fill="none" stroke="#ff4d8d" stroke-width="1.5" />
+		{aimCoins.map((frames) => (
+			<image key={frames} href="/images/vectors/coin.png" x={aimLog.x + aimVelocity.x * frames * aimScale - 8} y={aimLog.y + aimVelocity.y * frames * aimScale - 8} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+		))}
+		<image href="/images/vectors/log.png" x={aimLog.x - 24} y={aimLog.y - 24} width="48" height="48" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/vectors/hero.png" x={aimHero.x - 24} y={aimHero.y - 24} width="48" height="48" style={{ imageRendering: 'pixelated' }} />
+		<line x1={aimLog.x} y1={aimLog.y} x2={aimLog.x + 0.68505 * 32} y2={aimLog.y + 0.72851 * 32} stroke="#2f9e36" stroke-width="2.5" marker-end="url(#aim-arrow)" />
+		<g font-size="8" fill="currentColor">
+			<text x={(aimLog.x + aimHero.x) / 2} y={aimLog.y - 4} text-anchor="middle">x 60</text>
+			<text x={aimHero.x + 5} y={(aimLog.y + aimHero.y) / 2 - 10}>y 64</text>
+			<text x={aimLog.x + aimArc + 6} y={aimLog.y + 16}>46.85°</text>
+			<text x="20" y="120">the coin, drawn</text>
+			<text x="20" y="130">every 8 frames</text>
+		</g>
+		<g font-size="8" fill="currentColor">
+			<text x="240" y="30">1. hero − log = (60, 64)</text>
+			<text x="240" y="46">2. degrees_atan2(64, 60)</text>
+			<text x="252" y="56" fill-opacity="0.7">= 46.85°</text>
+			<text x="240" y="72">3. (cos, sin)</text>
+			<text x="252" y="82" fill-opacity="0.7">= (0.685, 0.729)</text>
+			<text x="252" y="92" fill-opacity="0.7">length 1, in green</text>
+			<text x="240" y="108">4. × 2 = (1.37, 1.46)</text>
+			<text x="252" y="118" fill-opacity="0.7">per frame</text>
+		</g>
+	</svg>
+	<figcaption>The log at (0, -24), the hero at (60, 40). Note <code>atan2</code> takes y first.</figcaption>
+</figure>
+
 **Comparing distances doesn't need the distance.** The real distance is `sqrt(x² + y²)`. But if `x² + y²` is less than `r²`, the distance is less than `r`, so you can skip the square root and compare the squares.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 190" role="img" aria-label="The hero in the middle of a dashed circle of radius 10, inside a dotted square of the same half-width. A coin up and to the left, 6 and 7 pixels away, is inside the circle: 36 plus 49 is 85, less than 100, a hit. A coin down and to the right, 9 and 8 pixels away, is inside the square but outside the circle: 81 plus 64 is 145, more than 100, a miss." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<rect x={nearCenter.x - 10 * nearScale} y={nearCenter.y - 10 * nearScale} width={20 * nearScale} height={20 * nearScale} fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="1 2" />
+		<circle cx={nearCenter.x} cy={nearCenter.y} r={10 * nearScale} fill="#2f9e36" fill-opacity="0.12" stroke="#2f9e36" stroke-dasharray="3 2" />
+		<image href="/images/vectors/hero.png" x={nearCenter.x - 16} y={nearCenter.y - 20} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		{nearCoins.map((coin) => (
+			<g key={coin.dx}>
+				<line x1={nearCenter.x} y1={nearCenter.y} x2={nearCenter.x + coin.dx * nearScale} y2={nearCenter.y + coin.dy * nearScale} stroke={coin.hit ? '#2f9e36' : '#ff4d8d'} stroke-width="1.5" />
+				<image href="/images/vectors/coin.png" x={nearCenter.x + coin.dx * nearScale - 9} y={nearCenter.y + coin.dy * nearScale - 9} width="18" height="18" style={{ imageRendering: 'pixelated' }} />
+			</g>
+		))}
+		<g font-size="8" fill="currentColor">
+			<text x="128" y="42" text-anchor="end">(-6, -7)</text>
+			<text x="128" y="53" text-anchor="end">36 + 49 = 85</text>
+			<text x="128" y="64" text-anchor="end">85 &lt; 100: hit</text>
+			<text x="248" y="148">(9, 8)</text>
+			<text x="248" y="159">81 + 64 = 145</text>
+			<text x="248" y="170">145 &gt; 100: miss</text>
+			<text x={nearCenter.x} y={nearCenter.y - 10 * nearScale - 6} text-anchor="middle" fill-opacity="0.7">r = 10, r² = 100</text>
+		</g>
+	</svg>
+	<figcaption>The coin on the right is within 10 pixels on each axis, so a square would call it a hit. Its distance is about 12.</figcaption>
+</figure>
 
 ## The smallest thing that works
 
