@@ -1,0 +1,228 @@
+---
+title: Hitboxes
+description: Collision between moving things with bn::fixed_rect, boxes that match the art instead of the sprite, outlines to see them, and a second of safety after a hit.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import hitboxes from '../../../../../snippets/hitboxes/src/main.cpp?raw';
+
+export const panels = [
+	{
+		x: 95,
+		title: 'Tight boxes: no hit',
+		log: { x: -11, y: 1, width: 18, height: 18 },
+		hero: { x: -6, y: 33, width: 12, height: 14 },
+	},
+	{
+		x: 265,
+		title: 'Whole-sprite boxes: hit',
+		log: { x: -16, y: -8, width: 32, height: 32 },
+		hero: { x: -16, y: 20, width: 32, height: 32 },
+		overlap: { x: -16, y: 20, width: 32, height: 4 },
+	},
+];
+
+export const compareScale = 2.5;
+export const heroBox = { left: -6, right: 6, top: -3, bottom: 11 };
+export const comparePanels = [
+	{ x: 90, title: 'Overlapping: hit', coin: { left: 3, right: 13, top: 1, bottom: 11 } },
+	{ x: 270, title: 'Apart: miss', coin: { left: 11, right: 21, top: 1, bottom: 11 } },
+];
+export const comparisons = (coin) => [
+	{ text: `hero left ${heroBox.left} < coin right ${coin.right}`, ok: heroBox.left < coin.right },
+	{ text: `hero right ${heroBox.right} > coin left ${coin.left}`, ok: heroBox.right > coin.left },
+	{ text: `hero top ${heroBox.top} < coin bottom ${coin.bottom}`, ok: heroBox.top < coin.bottom },
+	{ text: `hero bottom ${heroBox.bottom} > coin top ${coin.top}`, ok: heroBox.bottom > coin.top },
+];
+export const pixels = Array.from({ length: 33 }, (_, i) => i);
+export const shots = [-30, -10, 10, 30];
+
+## When to use it
+
+Whenever two moving things can touch: the hero and an enemy, a shot and a target, the hero and a coin. For the hero against walls and water, [map collision](/basics/collision/) checks cells instead.
+
+## How to think about it
+
+**A hitbox is a rectangle that stands in for a thing.** The game never asks whether two pictures touch, only whether two rectangles overlap. That's four comparisons, cheap enough to do for every pair of things on screen.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 196" role="img" aria-label="Two cases of the hero's box against a coin's box. Left, the coin overlaps the hero's body, and all four comparisons are true: a hit. Right, the coin is further right, and the comparison hero right greater than coin left is false: a miss." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		{comparePanels.map((panel) => (
+			<g key={panel.title}>
+				<text x={panel.x} y="12" font-size="9" fill="currentColor" text-anchor="middle">{panel.title}</text>
+				<g transform={`translate(${panel.x - 15} 64) scale(${compareScale})`}>
+					<image href="/images/hitboxes/hero.png" x="-16" y="-16" width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+					<image href="/images/hitboxes/coin.png" x={(panel.coin.left + panel.coin.right) / 2 + 1 - 8} y={(panel.coin.top + panel.coin.bottom) / 2 + 1 - 8} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+					<rect x={heroBox.left} y={heroBox.top} width={heroBox.right - heroBox.left} height={heroBox.bottom - heroBox.top} fill="none" stroke="#1e7cb8" stroke-width="0.6" />
+					<rect x={panel.coin.left} y={panel.coin.top} width={panel.coin.right - panel.coin.left} height={panel.coin.bottom - panel.coin.top} fill="none" stroke="#ff4d8d" stroke-width="0.6" />
+				</g>
+				<g font-size="8" fill="currentColor">
+					{comparisons(panel.coin).map((comparison, row) => (
+						<text key={comparison.text} x={panel.x - 70} y={130 + row * 14} fill-opacity={comparison.ok ? 1 : 0.6}>
+							<tspan fill={comparison.ok ? '#2f9e36' : '#ff4d8d'} font-weight="700">{comparison.ok ? '✓' : '✗'}</tspan> {comparison.text}
+						</text>
+					))}
+				</g>
+			</g>
+		))}
+	</svg>
+	<figcaption>Blue: the hero's box. Pink: the coin's. All four true means overlap, and one false is enough for a miss.</figcaption>
+</figure>
+
+**`bn::fixed_rect` is a center and a size.** `bn::fixed_rect(position, size)` puts the center at `position`, like a sprite. `intersects` says whether two of them overlap.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="A coin at (0, 0) with a 16 by 16 box around it, from -8 to 8 on each side. A dashed box of the same size sits up and to the left, centered on (-8, -8), labeled: the top-left corner passed as the center." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g stroke="currentColor" stroke-opacity="0.25">
+			<line x1="60" y1="87" x2="300" y2="87" /><line x1="190" y1="10" x2="190" y2="146" />
+		</g>
+		<rect x="126" y="23" width="64" height="64" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-dasharray="3 2" />
+		<image href="/images/hitboxes/coin.png" x="158" y="55" width="64" height="64" style={{ imageRendering: 'pixelated' }} />
+		<rect x="158" y="55" width="64" height="64" fill="none" stroke="#ff4d8d" stroke-width="1.5" />
+		<circle cx="190" cy="87" r="2.5" fill="#ff4d8d" />
+		<line x1="192" y1="89" x2="228" y2="101" stroke="currentColor" stroke-opacity="0.6" />
+		<g font-size="8" fill="currentColor">
+			<text x="230" y="104">center (0, 0)</text>
+			<text x="154" y="84" text-anchor="end">left -8</text>
+			<text x="226" y="84">right 8</text>
+			<text x="195" y="51">top -8</text>
+			<text x="195" y="129">bottom 8</text>
+			<text x="122" y="30" text-anchor="end" fill-opacity="0.75">the top-left corner,</text>
+			<text x="122" y="40" text-anchor="end" fill-opacity="0.75">passed as the center</text>
+		</g>
+	</svg>
+	<figcaption><code>bn::fixed_rect(bn::fixed_point(0, 0), bn::fixed_size(16, 16))</code> goes from -8 to 8, around the 16x16 coin sprite.</figcaption>
+</figure>
+
+**The box isn't the sprite.** A 32x32 sprite has transparent pixels all around the art. A box that size makes things collide with grass between them. Measure the art, and make the box that size, with an offset from the sprite's center if the art isn't centered.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 170" role="img" aria-label="The hero's 32 by 32 sprite, enlarged, on a pixel grid. A blue rectangle marks the visible art, 13 by 22 pixels. A pink rectangle marks the hitbox, 12 by 14, which leaves the top of the head out. A white dot marks the sprite's center, and a pink dot 4 pixels below it marks the hitbox's center." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g transform="translate(40 20)">
+			<g stroke="currentColor" stroke-opacity="0.08" stroke-width="0.5">
+				{pixels.map((i) => (
+					<g key={i}>
+						<line x1={i * 4} y1="0" x2={i * 4} y2="128" />
+						<line x1="0" y1={i * 4} x2="128" y2={i * 4} />
+					</g>
+				))}
+			</g>
+			<image href="/images/hitboxes/hero.png" x="0" y="0" width="128" height="128" style={{ imageRendering: 'pixelated' }} />
+			<rect x="0" y="0" width="128" height="128" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-dasharray="3 2" />
+			<rect x="36" y="24" width="52" height="88" fill="none" stroke="#1e7cb8" stroke-width="1.5" />
+			<rect x="40" y="52" width="48" height="56" fill="none" stroke="#ff4d8d" stroke-width="2" />
+			<line x1="64" y1="64" x2="64" y2="80" stroke="#fff" stroke-width="3" />
+			<line x1="64" y1="64" x2="64" y2="80" stroke="#000" stroke-width="1" />
+			<circle cx="64" cy="64" r="3.5" fill="#fff" stroke="#000" stroke-width="1" />
+			<circle cx="64" cy="80" r="3.5" fill="#ff4d8d" stroke="#fff" stroke-width="1" />
+		</g>
+		<g font-size="8" fill="currentColor">
+			<text x="190" y="40">sprite: 32 x 32, dashed</text>
+			<text x="190" y="62" fill="#1e7cb8">visible art: 13 x 22</text>
+			<text x="190" y="84" fill="#ff4d8d">hitbox: 12 x 14</text>
+			<text x="190" y="96" fill-opacity="0.75">its center, the pink dot, is</text>
+			<text x="190" y="106" fill-opacity="0.75">(0, 4) from the white one</text>
+			<text x="190" y="128" fill-opacity="0.75">the top of the head</text>
+			<text x="190" y="138" fill-opacity="0.75">stays out</text>
+		</g>
+	</svg>
+	<figcaption>The hero's first frame, 4x. The numbers come from counting the pixels that aren't transparent.</figcaption>
+</figure>
+
+**Smaller than the art feels fair.** Players forgive a shot that passes through their hair, not one that hits the air next to them. Here the hero's box covers the body and leaves the top of the head out.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 176" role="img" aria-label="Two copies of the same moment: a log just above the hero, with about four pixels of grass between the log's feet and the hero's head. On the left, tight boxes around the log and the hero's body are well apart: no hit. On the right, 32 by 32 boxes around both sprites overlap by four rows: a hit." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{panels.map((panel) => (
+			<g key={panel.title}>
+				<text x={panel.x} y="12" font-size="9" fill="currentColor" text-anchor="middle">{panel.title}</text>
+				<g transform={`translate(${panel.x} 40) scale(2)`}>
+					<image href="/images/hitboxes/log.png" x="-16" y="-8" width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+					<image href="/images/hitboxes/hero.png" x="-16" y="20" width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+					{panel.overlap && (
+						<rect {...panel.overlap} fill="#ff4d8d" fill-opacity="0.45" />
+					)}
+					<rect {...panel.log} fill="none" stroke="#ff4d8d" stroke-width="0.6" />
+					<rect {...panel.hero} fill="none" stroke="#ff4d8d" stroke-width="0.6" />
+				</g>
+			</g>
+		))}
+		<text x="180" y="172" font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="middle">The log at (0, 8), the hero at (0, 36), the same positions in both.</text>
+	</svg>
+	<figcaption>Four pixels of grass between them. The 32x32 boxes overlap anyway.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero, to take coins and stay away from the logs. **A** swaps every box between tight and whole-sprite, and **B** shows or hides the outlines, which are sprites drawn where each box is. The top counts coins and hits.
+
+<Code code={hitboxes} lang="cpp" title="snippets/hitboxes/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/hitboxes/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="With tight boxes, a log walks just above the hero and nothing happens. After A, the boxes grow to the whole sprite, and the same log passing at the same distance counts as a hit: the hero blinks and the hit count goes up." />
+	<figcaption>The same pass, with tight boxes and then with whole-sprite boxes. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="hitboxes" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr box_shape hero_tight = { ... }` | The shapes never change, so they're built while compiling and cost nothing at run time. |
+| `hitbox()` returns a new `bn::fixed_rect` | The box is worked out from the sprite every time, so it can't be left behind when the sprite moves. |
+| `bn::optional<bn::sprite_ptr> _outline` | A sprite that may not exist. `reset()` destroys it, and `->` reaches it when it does. |
+| `const box_shape& _shape() const` | Returns a reference to one of the two members, not a copy, and the `const` promises it doesn't change the object. |
+
+The outlines come from `snippets/tools/hitbox_assets.py`, which draws one pink frame per box size.
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, log, coin and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [game objects](/structure/objects/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**Things collide with space between them.**
+The box is the size of the sprite, not of the art. In the diagram, there are four pixels of grass between the log and the hero, and the 32x32 boxes overlap by four rows. Measure the art and use tight boxes.
+
+**One touch counts as many hits.**
+Overlap lasts many frames, and the check runs every frame, so without anything else a touch counts once per frame. Give the hero a few safe frames after a hit, as the snippet does with `safe_frames`, or remove the thing that hit, as the coins do by jumping somewhere else.
+
+**The box is half its size off.**
+`bn::fixed_rect` takes the center. A 16x16 box at (0, 0) goes from -8 to 8. If you pass a top-left corner, the box sits up and to the left of the art. For a top-left corner, use `bn::top_left_fixed_rect`.
+
+**Boxes that only touch don't intersect.**
+Two 16x16 boxes side by side, edge on edge, gave `intersects` false and `touches` true. Use `touches` if sharing an edge should count.
+
+**A fast shot passes through.**
+A 4x4 shot moving 20 pixels per frame jumped over an 8-pixel-wide wall without ever overlapping it: 0 hits in 11 steps. Make the box at least as long as the step, or split the move into smaller steps.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 124" role="img" aria-label="A tall wall box, 8 pixels wide. A small shot box appears at four positions 20 pixels apart: two on the left, two on the right. None of them overlaps the wall." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<rect x="168" y="22" width="24" height="96" fill="#1e7cb8" fill-opacity="0.25" stroke="#1e7cb8" />
+		{shots.map((x, index) => (
+			<g key={x}>
+				<rect x={180 + x * 3 - 6} y="60" width="12" height="12" fill="#ff4d8d" fill-opacity={index === 1 || index === 2 ? 1 : 0.4} />
+				<text x={180 + x * 3} y="88" font-size="8" fill="currentColor" text-anchor="middle">x {x}</text>
+			</g>
+		))}
+		<path d="M150 50 Q180 18 210 50" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+		<path d="M204 43 l6 7 l-8 0" fill="none" stroke="currentColor" stroke-opacity="0.6" />
+		<text x="180" y="12" font-size="8" fill="currentColor" text-anchor="middle">one frame: 20 px</text>
+	</svg>
+	<figcaption>One frame the shot is at -10, the next at 10. The wall is between, and no frame sees them overlap.</figcaption>
+</figure>
+
+**`bn::rect` with an odd size.**
+The integer version has no half pixels: a `bn::rect` of width 5 gave `left()` -2 and `right()` 2, four pixels apart. Use even sizes, `bn::fixed_rect`, or `bn::top_left_rect`, as Butano's header suggests.
+
+**The game slows down with many things.**
+Every shot against every enemy is a lot of pairs. See [the performance page](/structure/profiler/) for a loop like that, measured and fixed.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), which builds a `bn::fixed_rect` per thing and calls `intersects`. See [`bf_game_enemy_bullets.cpp`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/src/bf_game_enemy_bullets.cpp).
+- Headers: [`bn_fixed_rect.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_rect.h), [`bn_top_left_fixed_rect.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_top_left_fixed_rect.h).
+- Reference: [`bn::fixed_rect_t`](https://gvaliente.github.io/butano/classbn_1_1fixed__rect__t.html).
+- C++: [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional), which `bn::optional` follows, on cppreference.
