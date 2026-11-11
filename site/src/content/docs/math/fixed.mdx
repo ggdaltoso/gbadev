@@ -1,0 +1,110 @@
+---
+title: Fixed-point numbers
+description: Why bn::fixed instead of float, how it stores fractions in an int, sine and cosine from a table, and where its precision and range run out.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import fixed from '../../../../../snippets/fixed/src/main.cpp?raw';
+
+export const fractionBits = 12;
+export const integerBits = 20;
+
+## When to use it
+
+Any time a value needs a fraction: positions, speeds, angles, timers that grow by less than one per frame. Butano already uses `bn::fixed` for positions, so most of your math will be in it too. Use `int` when the value is truly whole, like a count or an index.
+
+## How to think about it
+
+**The GBA has no hardware for fractions.** Its CPU only does integer math. A `float` still compiles, but each operation becomes a small function that does the work with integers, and that's slow.
+
+**`bn::fixed` is an `int` that counts 4096ths.** It keeps a single `int`, which it calls `data()`. The value is `data() / 4096`, so 1.5 is stored as 6144, and the smallest step is 1/4096. Adding two of them is adding two `int`s, which is as fast as it gets.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 96" role="img" aria-label="A 32-bit int split in two parts: 20 bits on the left for the whole part, 12 bits on the right for the fraction. Below, three examples: 1.5 is stored as 6144, 0.1 as 409, which is really 0.09985, and the largest value is 524287 and a bit." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<rect x="10" y="10" width={integerBits * 10.6} height="22" fill="#1e7cb8" fill-opacity="0.25" stroke="#1e7cb8" />
+			<rect x={10 + integerBits * 10.6} y="10" width={fractionBits * 10.6} height="22" fill="#2f9e36" fill-opacity="0.25" stroke="#2f9e36" />
+			<text x={10 + integerBits * 5.3} y="24">20 bits: whole part, with the sign</text>
+			<text x={10 + integerBits * 10.6 + fractionBits * 5.3} y="24">12 bits: 4096ths</text>
+		</g>
+		<g font-size="8" fill="currentColor">
+			<text x="10" y="52">1.5</text><text x="70" y="52">data() = 6144</text><text x="170" y="52" fill-opacity="0.7">exactly 1.5</text>
+			<text x="10" y="68">0.1</text><text x="70" y="68">data() = 409</text><text x="170" y="68" fill-opacity="0.7">really 0.09985</text>
+			<text x="10" y="84">largest</text><text x="70" y="84">data() = 2147483647</text><text x="170" y="84" fill-opacity="0.7">a little over 524287</text>
+		</g>
+	</svg>
+	<figcaption><code>bn::fixed</code> is <code>bn::fixed_t&lt;12&gt;</code>: 12 bits after the point.</figcaption>
+</figure>
+
+**Multiplying and dividing need care.** Multiplying two 4096ths gives 4096×4096ths, which has to be scaled back down, and the middle step can overflow an `int`. Butano's `*` avoids that by dropping some precision first. Division is the slow one: the GBA has no instruction for it.
+
+**Sine and cosine come from a table.** `bn::degrees_lut_sin_and_cos` looks the answer up in a table built into Butano, in `bn::fixed`. No series, no `float`.
+
+## The smallest thing that works
+
+The top lines time 1000 multiplications in `float` and in `bn::fixed`, and 1000 divisions in `bn::fixed`, when the ROM starts. Eight coins orbit the hero, placed with sine and cosine. **Up** and **Down** change the speed by a quarter of a degree per frame.
+
+<Code code={fixed} lang="cpp" title="snippets/fixed/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/fixed/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Eight coins circle the hero. They slow down to a quarter of a degree per frame, then speed up to two degrees. At the top, the timings: multiply, float 2636 and fixed 346, and divide, fixed 2462." />
+	<figcaption>A quarter of a degree per frame is a smooth, slow turn. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="fixed" />
+
+What the timer said, in ticks for 1000 operations. A frame has 4389:
+
+| Operation | Ticks | Share of a frame |
+|---|---|---|
+| `int` multiplication | 252 | 6% |
+| `bn::fixed` multiplication | 346 | 8% |
+| `float` multiplication | 2636 | 60% |
+| `bn::fixed` division | 2462 | 56% |
+| `float` division | 9147 | more than 2 frames |
+
+The `int` and `float` division rows come from a separate test ROM with the same loops, not from the snippet, and the numbers move a few percent between runs.
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `volatile float float_factor` | `volatile` says the value can change behind the compiler's back, so it reads it every time. Without it, the compiler could work out the whole loop while building and the timer would measure nothing. |
+| `int(value)` into `sink` | Uses the result. A loop whose result nobody uses can be removed entirely. |
+| `bn::fixed::from_data(4096 + 1)` | Builds a `bn::fixed` from its raw `int`: 4097/4096, a little over 1. |
+| `bn::pair<bn::fixed, bn::fixed>` | Two values returned together: `.first` is the sine, `.second` the cosine. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, coin and font come from [the camera](/basics/camera/), [sprites](/basics/sprites/), [collision](/basics/collision/) and [HUD](/basics/hud/) pages.
+
+## Pitfalls
+
+**0.1 added ten times isn't 1.**
+0.1 is stored as 409/4096, a little less than 0.1. Ten of them are 4090/4096, so `sum == 1` is `false`. Count in whole steps when you need an exact result, such as frames instead of seconds, and compare with `>=` instead of `==`.
+
+**A small number times a small number gives 0.**
+`bn::fixed(0.01) * bn::fixed(0.5)` is 0, because `*` drops the lowest 6 bits of each value first to avoid overflow, and 0.01 doesn't survive that. `safe_multiplication` keeps the precision: it gave 20/4096, about 0.005.
+
+**A big number times a big number is garbage.**
+`bn::fixed(1000) * bn::fixed(1000)` gave -48576. The result has to fit in about ±524287, and a million doesn't, so `safe_multiplication` doesn't help either. Keep big values in `int`, or scale them down.
+
+**Dividing every frame, for every object.**
+1000 divisions took over half a frame. When you divide by the same number many times, divide once and multiply by the result.
+
+**-1.5 becomes -1.**
+`integer()` drops the fraction toward zero, so -1.5 gives -1. `floor_integer()` gives -2, and `round_integer()` gives -2 too. See [map collision](/basics/collision/) for where that bites.
+
+**"Angle must be in the range [0..360]".**
+`bn::degrees_lut_sin` and its family stop the game outside that range. Wrap the angle yourself, as the snippet does, or use the `_safe` versions, which wrap it for you.
+
+**Text shows 0.75000.**
+`bn::format` prints a `bn::fixed` with five decimals. To print fewer, format the parts yourself, for example `(value * 100).round_integer()`.
+
+## Read more
+
+- Header: [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), with `multiplication`, `safe_multiplication`, `unsafe_multiplication` and the division versions, and [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h) for the sine table.
+- Reference: [`bn::fixed_t`](https://gvaliente.github.io/butano/classbn_1_1fixed__t.html).
+- Tonc: [fixed-point math](https://gbadev.net/tonc/fixed.html), for the theory.
+- C++: [`volatile`](https://en.cppreference.com/w/cpp/language/cv), on cppreference.

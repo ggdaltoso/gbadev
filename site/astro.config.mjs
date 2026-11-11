@@ -23,6 +23,10 @@ export default defineConfig({
 					label: 'Structure',
 					items: [{ autogenerate: { directory: 'structure' } }],
 				},
+				{
+					label: 'Math',
+					items: [{ autogenerate: { directory: 'math' } }],
+				},
 			],
 		}),
 	],

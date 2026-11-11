@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first twenty-two pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first twenty-three pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -86,6 +86,10 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 20. **Files and headers:** a class in its own `.h` and `.cpp`, include guards, and the compiler and linker errors.
 21. **State machines:** an enemy with an `enum class`, one `switch`, and a single place where the state changes.
 22. **Performance:** CPU usage on screen, `bn::profiler`, and fixing what it finds.
+
+### Math
+
+23. **Fixed-point numbers:** why `bn::fixed` and not `float`, sine and cosine from a table, and where precision and range run out.
 
 ### Pitfalls already collected
 
