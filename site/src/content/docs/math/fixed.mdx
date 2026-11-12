@@ -11,6 +11,21 @@ import fixed from '../../../../../snippets/fixed/src/main.cpp?raw';
 
 export const fractionBits = 12;
 export const integerBits = 20;
+export const timings = [
+	{ name: 'int ×', ticks: 252 },
+	{ name: 'bn::fixed ×', ticks: 346 },
+	{ name: 'float ×', ticks: 2636 },
+	{ name: 'bn::fixed ÷', ticks: 2462 },
+	{ name: 'float ÷', ticks: 9147 },
+];
+export const frameTicks = 4389;
+export const tickScale = 220 / 9500;
+export const orbitCenter = { x: 120, y: 100 };
+export const orbitRadius = 48 * 1.5;
+export const orbitAngles = [0, 45, 90, 135, 180, 225, 270, 315].map((step) => step + 30);
+export const toRadians = (degrees) => (degrees * Math.PI) / 180;
+export const lineStart = 4084;
+export const lineScale = 18;
 
 ## When to use it
 
@@ -19,6 +34,22 @@ Any time a value needs a fraction: positions, speeds, angles, timers that grow b
 ## How to think about it
 
 **The GBA has no hardware for fractions.** Its CPU only does integer math. A `float` still compiles, but each operation becomes a small function that does the work with integers, and that's slow.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 132" role="img" aria-label="Bar chart of timer ticks for 1000 operations on the GBA. int multiplication 252, bn::fixed multiplication 346, float multiplication 2636, bn::fixed division 2462, float division 9147. A dashed line marks one frame, 4389 ticks: only float division goes past it." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1={100 + frameTicks * tickScale} y1="4" x2={100 + frameTicks * tickScale} y2="112" stroke="currentColor" stroke-opacity="0.5" stroke-dasharray="3 2" />
+		<text x={100 + frameTicks * tickScale} y="124" font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="middle">one frame: 4389</text>
+		{timings.map((timing, row) => (
+			<g key={timing.name}>
+				<title>{`${timing.name}: ${timing.ticks} ticks for 1000`}</title>
+				<text x="94" y={18 + row * 21} font-size="8" fill="currentColor" text-anchor="end">{timing.name}</text>
+				<rect x="100" y={10 + row * 21} width={timing.ticks * tickScale} height="11" rx="2" fill="#1e7cb8" />
+				<text x={104 + timing.ticks * tickScale} y={18 + row * 21} font-size="8" fill="currentColor">{timing.ticks}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>Timer ticks for 1000 of each, measured on the emulator. The same numbers are in the table below the snippet.</figcaption>
+</figure>
 
 **`bn::fixed` is an `int` that counts 4096ths.** It keeps a single `int`, which it calls `data()`. The value is `data() / 4096`, so 1.5 is stored as 6144, and the smallest step is 1/4096. Adding two of them is adding two `int`s, which is as fast as it gets.
 
@@ -41,7 +72,62 @@ Any time a value needs a fraction: positions, speeds, angles, timers that grow b
 
 **Multiplying and dividing need care.** Multiplying two 4096ths gives 4096×4096ths, which has to be scaled back down, and the middle step can overflow an `int`. Butano's `*` avoids that by dropping some precision first. Division is the slow one: the GBA has no instruction for it.
 
+Here is the small case from the pitfalls, `bn::fixed(0.01) * bn::fixed(0.5)`, done both ways:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 132" role="img" aria-label="Two columns. Left, the * operator: 0.01 is stored as 40 and 0.5 as 2048. Each is divided by 64 first, giving 0 and 32, and 0 times 32 is 0. Right, safe_multiplication: 40 times 2048 is 81920, kept in 64 bits, divided by 4096 gives 20, which is about 0.0049." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			<text x="90" y="12">a * b</text>
+			<text x="270" y="12">a.safe_multiplication(b)</text>
+		</g>
+		<line x1="180" y1="4" x2="180" y2="128" stroke="currentColor" stroke-opacity="0.2" />
+		<g font-size="8" fill="currentColor">
+			<text x="16" y="34">0.01 → data 40</text><text x="104" y="34">÷ 64 →</text><text x="140" y="34" fill="#ff4d8d" font-weight="700">0</text>
+			<text x="16" y="50">0.5 → data 2048</text><text x="104" y="50">÷ 64 →</text><text x="140" y="50">32</text>
+			<text x="16" y="74">0 × 32 = 0</text>
+			<text x="16" y="96" font-weight="700">result: 0</text>
+			<text x="16" y="110" fill-opacity="0.7">the 0.01 was gone before</text>
+			<text x="16" y="120" fill-opacity="0.7">the multiplication started</text>
+		</g>
+		<g font-size="8" fill="currentColor">
+			<text x="196" y="34">0.01 → data 40</text>
+			<text x="196" y="50">0.5 → data 2048</text>
+			<text x="196" y="74">40 × 2048 = 81920, in 64 bits</text>
+			<text x="196" y="86">÷ 4096 → 20</text>
+			<text x="196" y="108" font-weight="700" fill="#2f9e36">result: 20/4096 ≈ 0.0049</text>
+		</g>
+	</svg>
+	<figcaption>The <code>*</code> operator divides each side by 64 first, so the product can't overflow. Small values don't survive that.</figcaption>
+</figure>
+
 **Sine and cosine come from a table.** `bn::degrees_lut_sin_and_cos` looks the answer up in a table built into Butano, in `bn::fixed`. No series, no `float`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 200" role="img" aria-label="The hero in the middle of a dashed circle, with eight coins on it, 45 degrees apart. One coin, at 30 degrees, has its horizontal leg labeled cos times 48, about 41.6, and its vertical leg, going down, sin times 48, 24. On the right, the call and its values." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<circle cx={orbitCenter.x} cy={orbitCenter.y} r={orbitRadius} fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="3 2" />
+		<line x1={orbitCenter.x} y1={orbitCenter.y} x2={orbitCenter.x + orbitRadius * Math.cos(toRadians(30))} y2={orbitCenter.y} stroke="#1e7cb8" stroke-width="2" />
+		<line x1={orbitCenter.x + orbitRadius * Math.cos(toRadians(30))} y1={orbitCenter.y} x2={orbitCenter.x + orbitRadius * Math.cos(toRadians(30))} y2={orbitCenter.y + orbitRadius * Math.sin(toRadians(30))} stroke="#2f9e36" stroke-width="2" />
+		<line x1={orbitCenter.x} y1={orbitCenter.y} x2={orbitCenter.x + orbitRadius * Math.cos(toRadians(30))} y2={orbitCenter.y + orbitRadius * Math.sin(toRadians(30))} stroke="#ff4d8d" stroke-width="1.5" />
+		<image href="/images/fixed/hero.png" x={orbitCenter.x - 24} y={orbitCenter.y - 28} width="48" height="48" style={{ imageRendering: 'pixelated' }} />
+		{orbitAngles.map((angle) => (
+			<image key={angle} href="/images/fixed/coin.png" x={orbitCenter.x + orbitRadius * Math.cos(toRadians(angle)) - 12} y={orbitCenter.y + orbitRadius * Math.sin(toRadians(angle)) - 12} width="24" height="24" opacity={angle === 30 ? 1 : 0.55} style={{ imageRendering: 'pixelated' }} />
+		))}
+		<g font-size="8" fill="currentColor">
+			<text x={orbitCenter.x + 44} y={orbitCenter.y + 11} text-anchor="middle" fill="#1e7cb8">cos × 48</text>
+			<text x={orbitCenter.x + orbitRadius * Math.cos(toRadians(30)) + 5} y={orbitCenter.y + 14} fill="#2f9e36">sin × 48</text>
+			<text x="236" y="60">angle 30°</text>
+			<text x="236" y="76">degrees_lut_sin_and_cos(30)</text>
+			<text x="248" y="88" fill-opacity="0.7">.first, sin ≈ 0.5</text>
+			<text x="248" y="100" fill-opacity="0.7">.second, cos ≈ 0.866</text>
+			<text x="236" y="120">coin = hero + (cos, sin) × 48</text>
+			<text x="248" y="132" fill-opacity="0.7">x: cos × 48 ≈ 41.6</text>
+			<text x="248" y="144" fill-opacity="0.7">y: sin × 48 = 24</text>
+			<text x="236" y="164" fill-opacity="0.7">the other seven: the same,</text>
+			<text x="236" y="174" fill-opacity="0.7">45° further each</text>
+		</g>
+	</svg>
+	<figcaption>What the snippet does for each coin, every frame. y grows down, so a positive sine puts the coin below the hero.</figcaption>
+</figure>
 
 ## The smallest thing that works
 
@@ -83,6 +169,24 @@ Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-lik
 
 **0.1 added ten times isn't 1.**
 0.1 is stored as 409/4096, a little less than 0.1. Ten of them are 4090/4096, so `sum == 1` is `false`. Count in whole steps when you need an exact result, such as frames instead of seconds, and compare with `>=` instead of `==`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 330 60" role="img" aria-label="A number line in 4096ths, from 4084 to 4100. Ten times 0.1 lands at 4090. One is at 4096, six steps further." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<line x1="12" y1="30" x2={12 + 16 * lineScale} y2="30" stroke="currentColor" stroke-opacity="0.5" />
+		{Array.from({ length: 17 }, (_, i) => (
+			<line key={i} x1={12 + i * lineScale} y1="27" x2={12 + i * lineScale} y2="33" stroke="currentColor" stroke-opacity="0.35" />
+		))}
+		<rect x={12 + (4090 - lineStart) * lineScale} y="25" width={6 * lineScale} height="10" fill="#ff4d8d" fill-opacity="0.25" />
+		<circle cx={12 + (4090 - lineStart) * lineScale} cy="30" r="4" fill="#ff4d8d" />
+		<circle cx={12 + (4096 - lineStart) * lineScale} cy="30" r="4" fill="#1e7cb8" />
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x={12 + (4090 - lineStart) * lineScale} y="18">ten × 0.1 = 4090</text>
+			<text x={12 + (4096 - lineStart) * lineScale} y="50">1 = 4096</text>
+			<text x={12 + (4093 - lineStart) * lineScale} y="50" fill-opacity="0.7">6 short</text>
+		</g>
+	</svg>
+	<figcaption>In 4096ths: each 0.1 is 409, not 409.6, and the missing 0.6 adds up.</figcaption>
+</figure>
 
 **A small number times a small number gives 0.**
 `bn::fixed(0.01) * bn::fixed(0.5)` is 0, because `*` drops the lowest 6 bits of each value first to avoid overflow, and 0.01 doesn't survive that. `safe_multiplication` keeps the precision: it gave 20/4096, about 0.005.
