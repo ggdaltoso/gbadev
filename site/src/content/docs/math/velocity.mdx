@@ -1,0 +1,252 @@
+---
+title: Velocity and acceleration
+description: Movement with weight, a velocity kept between frames, speeding up and sliding to a stop, two surfaces from one struct, and friction that never quite stops.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import velocity from '../../../../../snippets/velocity/src/main.cpp?raw';
+
+export const grass = { name: 'Grass', max: 1.5, acceleration: 0.125, friction: 0.0625, color: '#1e7cb8' };
+export const sand = { name: 'Sand', max: 0.75, acceleration: 0.0625, friction: 0.25, color: '#2f9e36' };
+export const approach = (value, target, step) => (value < target ? Math.min(value + step, target) : Math.max(value - step, target));
+export const simulate = (surface, pushFrames, totalFrames) => {
+	let speed = 0;
+	let position = 0;
+	const frames = [];
+	for (let frame = 0; frame < totalFrames; ++frame) {
+		const pushing = frame < pushFrames;
+		speed = approach(speed, pushing ? surface.max : 0, pushing ? surface.acceleration : surface.friction);
+		position += speed;
+		frames.push({ frame, speed, position, pushing });
+	}
+	return frames;
+};
+export const chartX = (frame) => 44 + frame * 4.2;
+export const chartY = (speed) => 140 - speed * 80;
+export const chartPoints = (surface) => [{ frame: -1, speed: 0 }, ...simulate(surface, 40, 70)].map((step) => `${chartX(step.frame + 1)},${chartY(step.speed)}`).join(' ');
+export const instantPoints = `${chartX(0)},${chartY(0)} ${chartX(0)},${chartY(1.5)} ${chartX(40)},${chartY(1.5)} ${chartX(40)},${chartY(0)} ${chartX(70)},${chartY(0)}`;
+export const rulerScale = 7;
+export const rulers = [
+	{ surface: grass, y: 20, texture: 'grass', trail: simulate(grass, 12, 40).filter((step) => step.speed > 0), push: '12 frames, 9.75 px', slide: '17 px in 23 frames' },
+	{ surface: sand, y: 112, texture: 'sand', trail: simulate(sand, 12, 20).filter((step) => step.speed > 0), push: '12 frames, 4.9 px', slide: '0.75 px in 2 frames' },
+];
+export const naive = (() => {
+	let speed = 4320 / 4096;
+	const values = [];
+	for (let frame = 0; frame < 40; ++frame) {
+		speed = speed > 0 ? speed - 0.0625 : speed < 0 ? speed + 0.0625 : 0;
+		values.push(speed);
+	}
+	return values;
+})();
+export const lineX = (value) => 40 + (value + 0.25) * 180;
+
+## When to use it
+
+When movement should have weight: a hero who takes a moment to get going and slides a little when you let go, ice or mud that feel different from grass, a ship that drifts. When you want instant, exact control, as in most puzzle games, set the position straight from the D-pad, like [the vectors page](/math/vectors/) does.
+
+## How to think about it
+
+**The velocity is what the hero keeps between frames.** The D-pad no longer moves the hero. It changes the velocity a little, and the velocity moves the hero. So `velocity` lives outside the loop, and each frame does two additions:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 96" role="img" aria-label="Three boxes in a row. The D-pad adds the acceleration, 0.125, to the velocity, which goes from 0.5 to 0.625. The velocity is added to the position, which goes from 10 to 10.625. The velocity box is marked as kept for the next frame." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="vel-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<g fill="none" stroke="currentColor" stroke-opacity="0.5">
+			<rect x="10" y="24" width="80" height="40" rx="4" />
+			<rect x="140" y="24" width="80" height="40" rx="4" stroke="#1e7cb8" stroke-opacity="1" stroke-width="1.5" />
+			<rect x="270" y="24" width="80" height="40" rx="4" />
+		</g>
+		<g stroke="#ff4d8d" stroke-width="1.5">
+			<line x1="92" y1="44" x2="136" y2="44" marker-end="url(#vel-arrow)" />
+			<line x1="222" y1="44" x2="266" y2="44" marker-end="url(#vel-arrow)" />
+		</g>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="50" y="40">D-pad held</text>
+			<text x="50" y="52" fill-opacity="0.7">acceleration</text>
+			<text x="180" y="40">velocity</text>
+			<text x="180" y="52" fill-opacity="0.7">0.5 → 0.625</text>
+			<text x="310" y="40">position</text>
+			<text x="310" y="52" fill-opacity="0.7">10 → 10.625</text>
+			<text x="114" y="38">+ 0.125</text>
+			<text x="244" y="38">+ 0.625</text>
+			<text x="180" y="80" fill-opacity="0.7">kept for the next frame</text>
+			<text x="180" y="14" font-size="9">one frame</text>
+		</g>
+	</svg>
+	<figcaption>One frame on grass, while you hold right. The next frame starts from 0.625.</figcaption>
+</figure>
+
+**Acceleration and friction are two speeds of change.** Holding a direction, the velocity grows by the acceleration each frame until it reaches the top speed. Letting go, it shrinks by the friction each frame until it reaches 0. Big numbers feel snappy, small ones feel slippery.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 176" role="img" aria-label="Line chart of speed in pixels per frame over 70 frames. Right is held for 40 frames, then let go. Grass climbs to 1.5 in 12 frames, stays there, and falls back to 0 over 24 frames. Sand climbs to 0.75 in 12 frames and falls to 0 in 3. With inertia off, the speed jumps straight to 1.5 and straight back to 0." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g stroke="currentColor" stroke-opacity="0.15">
+			<line x1="44" y1={chartY(0.75)} x2="340" y2={chartY(0.75)} />
+			<line x1="44" y1={chartY(1.5)} x2="340" y2={chartY(1.5)} />
+		</g>
+		<line x1="44" y1="140" x2="340" y2="140" stroke="currentColor" stroke-opacity="0.5" />
+		<line x1={chartX(40)} y1="14" x2={chartX(40)} y2="140" stroke="currentColor" stroke-opacity="0.45" stroke-dasharray="3 2" />
+		<g font-size="8" fill="currentColor">
+			<text x="38" y={chartY(0) + 3} text-anchor="end">0</text>
+			<text x="38" y={chartY(0.75) + 3} text-anchor="end">0.75</text>
+			<text x="38" y={chartY(1.5) + 3} text-anchor="end">1.5</text>
+			{[0, 20, 40, 60].map((frame) => (
+				<text key={frame} x={chartX(frame)} y="152" text-anchor="middle">{frame}</text>
+			))}
+			<text x="192" y="166" text-anchor="middle" fill-opacity="0.7">frames</text>
+			<text x={chartX(40) + 4} y="22" fill-opacity="0.7">let go</text>
+		</g>
+		<polyline points={instantPoints} fill="none" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="4 3"><title>Inertia off: 1.5 at once, 0 at once</title></polyline>
+		<polyline points={chartPoints(grass)} fill="none" stroke={grass.color} stroke-width="2"><title>Grass: 12 frames up to 1.5, 24 frames down</title></polyline>
+		<polyline points={chartPoints(sand)} fill="none" stroke={sand.color} stroke-width="2"><title>Sand: 12 frames up to 0.75, 3 frames down</title></polyline>
+		<g font-size="8">
+			<text x={chartX(54)} y={chartY(0.75)} fill="currentColor">grass slides</text>
+			<text x={chartX(20)} y={chartY(0.75) + 12} fill="currentColor" text-anchor="middle">sand</text>
+			<text x={chartX(20)} y={chartY(1.5) - 5} fill="currentColor" text-anchor="middle">grass</text>
+		</g>
+		<g font-size="8" fill="currentColor">
+			<rect x="212" y="4" width="10" height="3" fill={grass.color} /><text x="225" y="9">grass</text>
+			<rect x="252" y="4" width="10" height="3" fill={sand.color} /><text x="265" y="9">sand</text>
+			<line x1="290" y1="5.5" x2="300" y2="5.5" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="4 3" /><text x="303" y="9">inertia off</text>
+		</g>
+	</svg>
+	<figcaption>Speed while holding right for 40 frames, then letting go, with the snippet's numbers.</figcaption>
+</figure>
+
+**Each change is a step toward a target, never past it.** Holding right, the target is the top speed. Letting go, the target is 0. `approach` moves the value one step closer, and when it's closer than one step, it lands exactly on the target:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 116" role="img" aria-label="Two number lines with the target, 0, marked. Top: a speed of 0.75, far from 0, takes a full step of 0.25 and becomes 0.5. Bottom: a speed of 0.1, closer than one step. Subtracting the step would give -0.15, past 0, which is crossed out. approach stops at 0 instead." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="step-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		{[30, 84].map((y) => (
+			<g key={y}>
+				<line x1={lineX(-0.25)} y1={y} x2={lineX(1)} y2={y} stroke="currentColor" stroke-opacity="0.45" />
+				<line x1={lineX(0)} y1={y - 8} x2={lineX(0)} y2={y + 8} stroke="currentColor" stroke-width="1.5" />
+			</g>
+		))}
+		<line x1={lineX(0.75)} y1="22" x2={lineX(0.5) + 3} y2="22" stroke="#2f9e36" stroke-width="2" marker-end="url(#step-arrow)" />
+		<circle cx={lineX(0.75)} cy="30" r="3.5" fill="currentColor" />
+		<circle cx={lineX(0.5)} cy="30" r="3.5" fill="#2f9e36" />
+		<line x1={lineX(0.1)} y1="70" x2={lineX(-0.15) + 3} y2="70" stroke="#ff4d8d" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#step-arrow)" />
+		<circle cx={lineX(-0.15)} cy="84" r="3.5" fill="none" stroke="#ff4d8d" stroke-width="1.5" />
+		<circle cx={lineX(0.1)} cy="84" r="3.5" fill="currentColor" />
+		<circle cx={lineX(0)} cy="84" r="3.5" fill="#2f9e36" />
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x={lineX(0)} y="48">target 0</text>
+			<text x={lineX(0.75)} y="44">0.75</text>
+			<text x={lineX(0.5)} y="44">0.5</text>
+			<text x={lineX(0.62)} y="16" fill="#2f9e36">one step</text>
+			<text x={lineX(0.1) + 10} y="100">0.1</text>
+			<text x={lineX(-0.15)} y="100" fill="#ff4d8d">-0.15 ✗</text>
+			<text x={lineX(0) + 2} y="112" fill="#2f9e36">approach: 0 ✓</text>
+		</g>
+		<g font-size="8" fill="currentColor">
+			<text x="282" y="34">far: a full step</text>
+			<text x="282" y="88">close: lands on 0</text>
+		</g>
+	</svg>
+	<figcaption>A step of 0.25 toward 0. Subtracting blindly would pass 0, and next frame it would come back from the other side.</figcaption>
+</figure>
+
+**The ground is data.** Grass and sand run the same code with different numbers: a `struct surface` with a top speed, an acceleration and a friction. The hero asks which surface is under it, here with `bn::fixed_rect::contains` from [the hitboxes page](/math/hitboxes/), and uses its numbers:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 172" role="img" aria-label="Two strips, grass and sand, with the hero's position marked on every frame. On grass, the marks spread out as the hero speeds up over 12 frames, then crowd together as it slides 17 pixels before stopping. On sand, everything is shorter: 12 frames to a slower top speed, and 0.75 pixels of slide." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<defs>
+			<pattern id="tex-grass" width="32" height="32" patternUnits="userSpaceOnUse"><image href="/images/velocity/grass.png" width="32" height="32" style={{ imageRendering: 'pixelated' }} /></pattern>
+			<pattern id="tex-sand" width="32" height="32" patternUnits="userSpaceOnUse"><image href="/images/velocity/sand.png" width="32" height="32" style={{ imageRendering: 'pixelated' }} /></pattern>
+		</defs>
+		{rulers.map((ruler) => {
+			const start = 50;
+			const end = start + ruler.trail[ruler.trail.length - 1].position * rulerScale;
+			return (
+				<g key={ruler.surface.name}>
+					<rect x="10" y={ruler.y} width="340" height="36" fill={`url(#tex-${ruler.texture})`} />
+					<text x="10" y={ruler.y - 6} font-size="9" fill="currentColor">{ruler.surface.name}</text>
+					<image href="/images/velocity/hero.png" x={start - 16} y={ruler.y - 4} width="32" height="32" opacity="0.4" style={{ imageRendering: 'pixelated' }} />
+					<image href="/images/velocity/hero.png" x={end - 16} y={ruler.y - 4} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+					{ruler.trail.map((step) => (
+						<circle key={step.frame} cx={start + step.position * rulerScale} cy={ruler.y + 31} r="2" fill={step.pushing ? '#1e7cb8' : '#ff4d8d'} stroke="#fff" stroke-width="0.6" />
+					))}
+					<text x="10" y={ruler.y + 50} font-size="8" fill="currentColor"><tspan fill="#1e7cb8">●</tspan> speeds up: {ruler.push}</text>
+					<text x="180" y={ruler.y + 50} font-size="8" fill="currentColor"><tspan fill="#ff4d8d">●</tspan> slides: {ruler.slide}</text>
+				</g>
+			);
+		})}
+
+	</svg>
+	<figcaption>One dot per frame, at 7x: blue while holding right, pink after letting go. Far-apart dots are fast, close dots are slow. The slide lengths are the ones the ROM printed.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero, on the grass on the left or the sand on the right. Let go, and the bottom line says how far the hero slid and for how many frames. **A** turns inertia off, so the hero moves at full speed at once and stops dead.
+
+<Code code={velocity} lang="cpp" title="snippets/velocity/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/velocity/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero speeds up on the grass, slides 17 pixels in 23 frames after letting go, then walks onto the sand, where the top speed is half and the stop takes 2 frames. With inertia off, the hero starts and stops at once." />
+	<figcaption>Grass, then sand, then inertia off. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="velocity" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `template<typename Number> Number approach(...)` | A function template: the compiler writes one version for each type you call it with. Here it's only `bn::fixed`, but the same code works for `int`. |
+| `constexpr surface grass = { "Grass", 1.5, 0.125, 0.0625 };` | The numbers that make the feel, in one place, with names. Tuning the game means editing this line. |
+| `const surface& ground = ... ? sand : grass;` | A reference to one of the two, chosen each frame. Nothing is copied. |
+| `const surface* shown_surface` and `&ground != shown_surface` | A pointer remembers which surface the text shows, so the text is only rebuilt when it changes. `nullptr` means nothing shown yet. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The hero and font come from [the sprites](/basics/sprites/) and [HUD](/basics/hud/) pages, and the map is built by `snippets/tools/velocity_assets.py` from the same pack.
+
+## Pitfalls
+
+**The speed never reaches 0.**
+Subtracting the friction without stopping at 0 passes 0 and comes back. Starting from a diagonal speed of 1.05468 with a friction of 0.0625, the speed ended up jumping between 0.05468 and -0.00781 forever. Use a step that can't pass its target, like `approach`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 90" role="img" aria-label="A line falling from about 1.05 to near 0 in 17 frames, then zigzagging between 0.05468 and -0.00781 for the rest of the 40 frames, never reaching 0." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<line x1="30" y1="70" x2="350" y2="70" stroke="currentColor" stroke-opacity="0.5" />
+		<polyline points={naive.map((speed, frame) => `${30 + frame * 8},${70 - speed * 55}`).join(' ')} fill="none" stroke="#ff4d8d" stroke-width="1.5" />
+		<g font-size="8" fill="currentColor">
+			<text x="24" y="73" text-anchor="end">0</text>
+			<text x="24" y="15" text-anchor="end">1.05</text>
+			<text x="250" y="58" text-anchor="middle">0.05468, -0.00781, 0.05468, ...</text>
+			<text x="190" y="86" text-anchor="middle" fill-opacity="0.7">40 frames</text>
+		</g>
+	</svg>
+	<figcaption>The speed with blind subtraction, worked out with the numbers from the test ROM.</figcaption>
+</figure>
+
+**Friction by multiplication depends on rounding.**
+`velocity *= 0.9` looks natural, but with `bn::fixed` its end depends on how the multiplication rounds. From 1.5, `*` stopped in 27 frames after 10.6 pixels, because it drops low bits. `safe_multiplication` kept tiny speeds alive for 66 frames. Subtracting a fixed step, as the snippet does, stops when you expect.
+
+**The diagonal is faster.**
+If each axis approaches the top speed on its own, the diagonal gets 1.5 on both axes, 2.12 in all, as [the vectors page](/math/vectors/) measured. The snippet makes the target from a direction of length 1, then approaches it axis by axis.
+
+**"Not enough space: 33 - 32".**
+The first version of this snippet stopped with that error from `bn_string.h` as soon as the speed reached three digits. The number in `bn::format<32>` is the most characters the text can have, and "Grass  Pixels per 100 frames: 150" is 33. Count the longest text you can show.
+
+**"Invalid value: -170103" in `bn::sqrt`.**
+The first version also measured the stopping distance times 100, through `squared * 10000`. A 17-pixel slide squared is 289, times 10000 is far past 524287, the most a `bn::fixed` holds, and it came out negative. The snippet keeps that trick for speeds, which stay small, and measures distances in whole pixels.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), whose hero moves with no inertia at all, 2 pixels per frame or 1 while shooting. See [`bf_game_hero.cpp`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/src/bf_game_hero.cpp). A shooter wants exact control.
+- Header: [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h), for `bn::sqrt`, and [`bn_format.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_format.h).
+- C++: [function templates](https://en.cppreference.com/w/cpp/language/function_template), on cppreference.
