@@ -1,0 +1,175 @@
+---
+title: Particles
+description: Sparks as small tweens with random numbers, a fixed number of slots where the oldest makes room, a frame that changes with age, and what particles cost per frame.
+sidebar:
+  order: 7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import particles from '../../../../../snippets/particles/src/main.cpp?raw';
+
+export const easeOut = (t) => 1 - (1 - t) * (1 - t);
+export const seeded = (() => {
+	let seed = 7;
+	return () => {
+		seed = (seed * 1103515245 + 12345) % 2147483648;
+		return seed / 2147483648;
+	};
+})();
+export const ways = Array.from({ length: 12 }, () => ({ angle: Math.floor(seeded() * 360), distance: 12 + seeded() * 20 }));
+export const burstX = (way, scale) => Math.cos((way.angle * Math.PI) / 180) * way.distance * scale;
+export const burstY = (way, scale) => Math.sin((way.angle * Math.PI) / 180) * way.distance * scale;
+export const pathX = (age) => 34 + easeOut(age / 32) * 32 * 9;
+export const slots = [
+	{ label: 'A: 24 sparks', cells: [...Array(24).fill('#1e7cb8'), ...Array(24).fill(null)] },
+	{ label: 'A again: full', cells: [...Array(24).fill('#1e7cb8'), ...Array(24).fill('#2f9e36')] },
+	{ label: 'A again: the oldest 24 go', cells: [...Array(24).fill('#2f9e36'), ...Array(24).fill('#ff4d8d')] },
+];
+export const costs = [
+	{ label: 'nothing called', cpu: 4.08 },
+	{ label: 'set_position', cpu: 6.69 },
+	{ label: 'set_tiles, same frame', cpu: 15.87 },
+	{ label: 'set_tiles, new frame', cpu: 24.02 },
+];
+
+## When to use it
+
+For effects that are many small things living a short time: sparks when you pick up a coin, dust behind feet, debris from a broken pot, smoke, rain. Each one is too simple and too short-lived to deserve a class with behavior, like [the game objects](/structure/objects/) have. A particle is a sprite and a few numbers.
+
+When the effect is one big animation, like an explosion drawn by an artist, play it as [an animated sprite](/basics/sprites/) instead.
+
+## How to think about it
+
+**A particle is a few numbers picked at random.** Each spark in a burst gets a random angle and a random distance, which together make its way: how far it will fly, and in which direction. The angle goes through `bn::degrees_lut_sin_and_cos`, as on [the vectors page](/math/vectors/). The sparks use their own `bn::random`, so a burst never changes where the next coin appears, the trap from [the timers page](/basics/timers/):
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 170" role="img" aria-label="A burst of 12 arrows from one point, each in a random direction with a random length between 12 and 32 pixels. One arrow is highlighted: 30 degrees and 20 pixels, which makes a way of (17.3, 10). The y axis points down." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="burst-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<circle cx="120" cy="85" r="64" fill="none" stroke="currentColor" stroke-opacity="0.2" stroke-dasharray="3 2" />
+		<circle cx="120" cy="85" r="24" fill="none" stroke="currentColor" stroke-opacity="0.2" stroke-dasharray="3 2" />
+		{ways.map((way, index) => (
+			<line key={index} x1="120" y1="85" x2={120 + burstX(way, 2)} y2={85 + burstY(way, 2)} stroke="currentColor" stroke-opacity="0.45" stroke-width="1.2" marker-end="url(#burst-arrow)"><title>{way.angle}°, {way.distance.toFixed(1)} px</title></line>
+		))}
+		<line x1="120" y1="85" x2={120 + burstX({ angle: 30, distance: 20 }, 2)} y2={85 + burstY({ angle: 30, distance: 20 }, 2)} stroke="#ff4d8d" stroke-width="2" marker-end="url(#burst-arrow)" />
+		<image href="/images/particles/spark0.png" x={120 + burstX({ angle: 30, distance: 20 }, 2) - 8} y={85 + burstY({ angle: 30, distance: 20 }, 2) - 8} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="8" fill="currentColor">
+			<text x="120" y="164" text-anchor="middle" fill-opacity="0.7">12 to 32 px</text>
+			<text x="206" y="50">one spark:</text>
+			<text x="206" y="64" fill="#ff4d8d">angle 30°, distance 20</text>
+			<text x="206" y="78">cos 30° × 20 = 17.3</text>
+			<text x="206" y="92">sin 30° × 20 = 10</text>
+			<text x="206" y="106">way: (17.3, 10)</text>
+			<text x="206" y="126" fill-opacity="0.7">y grows down, so 30°</text>
+			<text x="206" y="138" fill-opacity="0.7">points down and right</text>
+		</g>
+	</svg>
+	<figcaption>A burst of 12, with made-up random numbers, at 2x. The circles are the shortest and longest distances the snippet allows.</figcaption>
+</figure>
+
+**Where a spark is comes from its age.** A spark doesn't keep a velocity. It keeps where it was born, its way and its age, and each frame works out its place as a tween from [the easing page](/math/easing/): the start plus the way times `ease_out(age / 32)`. So it shoots off and slows down, and lands exactly at the end of its way on frame 32, when it's removed. Every 8 frames, the age also picks a smaller star:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 110" role="img" aria-label="One spark's 33 positions, one per frame, along a 32-pixel way drawn at 9x. The dots start far apart and crowd together at the end. Above them, the spark's graphics: the big star at age 0, smaller at 8, smaller at 16, a single dot at 24. At age 32 the spark is removed." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<line x1={pathX(0)} y1="70" x2={pathX(32)} y2="70" stroke="currentColor" stroke-opacity="0.2" />
+		{Array.from({ length: 33 }, (_, age) => (
+			<circle key={age} cx={pathX(age)} cy="70" r="2" fill={age === 32 ? '#ff4d8d' : '#1e7cb8'}><title>Age {age}</title></circle>
+		))}
+		{[0, 8, 16, 24].map((age, index) => (
+			<g key={age}>
+				<image href={`/images/particles/spark${index}.png`} x={pathX(age) - 12} y="26" width="24" height="24" style={{ imageRendering: 'pixelated' }} />
+				<line x1={pathX(age)} y1="52" x2={pathX(age)} y2="64" stroke="currentColor" stroke-opacity="0.35" />
+				<text x={pathX(age)} y="88" font-size="8" fill="currentColor" text-anchor="middle">age {age}</text>
+			</g>
+		))}
+		<g font-size="8">
+			<text x={pathX(0)} y="104" fill="currentColor" fill-opacity="0.7">born here</text>
+			<text x={pathX(32)} y="104" fill="#ff4d8d" text-anchor="end">age 32: end of its way, removed</text>
+		</g>
+	</svg>
+	<figcaption>One spark flying 32 pixels to the right, at 9x: one dot per frame, and the frame it shows every 8 frames.</figcaption>
+</figure>
+
+**There's a fixed number of slots, and when they're full, the oldest goes.** The sparks live in a `bn::vector<spark, 48>`. A new burst that doesn't fit erases the first sparks in the vector, the oldest ones, since they're nearly gone anyway. That way pressing **A** always shows a full burst, and the game never asks for more sprites than you planned for:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 120" role="img" aria-label="Three rows of 48 slots. First press of A: 24 blue sparks, 24 empty slots. Second press: 24 blue, 24 green, full. Third press: the 24 blue sparks, the oldest, are erased, the green move to the front, and 24 pink sparks fill the back." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		{slots.map((row, rowIndex) => (
+			<g key={row.label}>
+				<text x="0" y={20 + rowIndex * 38} font-size="8" fill="currentColor">{row.label}</text>
+				{row.cells.map((color, index) => (
+					<rect key={index} x={index * 7.4 + 1} y={25 + rowIndex * 38} width="6" height="10" rx="1" fill={color ?? 'none'} stroke={color ? 'none' : 'currentColor'} stroke-opacity="0.3" />
+				))}
+			</g>
+		))}
+		<text x="356" y="20" font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="end">front (left) = oldest</text>
+	</svg>
+	<figcaption>Three quick bursts of 24 in a vector of 48. <code>erase(begin())</code> removes from the front, and the rest slide down.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero. Picking up a coin throws 12 sparks, and **A** throws 24 around the hero. Press it a few times quickly to fill the 48 slots: the count at the top stops at 48, and every burst still shows.
+
+<Code code={particles} lang="cpp" title="snippets/particles/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/particles/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero picks up a coin, which bursts into 12 sparks that fly out, slow down and shrink to dots. Then three quick bursts of 24 around the hero, with the count at the top going to 48. The hero walks to another coin, which bursts too." />
+	<figcaption>A coin, three bursts with A, and another coin. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="particles" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `void burst(bn::ivector<spark>& sparks, ...)` | `bn::vector<spark, 48>` and `bn::vector<spark, 100>` are different types. Both are a `bn::ivector<spark>`, so a function that takes that works with any capacity. |
+| `auto [sin, cos] = bn::degrees_lut_sin_and_cos(...)` | The function returns a pair, and a structured binding names both halves at once. The order is sine, then cosine. |
+| `sparks.erase(sparks.begin())` | Removes the first element and slides the rest down, so the vector stays in age order and the front is always the oldest. |
+| `constexpr int spark_frames = frames_per_graphic * 4;` | One constant made from another. Change how long a frame lasts, and the lifetime follows. |
+| `particle.age % frames_per_graphic == 0` | True once every 8 frames, which is when the star gets smaller. |
+
+Art: the spark is drawn by `snippets/tools/spark_assets.py`. The map, hero, coin and font are the ones from [the hitboxes page](/math/hitboxes/), from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**`set_tiles` on every frame.**
+It's tempting to set each spark's frame every frame, since the age says which one it is. The test ROM measured 48 sparks: calling `set_tiles` on all of them every frame, with the frame they already had, used 15.87% of the frame, against 6.69% for moving them all. With a new frame every time, 24.02%. Call it only when the frame changes, as the snippet does:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 100" role="img" aria-label="Bar chart of CPU used by a frame with 48 sparks. Doing nothing: 4.08 percent. set_position on all 48: 6.69. set_tiles with the same frame on all 48: 15.87. set_tiles with a new frame on all 48: 24.02." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{costs.map((cost, index) => (
+			<g key={cost.label}>
+				<text x="118" y={18 + index * 22} font-size="8" fill="currentColor" text-anchor="end">{cost.label}</text>
+				<rect x="124" y={9 + index * 22} width={cost.cpu * 8} height="12" fill={index >= 2 ? '#ff4d8d' : '#1e7cb8'}><title>{cost.label}: {cost.cpu}%</title></rect>
+				<text x={128 + cost.cpu * 8} y={18 + index * 22} font-size="8" fill="currentColor">{cost.cpu}%</text>
+			</g>
+		))}
+		<line x1="124" y1="4" x2="124" y2="96" stroke="currentColor" stroke-opacity="0.5" />
+	</svg>
+	<figcaption>CPU used by one frame, with 48 sparks on screen, as the test ROM printed it.</figcaption>
+</figure>
+
+**A big burst costs its frame.**
+Making a sprite isn't free either. Creating 48 sparks in one frame used 43.82% of that frame, and destroying them 15.19%. A burst on a frame that's already busy can push it over. Keep bursts small, 12 or 24 here, or spread a big one over a few frames.
+
+**"Invalid graphics index: 4 - 4".**
+Without `particle.age < spark_frames`, the spark asks for frame 32 / 8 = 4 on its last frame, and the spark has frames 0 to 3. The game stops with that error from `bn_sprite_tiles_item.h`. The test in the snippet keeps the index in range.
+
+**"No more sprite items available".**
+The 129th sprite stops the game with that error from `bn_sprites_manager.cpp`, as a test ROM making 130 sparks showed. The vector's capacity is your promise to stay under it, and the hero, the coins and the text count too. If you'd rather drop a spark than stop, `bn::sprite_ptr::create_optional` returns an empty `bn::optional` when no sprite is left.
+
+**Scaled or rotated sparks vanish.**
+The hardware only has time to draw so many sprite pixels on each line of the screen, and a scaled or rotated sprite costs much more than a plain one. In a test ROM, 30 plain sparks on one line all showed. 30 sparks scaled to 1.5 on another line showed 27: the first 3 were missing. Keep sparks plain, or few on any one line.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), whose explosions count frames down and only call `set_tiles` when the count reaches 0. See [`bf_game_explosion.cpp`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/src/bf_game_explosion.cpp).
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_tiles` and `create_optional`, and [`bn_random.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_random.h), for `get_fixed`.
+- Hardware: [GBATEK, LCD OBJ Overview](https://problemkaputt.de/gbatek.htm#lcdobjoverview), for how many sprite pixels fit on one line.
+- C++: [structured bindings](https://en.cppreference.com/w/cpp/language/structured_binding), on cppreference.
