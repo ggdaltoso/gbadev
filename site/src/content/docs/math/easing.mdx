@@ -1,0 +1,204 @@
+---
+title: Interpolation and easing
+description: Moving something to a point in a set number of frames, lerp with bn::fixed, easing curves that change the feel without changing the duration, and arriving exactly.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import easing from '../../../../../snippets/easing/src/main.cpp?raw';
+
+export const linear = (t) => t;
+export const easeOut = (t) => 1 - (1 - t) * (1 - t);
+export const smoothstep = (t) => t * t * (3 - 2 * t);
+export const curves = [
+	{ name: 'Linear', fn: linear, color: 'currentColor', opacity: 0.55 },
+	{ name: 'Ease out', fn: easeOut, color: '#1e7cb8', opacity: 1 },
+	{ name: 'Smoothstep', fn: smoothstep, color: '#2f9e36', opacity: 1 },
+];
+export const from = { x: 50, y: 32 };
+export const to = { x: -104, y: -70 };
+export const lerp = (t) => ({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+export const mapX = (x) => 230 + x * 1.2;
+export const mapY = (y) => 114 + y * 1.2;
+export const plotX = (t) => 50 + t * 200;
+export const plotY = (p) => 150 - p * 130;
+export const curvePoints = (fn) => Array.from({ length: 41 }, (_, i) => `${plotX(i / 40)},${plotY(fn(i / 40))}`).join(' ');
+export const stripX = (p) => 44 + p * 290;
+export const steps = {
+	mul: [3, 7, 3, 6, 6, 4, 6, 3, 7],
+	safe: [5, 5, 5, 5, 5, 6, 5, 5, 5],
+};
+
+## When to use it
+
+When something must get to a point in a set time: a coin flying to the counter, a menu sliding in, a camera panning to a door, a title dropping into place. You know where it starts, where it ends and how many frames it takes, and you work out every frame in between. When the movement depends on the player, or should react to things on the way, use [a velocity](/math/velocity/) instead.
+
+Butano does the plain, even version for you: `bn::sprite_move_to_action`, `bn::bg_palettes_fade_to_action` and the other `*_to_action` classes. This page builds it by hand, because that's how you get the curves.
+
+## How to think about it
+
+**A point on the way is a fraction of the way.** Take the way from the start to the end, `to - from`, multiply it by a fraction `t`, and add it to the start. `t = 0` gives the start, `t = 1` gives the end, and `t = 0.5` the middle. That's `lerp`, short for linear interpolation:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 184" role="img" aria-label="A coin's flight from the map at (50, 32) to the counter at (-104, -70), on a dashed line. The coin is drawn at t = 0, 0.25, 0.5, 0.75 and 1. At t = 0.5 it's at (-27, -19), halfway." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1={mapX(from.x)} y1={mapY(from.y)} x2={mapX(to.x)} y2={mapY(to.y)} stroke="currentColor" stroke-opacity="0.45" stroke-dasharray="4 3" />
+		{[0, 0.25, 0.5, 0.75, 1].map((t) => {
+			const point = lerp(t);
+			return (
+				<g key={t}>
+					<image href="/images/easing/coin.png" x={mapX(point.x) - 9.6} y={mapY(point.y) - 9.6} width="19.2" height="19.2" opacity={t === 0.5 || t === 0 || t === 1 ? 1 : 0.5} style={{ imageRendering: 'pixelated' }}><title>t = {t}: ({Math.round(point.x)}, {Math.round(point.y)})</title></image>
+					<text x={mapX(point.x) + 13} y={mapY(point.y) + 3} font-size="8" fill="currentColor" fill-opacity="0.7">t = {t}</text>
+				</g>
+			);
+		})}
+		<g font-size="8" fill="currentColor">
+			<text x={mapX(from.x)} y={mapY(from.y) + 22} text-anchor="middle">from: the coin, (50, 32)</text>
+			<text x={mapX(to.x) - 8} y={mapY(to.y) - 13}>to: the counter, (-104, -70)</text>
+			<text x={mapX(-27) - 14} y={mapY(-19) + 3} text-anchor="end" fill="#ff4d8d">(-27, -19)</text>
+		</g>
+		<text x="352" y="34" font-size="9" fill="currentColor" text-anchor="end">from + (to - from) × t</text>
+	</svg>
+	<figcaption>The snippet's second coin on its way to the counter, in screen coordinates. Halfway in time, halfway in space.</figcaption>
+</figure>
+
+**Time and progress are two different fractions.** The flight takes 40 frames, so after `frame` frames, the time gone is `frame / 40`. An easing curve turns that into how far along the coin is. Linear gives back the same number. Ease out runs ahead early and slows down at the end. Smoothstep starts slow, speeds up in the middle and slows down again. All three start at 0 and end at 1, so the flight always takes 40 frames:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 180" role="img" aria-label="Line chart of progress against time, both from 0 to 1, for three curves. Linear is a straight diagonal. Ease out bulges above it. Smoothstep is an S below it at first and above it later. A dashed line at a quarter of the time crosses linear at 0.25, ease out at 0.44 and smoothstep at 0.16." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g stroke="currentColor" stroke-opacity="0.15">
+			<line x1={plotX(0)} y1={plotY(0.5)} x2={plotX(1)} y2={plotY(0.5)} />
+			<line x1={plotX(0)} y1={plotY(1)} x2={plotX(1)} y2={plotY(1)} />
+			<line x1={plotX(0.5)} y1={plotY(0)} x2={plotX(0.5)} y2={plotY(1)} />
+			<line x1={plotX(1)} y1={plotY(0)} x2={plotX(1)} y2={plotY(1)} />
+		</g>
+		<line x1={plotX(0)} y1={plotY(0)} x2={plotX(1)} y2={plotY(0)} stroke="currentColor" stroke-opacity="0.5" />
+		<line x1={plotX(0)} y1={plotY(0)} x2={plotX(0)} y2={plotY(1)} stroke="currentColor" stroke-opacity="0.5" />
+		<line x1={plotX(0.25)} y1={plotY(0)} x2={plotX(0.25)} y2={plotY(1)} stroke="currentColor" stroke-opacity="0.45" stroke-dasharray="3 2" />
+		{curves.map((curve) => (
+			<polyline key={curve.name} points={curvePoints(curve.fn)} fill="none" stroke={curve.color} stroke-opacity={curve.opacity} stroke-width="2"><title>{curve.name}</title></polyline>
+		))}
+		{curves.map((curve) => (
+			<circle key={curve.name} cx={plotX(0.25)} cy={plotY(curve.fn(0.25))} r="3" fill={curve.color} fill-opacity={curve.opacity} stroke="#fff" stroke-width="0.6"><title>{curve.name} at 0.25: {curve.fn(0.25)}</title></circle>
+		))}
+		<g font-size="8" fill="currentColor">
+			<text x={plotX(0.25) - 5} y={plotY(easeOut(0.25)) + 3} text-anchor="end">0.44</text>
+			<text x={plotX(0.25) - 5} y={plotY(0.25) + 3} text-anchor="end">0.25</text>
+			<text x={plotX(0.25) + 5} y={plotY(smoothstep(0.25)) + 8}>0.16</text>
+			<text x={plotX(0) - 6} y={plotY(0) + 3} text-anchor="end">0</text>
+			<text x={plotX(0) - 6} y={plotY(1) + 3} text-anchor="end">1</text>
+			<text x={plotX(0)} y={plotY(0) + 12} text-anchor="middle">0</text>
+			<text x={plotX(0.25)} y={plotY(0) + 12} text-anchor="middle">10</text>
+			<text x={plotX(1)} y={plotY(0) + 12} text-anchor="middle">40</text>
+			<text x={plotX(0.5)} y={plotY(0) + 24} text-anchor="middle" fill-opacity="0.7">frames gone, of 40</text>
+			<text x="14" y={plotY(0.5)} text-anchor="middle" fill-opacity="0.7" transform={`rotate(-90 14 ${plotY(0.5)})`}>part of the way</text>
+		</g>
+		<g font-size="9">
+			<text x="262" y={plotY(0.82)} fill="#1e7cb8">ease out</text>
+			<text x="262" y={plotY(0.6)} fill="currentColor" fill-opacity="0.7">linear</text>
+			<text x="262" y={plotY(0.38)} fill="#2f9e36">smoothstep</text>
+			<text x="262" y={plotY(0.82) + 11} font-size="7.5" fill="currentColor" fill-opacity="0.7">1 - (1 - t)²</text>
+			<text x="262" y={plotY(0.6) + 11} font-size="7.5" fill="currentColor" fill-opacity="0.7">t</text>
+			<text x="262" y={plotY(0.38) + 11} font-size="7.5" fill="currentColor" fill-opacity="0.7">3t² - 2t³</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's three curves. After 10 frames, the same coin is a quarter of the way, almost half, or a sixth, depending on the curve.</figcaption>
+</figure>
+
+**The curve decides the spacing, not the duration.** Put a dot where the coin is on each frame. With linear the dots are evenly spaced, and the coin moves at one speed and stops dead. Ease out puts the big gaps first and crowds the dots at the counter, so the coin seems to brake into it. Smoothstep crowds both ends:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 170" role="img" aria-label="Three rows of 41 dots, one per frame, from the start of the flight on the left to the counter on the right. Linear: evenly spaced. Ease out: far apart at the start, crowded at the end. Smoothstep: crowded at both ends, far apart in the middle. Frame 10 is circled in each row." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		{curves.map((curve, row) => {
+			const y = 34 + row * 52;
+			const tenth = stripX(curve.fn(0.25));
+			return (
+				<g key={curve.name}>
+					<text x={stripX(0)} y={y - 16} font-size="9" fill={curve.color} fill-opacity={curve.opacity === 1 ? 1 : 0.8}>{curve.name}</text>
+					<line x1={stripX(0)} y1={y} x2={stripX(1)} y2={y} stroke="currentColor" stroke-opacity="0.2" />
+					{Array.from({ length: 41 }, (_, frame) => (
+						<circle key={frame} cx={stripX(curve.fn(frame / 40))} cy={y} r="2" fill={curve.color} fill-opacity={curve.opacity}><title>Frame {frame}</title></circle>
+					))}
+					<circle cx={tenth} cy={y} r="5.5" fill="none" stroke="#ff4d8d" stroke-width="1.2" />
+					<text x={tenth} y={y + 16} font-size="7.5" fill="#ff4d8d" text-anchor="middle">frame 10</text>
+					<image href="/images/easing/coin.png" x={stripX(1) + 6} y={y - 8} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+				</g>
+			);
+		})}
+		<g font-size="8" fill="currentColor" fill-opacity="0.7">
+			<text x={stripX(0)} y="166">start</text>
+			<text x={stripX(1)} y="166" text-anchor="end">counter</text>
+		</g>
+	</svg>
+	<figcaption>Where the coin is on each of the 40 frames, worked out with the snippet's curves. Every row ends on frame 40.</figcaption>
+</figure>
+
+**The end is a frame count.** The flight is over when `frame` reaches 40. Then `t` is 40 / 40, exactly 1, every curve gives exactly 1, and `lerp` gives exactly the counter. Nothing is compared against a position, so there's no "close enough" to get wrong.
+
+## The smallest thing that works
+
+The **D-pad** walks the hero. Touch a coin, and a copy flies to the counter in the corner in 40 frames, while the coin on the map jumps somewhere else. The counter goes up when the copy gets there. **A** picks the curve for the next coins: linear, ease out or smoothstep. The hitboxes are the tight ones from [the hitboxes page](/math/hitboxes/).
+
+<Code code={easing} lang="cpp" title="snippets/easing/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/easing/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks left and picks up a coin, which flies at an even speed to the counter in the top-left corner. Then the curve changes to ease out, and the next coin shoots off and slows down into the counter. The last coin uses smoothstep, starting and ending slowly. The counter goes from 0 to 3." />
+	<figcaption>Linear, ease out, then smoothstep. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="easing" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `using easing = bn::fixed(*)(bn::fixed);` | A name for the type "pointer to a function that takes a `bn::fixed` and returns one". `linear`, `ease_out` and `smoothstep` all fit it. |
+| `constexpr curve curves[] = { { "Linear", linear }, ... };` | A function's name, without `()`, is a pointer to it. The array pairs each curve with its label, so picking a curve is picking an index. |
+| `coin.function(t)` | Calls whatever function the pointer holds. Each flight keeps the curve it started with, even after **A** changes it. |
+| `flight{ flying, coin.position(), curves[curve_index].function }` | Fills the fields in order. `frame` is left out, so it takes its default, `= 0`, from the struct. |
+| `int arrived = bn::erase_if(...)` | `bn::erase_if` returns how many it removed: here, how many coins got to the counter this frame. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map, hero, coin and font are the ones from [the hitboxes page](/math/hitboxes/).
+
+## Pitfalls
+
+**The coin stutters.**
+`(to - from) * t` with `bn::fixed`'s `*` drops 6 bits from each side before multiplying, so `t` only has 64 steps between 0 and 1. On a 204-pixel flight in 40 frames, the test ROM moved the coin 3, 7, 3, 6, 6, 4, 6, 3 and 7 pixels on the first frames, where it should move about 5 each time. `safe_multiplication` keeps every bit, as `lerp` in the snippet does:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 96" role="img" aria-label="Two rows of nine bars, the pixels moved on each of the first nine frames. With the * operator: 3, 7, 3, 6, 6, 4, 6, 3, 7. With safe_multiplication: 5, 5, 5, 5, 5, 6, 5, 5, 5." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{[['mul', '* operator', '#ff4d8d', 40], ['safe', 'safe_multiplication', '#2f9e36', 84]].map(([key, label, color, base]) => (
+			<g key={key}>
+				<text x="128" y={base - 4} font-size="8" fill="currentColor" text-anchor="end">{label}</text>
+				{steps[key].map((step, index) => (
+					<g key={index}>
+						<rect x={140 + index * 22} y={base - step * 4.5} width="16" height={step * 4.5} fill={color}><title>Frame {index + 1}: {step} px</title></rect>
+						<text x={148 + index * 22} y={base - step * 4.5 - 2} font-size="7" fill="currentColor" text-anchor="middle">{step}</text>
+					</g>
+				))}
+				<line x1="136" y1={base} x2="340" y2={base} stroke="currentColor" stroke-opacity="0.5" />
+			</g>
+		))}
+	</svg>
+	<figcaption>Pixels moved on each of the first nine frames, as the test ROM printed them.</figcaption>
+</figure>
+
+**The coin stops short, or goes past.**
+Adding `1 / 40` to `t` every frame looks the same as `frame / 40`, but `1 / 40` isn't exact in `bn::fixed`: it's 102 4096ths instead of 102.4. After 40 frames `t` was 4080 4096ths, and the coin stopped 0.8 pixels short of -104. Waiting for `t >= 1` instead took 41 frames and went 4.3 pixels past. Keep the frame count and divide it each time.
+
+**The coin never quite gets there.**
+`position += (target - position) / 8` is the popular one-line ease out, and it looks right: the coin was within half a pixel after 46 frames. But it never lands: after 91 frames the step rounded to 0 with the coin still 7 4096ths away, so `position == target` is never true. With `* 0.125` it froze after 76 frames, 56 4096ths away. If something has to happen on arrival, use a frame count.
+
+**The coin waits, then jumps.**
+`frame / flight_frames` with two `int`s is 0 until the last frame and 1 on it: the test ROM printed 0 for frame 39 and 1 for frame 40. The coin sits still for 39 frames and teleports. Turn one side into a `bn::fixed` first, as the snippet does with `bn::fixed(coin.frame) / flight_frames`.
+
+**"Action is done".**
+Calling `update()` on a `bn::sprite_move_to_action` after its last frame stops the game with that error from `bn_value_template_actions.h`. Check `done()` first, or drop the action when it's done, the way the snippet drops finished flights. Butano's actions don't stop short either: on the last frame they set the final value instead of adding one more step.
+
+## Read more
+
+- Butano game: [`games/butano-fighter`](https://github.com/GValiente/butano/tree/master/games/butano-fighter), whose floating score messages rise with `bn::sprite_move_to_action`. See [`bf_game_object_message.cpp`](https://github.com/GValiente/butano/blob/master/games/butano-fighter/src/bf_game_object_message.cpp).
+- Header: [`bn_sprite_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_actions.h), for the move, rotate and scale actions, and [`bn_value_template_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_value_template_actions.h), which they're built on.
+- Curves: [easings.net](https://easings.net/), the usual easing curves drawn side by side. Most are a few multiplications, like the ones here.
+- C++: [pointers to functions](https://en.cppreference.com/w/cpp/language/pointer#Pointers_to_functions), on cppreference.

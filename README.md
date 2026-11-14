@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first twenty-six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first twenty-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -93,6 +93,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 24. **Vectors and angles:** the same speed in every direction, aiming with `atan2`, and distance without a square root.
 25. **Hitboxes:** `bn::fixed_rect` between moving things, boxes that match the art, and safe frames after a hit.
 26. **Velocity and acceleration:** a velocity kept between frames, acceleration and friction as steps toward a target, and surfaces as data.
+27. **Interpolation and easing:** a fraction of the way from one point to another, curves that change the feel without changing the duration, and arriving exactly.
 
 ### Pitfalls already collected
 
