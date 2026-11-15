@@ -1,0 +1,193 @@
+---
+title: Dialog boxes
+description: A box over the game, text wrapped to fit it with sprite_text_generator::width, letters appearing one by one, pages, and one button that does what fits the moment.
+sidebar:
+  order: 8.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import dialog from '../../../../../snippets/dialog/src/main.cpp?raw';
+
+export const fontWidths = [
+	4, 2, 3, 8, 0, 0, 0, 2, 0, 0, 0, 0, 2, 4, 2, 0,
+	7, 4, 6, 5, 6, 6, 6, 6, 6, 6, 2, 2, 0, 0, 0, 6,
+	0, 8, 7, 7, 7, 6, 6, 7, 6, 6, 6, 6, 6, 8, 8, 6,
+	6, 6, 6, 6, 8, 8, 8, 8, 6, 6, 8, 0, 0, 0, 0, 6,
+	0, 6, 6, 5, 6, 6, 5, 6, 6, 2, 5, 6, 3, 8, 5, 6,
+	6, 6, 6, 4, 4, 5, 6, 7, 5, 5, 4, 0, 0, 0, 0,
+];
+export const textWidth = (text) => [...text].reduce((sum, character) => sum + fontWidths[character.charCodeAt(0) - 32] + 1, 0);
+export const firstWords = ['Hi', 'there!', 'Not', 'many', 'people', 'walk', 'this'];
+export const wrapScale = 1.4;
+export const wordBoxes = [...firstWords, 'far'].map((word, index) => ({
+	word,
+	start: index === 0 ? 0 : textWidth(firstWords.slice(0, index).join(' ') + ' '),
+	width: textWidth(word),
+	over: index === firstWords.length,
+}));
+export const lines = [
+	'Hi there! Not many people walk this',
+	'far from the village. The coins?',
+	'They show up every morning, and',
+];
+export const shownExample = 47;
+export const cell = 7.6;
+
+## When to use it
+
+When a character has more to say than fits in a corner of the screen: a villager, a sign, a tutorial, a story between levels. The player reads at their own pace and presses a button to go on.
+
+For a score or a timer that's always on screen, see [the HUD page](/basics/hud/). This page builds on its font and text generator.
+
+## How to think about it
+
+**The box is a background, and the text is sprites on top of it.** The box is a second regular background, transparent except for a panel at the bottom, shown and hidden with `set_visible`. It has priority 0, so it covers the hero and the villager, which are sprites at the default priority, 3. The text sprites get priority 0 too, so they stay in front of the box:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="Four layers, from front to back. Text sprites, at priority 0. The box background, at priority 0. The hero and villager sprites, at priority 3. The world background, at priority 3. At the same priority, sprites go in front of backgrounds, so the text covers the box and the box covers the hero." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<pattern id="dialog-grass" width="32" height="32" patternUnits="userSpaceOnUse"><image href="/images/velocity/grass.png" width="32" height="32" style={{ imageRendering: 'pixelated' }} /></pattern>
+		</defs>
+		{['text sprites', 'box background', 'hero, villager', 'world background'].map((label, index) => (
+			<g key={label}>
+				<text x="10" y={22 + index * 34} font-size="9" fill="currentColor">{label}</text>
+				<text x="10" y={33 + index * 34} font-size="8" fill="currentColor" fill-opacity="0.7">priority {index < 2 ? 0 : 3}</text>
+			</g>
+		))}
+		<rect x="120" y="111" width="230" height="28" fill="url(#dialog-grass)" />
+		<image href="/images/dialog/hero.png" x="150" y="74" width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/dialog/villager.png" x="200" y="74" width="16" height="32" style={{ imageRendering: 'pixelated' }} />
+		<rect x="120" y="44" width="230" height="26" rx="1" fill="#181f48" stroke="#ffffff" stroke-width="1.5" />
+		<text x="128" y="26" font-size="10" fill="currentColor" font-weight="600">Hi there! Not many people</text>
+		<line x1="114" y1="8" x2="114" y2="142" stroke="currentColor" stroke-opacity="0.3" />
+		<text x="350" y="12" font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="end">front</text>
+		<text x="350" y="148" font-size="8" fill="currentColor" fill-opacity="0.7" text-anchor="end">back</text>
+	</svg>
+	<figcaption>The layers, front to back. With equal priority, sprites go in front of backgrounds.</figcaption>
+</figure>
+
+**Wrapping is measuring.** The font is variable width, so the number of letters says nothing about how wide a line is. `sprite_text_generator::width` does: each character's width plus 1 pixel of spacing. `wrap` looks for the last space where everything before it still fits in 216 pixels, cuts the line there, and starts again after the space:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 96" role="img" aria-label="The first line's words as boxes, to scale: Hi, there!, Not, many, people, walk, this, ending at 210 pixels. The limit is at 216. The next word, far, would end at 235, past the limit, so it starts the next line." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		{wordBoxes.map((box) => (
+			<g key={box.word}>
+				<rect x={20 + box.start * wrapScale} y="30" width={box.width * wrapScale} height="20" rx="2" fill={box.over ? 'none' : '#1e7cb8'} fill-opacity="0.18" stroke={box.over ? '#ff4d8d' : '#1e7cb8'} stroke-dasharray={box.over ? '3 2' : 'none'} />
+				<text x={20 + (box.start + box.width / 2) * wrapScale} y="44" font-size="8" fill={box.over ? '#ff4d8d' : 'currentColor'} text-anchor="middle">{box.word}</text>
+			</g>
+		))}
+		<line x1={20 + 216 * wrapScale} y1="18" x2={20 + 216 * wrapScale} y2="62" stroke="currentColor" stroke-width="1.5" />
+		<g font-size="8" fill="currentColor">
+			<text x={20 + 216 * wrapScale} y="12" text-anchor="middle">216</text>
+			<text x="20" y="72">0</text>
+			<text x={20 + 210 * wrapScale} y="72" text-anchor="end">210: fits</text>
+			<text x={20 + 235 * wrapScale} y="86" text-anchor="end" fill="#ff4d8d">with " far": 235 ✗</text>
+		</g>
+	</svg>
+	<figcaption>The first line, at 1.4x, with the widths the ROM measured. "far" goes to the next line.</figcaption>
+</figure>
+
+**Letter by letter is one counter.** The page doesn't keep a growing string. It keeps `shown`, how many characters are visible on this page, and adds 1 every 2 frames. Each row shows as many of them as it can, and the rest go to the next row. A row is only rebuilt when its count changes, so while one row grows, the others stay as they are:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 100" role="img" aria-label="The three rows of the first page with shown equal to 47. Row 1 shows all 35 of its characters. Row 2 shows 12 of 32: far from the. Row 3 shows none of its 31." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		{lines.map((line, row) => {
+			const before = lines.slice(0, row).reduce((sum, previous) => sum + previous.length, 0);
+			const visible = Math.max(0, Math.min(shownExample - before, line.length));
+			return (
+				<g key={row}>
+					{[...line].map((character, index) => (
+						<rect key={index} x={8 + index * cell} y={18 + row * 26} width={cell - 1} height="16" rx="1" fill={index < visible ? '#1e7cb8' : 'currentColor'} fill-opacity={index < visible ? 0.85 : 0.1} />
+					))}
+					{[...line].map((character, index) => (
+						<text key={index} x={8 + index * cell + (cell - 1) / 2} y={30 + row * 26} font-size="8" text-anchor="middle" fill={index < visible ? '#fff' : 'currentColor'} fill-opacity={index < visible ? 1 : 0.4}>{character}</text>
+					))}
+					<text x="352" y={30 + row * 26} font-size="8" fill="currentColor" text-anchor="end">{visible} of {line.length}</text>
+				</g>
+			);
+		})}
+		<text x="8" y="10" font-size="9" fill="#ff4d8d">shown = {shownExample}</text>
+	</svg>
+	<figcaption>One cell per character of the first page, after 94 frames of typing. Only row 2 changes on the next character.</figcaption>
+</figure>
+
+**One button, three meanings.** While letters appear, **A** shows the rest of the page at once. When the page is complete, a star blinks in the corner and **A** goes to the next page, or closes the box after the last one. While the box is open, the hero doesn't move:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 96" role="img" aria-label="A flow of three states. Typing: one more character every 2 frames; A jumps to page complete. Page complete, with the star blinking: A goes back to typing on the next page, or, on the last page, closes the box." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="dialog-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<g fill="none" stroke="currentColor" stroke-opacity="0.5">
+			<rect x="10" y="34" width="90" height="34" rx="4" />
+			<rect x="140" y="34" width="90" height="34" rx="4" stroke="#1e7cb8" stroke-opacity="1" />
+			<rect x="270" y="34" width="80" height="34" rx="4" />
+		</g>
+		<g stroke="#ff4d8d" stroke-width="1.5" fill="none">
+			<line x1="102" y1="51" x2="136" y2="51" marker-end="url(#dialog-arrow)" />
+			<line x1="232" y1="51" x2="266" y2="51" marker-end="url(#dialog-arrow)" />
+			<path d="M185 70 C185 92 55 92 55 72" marker-end="url(#dialog-arrow)" />
+		</g>
+		<image href="/images/particles/spark1.png" x="210" y="54" width="10" height="10" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="55" y="50">typing</text>
+			<text x="55" y="61" fill-opacity="0.7">+1 every 2 frames</text>
+			<text x="185" y="50">page complete</text>
+			<text x="185" y="61" fill-opacity="0.7">star blinks</text>
+			<text x="310" y="55">closed</text>
+			<text x="119" y="44">A</text>
+			<text x="249" y="28">A, last page</text>
+			<text x="120" y="94" fill-opacity="0.85">A, more pages: next page</text>
+		</g>
+	</svg>
+	<figcaption>What A does in each state. The timer only adds characters while typing.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero. Next to the villager, "A: talk" appears. **A** opens the box, and the villager's words appear letter by letter over three pages. **A** shows the rest of a page, goes to the next one, and closes the box after the last.
+
+<Code code={dialog} lang="cpp" title="snippets/dialog/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/dialog/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks up to the villager and A: talk appears. The box opens at the bottom of the screen and the text appears letter by letter: Hi there! Not many people walk this far from the village. A star blinks when the page is complete, and the next pages follow, until the box closes." />
+	<figcaption>Talking to the villager, all three pages. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="dialog" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr bn::string_view villager_text = "Hi there! ..." "morning, ..."` | Two string literals side by side are joined into one by the compiler, so a long text can span lines. A `bn::string_view` of a literal costs nothing: the text stays in the ROM. |
+| `bn::vector<bn::string_view, 12> lines` | Each line is a view into `villager_text`: a pointer and a length, no copy. That's safe because the literal lives as long as the game. A view into a `bn::string` that's gone would point at garbage. |
+| `text.remove_prefix(...)` | Moves the view's start forward. `wrap` eats the text from the front until nothing is left. |
+| `bn::vector<bn::sprite_ptr, 8> line_sprites[lines_per_page]` | An array of three vectors, one per row, so each row can be cleared and rebuilt on its own. |
+| `int row_shown[lines_per_page] = {};` | The empty braces set every element to 0. Without them, a local array starts with whatever was in memory. |
+| `BN_ASSERT(end > 0, "A word is wider than the box")` | A check that stops the game with a clear message, instead of letting the bug show up somewhere else. |
+
+Art: the villager is the front frame of `NPC_test.png` from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. `snippets/tools/dialog_assets.py` cuts it out and draws the box. The map, hero and font are the ones from [the hitboxes page](/math/hitboxes/).
+
+## Pitfalls
+
+**One press opens the box and skips the first page.**
+If opening the box and handling the box are two `if`s one after the other, the same **A** press reaches both. In a test ROM written that way, the box opened and went straight to page 2: on the opening frame nothing was shown yet, so the page counted as complete, and **A** turned it. The snippet uses `if(talking) ... else ...`, so each press is handled once.
+
+**Rebuilding every row on every frame.**
+Making text sprites is the expensive part of text. Rebuilding all three rows on every frame of typing peaked at 66.63% of a frame in a test ROM. Rebuilding only the row that changed peaked at 27.17%. Rebuild when the count changes, and only where it changes.
+
+**"Day 1/3" shows as "Day 13".**
+This font has no `/`, and its width table in `font.h` says 0 for it, so the generator skips it without an error. Check the text against the characters your font has, especially numbers and punctuation.
+
+**"Vector is full" when a word doesn't fit.**
+A word wider than the box has no space to break at. Without the `BN_ASSERT`, a test ROM's `wrap` kept adding empty lines, one per character it dropped, until the 12 lines were used up and `bn_vector.h` stopped the game. The assert names the real problem. If your texts come from players or translators, break inside the word instead.
+
+## Read more
+
+- Butano example: [`examples/text`](https://github.com/GValiente/butano/tree/master/examples/text), with fixed and variable width fonts, colors, and one sprite per character, which lets you move each letter on its own.
+- Header: [`bn_sprite_text_generator.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_text_generator.h), for `width` and `set_bg_priority`, and [`bn_string_view.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_string_view.h).
+- C++: [`std::string_view`](https://en.cppreference.com/w/cpp/string/basic_string_view), which `bn::string_view` follows, on cppreference.
