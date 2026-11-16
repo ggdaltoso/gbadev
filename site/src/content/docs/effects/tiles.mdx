@@ -1,0 +1,152 @@
+---
+title: Animated tiles
+description: Water and fountains that move all over a background by copying a few tiles per frame with overwrite_tile, frames stored as a tiles item, copies that share tiles, and phases that need their own.
+sidebar:
+  order: 8
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import tiles from '../../../../../snippets/tiles/src/main.cpp?raw';
+
+{/* Measured in a test ROM: the tile index of map cells (4, 18) to (11, 21), the pond's top-left corner. */}
+export const pondIndexes = [
+	[45, 46, 47, 48, 45, 46, 47, 48],
+	[49, 50, 51, 52, 49, 50, 51, 52],
+	[47, 48, 45, 46, 47, 48, 45, 46],
+	[51, 52, 49, 50, 51, 52, 49, 50],
+];
+export const vramTiles = [45, 46, 47, 48, 49, 50, 51, 52];
+export const pondScale = 3;
+export const changing = [ // The fountain cells whose tile changes in some frame, from fountain_frames.bmp.
+	[2, 0], [3, 0], [1, 1], [2, 1], [3, 1], [4, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [1, 3], [2, 3], [3, 3], [4, 3]];
+
+## When to use it
+
+When the world itself should move: water, lava, torches on a wall, grass in the wind, a conveyor belt. Things that appear many times in a background and never move around. Sprites would cost one each, and there are only 128. Animated tiles cost nothing per copy: change a tile once and every copy on the map changes.
+
+## How to think about it
+
+**Map cells point at tiles, so changing a tile changes every cell that points at it.** A background is a set of 8x8 tiles in video memory and a map of cells, each holding the number of a tile. When the art is imported, identical tiles are stored once, so the 36 waves of the pond only need 8 tiles. `overwrite_tile` copies new pixels over one of them, and every cell with that number shows the new pixels on the next frame:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="The pond's top-left corner, 8 by 4 cells, each labeled with its tile number: 45 to 52. The four cells that hold 45 are outlined. On the right, tiles 45 to 52 in video memory, with 45 outlined. Overwriting tile 45 changes those four cells here, and 18 in the whole pond." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<image href="/images/tiles/pond.png" x="10" y="20" width={64 * pondScale} height={32 * pondScale} style={{ imageRendering: 'pixelated' }} />
+		{pondIndexes.map((row, y) => row.map((tile, x) => (
+			<g key={`${x}-${y}`}>
+				<rect x={10 + x * 8 * pondScale} y={20 + y * 8 * pondScale} width={8 * pondScale} height={8 * pondScale} fill="none" stroke={tile === 45 ? '#ff4d8d' : '#ffffff'} stroke-opacity={tile === 45 ? 1 : 0.35} stroke-width={tile === 45 ? 2 : 0.6} />
+				<text x={10 + (x + 0.5) * 8 * pondScale} y={20 + (y + 0.5) * 8 * pondScale + 3} font-size="8" fill="#fff" text-anchor="middle" font-weight="600">{tile}</text>
+			</g>
+		)))}
+		<text x="10" y="13" font-size="8" fill="currentColor">map cells</text>
+		<text x="230" y="13" font-size="8" fill="currentColor">tiles in video memory</text>
+		{vramTiles.map((tile, index) => (
+			<g key={tile}>
+				<rect x={230 + (index % 4) * 30} y={22 + Math.floor(index / 4) * 30} width="26" height="26" rx="2" fill="#1e7cb8" fill-opacity="0.15" stroke={tile === 45 ? '#ff4d8d' : 'currentColor'} stroke-opacity={tile === 45 ? 1 : 0.4} stroke-width={tile === 45 ? 2 : 1} />
+				<text x={243 + (index % 4) * 30} y={38 + Math.floor(index / 4) * 30} font-size="8" fill="currentColor" text-anchor="middle">{tile}</text>
+			</g>
+		))}
+		<text x="230" y="100" font-size="8" fill="#ff4d8d">overwrite_tile(45, ...)</text>
+		<text x="230" y="112" font-size="8" fill="currentColor" fill-opacity="0.75">changes 4 cells here,</text>
+		<text x="230" y="123" font-size="8" fill="currentColor" fill-opacity="0.75">18 in the whole pond</text>
+		<text x="10" y="135" font-size="8" fill="currentColor" fill-opacity="0.75">Numbers measured in the ROM. Each wave is 2x2 cells.</text>
+	</svg>
+	<figcaption>The pond's top-left corner at 3x. Every cell outlined in pink points at tile 45.</figcaption>
+</figure>
+
+**The frames are a strip of tiles, and a frame's tile is found by arithmetic.** The frames aren't a background: they're a `regular_bg_tiles` item, a strip of tiles with no map, three 6x6 blocks for the fountain stacked top to bottom. The tile for cell (x, y) of frame `f` is number `(f × 6 + y) × 6 + x`. The code reads which tile a cell of the first fountain points at, and copies the frame's tile over it. The stone rim is the same in every frame, so only 15 of the 36 tiles get copied:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 140" role="img" aria-label="The fountain's three frames side by side, each split into 6 by 6 cells. 15 cells in the middle of each frame, the spray and the water, are outlined: they change between frames. The other 21, the stone rim and the grass, are the same in all three frames and are skipped." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<image href="/images/tiles/fountain_frames.png" x="18" y="22" width="324" height="108" style={{ imageRendering: 'pixelated' }} />
+		{[0, 1, 2].map((frame) => (
+			<g key={frame}>
+				<text x={18 + frame * 108 + 54} y="14" font-size="9" fill="currentColor" text-anchor="middle">frame {frame}</text>
+				{Array.from({ length: 36 }, (_, cell) => (
+					<rect key={cell} x={18 + frame * 108 + (cell % 6) * 18} y={22 + Math.floor(cell / 6) * 18} width="18" height="18" fill="none" stroke="currentColor" stroke-opacity="0.15" stroke-width="0.6" />
+				))}
+				{changing.map(([x, y]) => (
+					<rect key={`${x}-${y}`} x={18 + frame * 108 + x * 18 + 1} y={22 + y * 18 + 1} width="16" height="16" fill="none" stroke="#ff4d8d" stroke-width="1.5" />
+				))}
+			</g>
+		))}
+	</svg>
+	<figcaption>fountain_frames.bmp, side by side here, at 2.25x. Outlined: the 15 cells that change, out of 36.</figcaption>
+</figure>
+
+**Copies that move together share tiles, and copies that shouldn't need tiles of their own.** All three fountains are drawn with frame 0 on the same grass, so they share every tile and one copy of 15 tiles moves all three. The pond is the opposite case: with one set of tiles, all 36 waves would rise together, like a pattern. So the map alternates waves drawn with frame 0 and with frame 4. Those are different tiles, and the snippet animates them as two copies, half a cycle apart:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="Top: the wave's 8 frames in a row, numbered 0 to 7. One group of waves starts at frame 0, the other at frame 4, and both move one frame every 10 screen frames. Bottom: the pond, with waves of the two groups in a checkerboard." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<image href="/images/tiles/wave_frames.png" x="20" y="22" width="320" height="40" style={{ imageRendering: 'pixelated' }} />
+		{Array.from({ length: 8 }, (_, frame) => (
+			<text key={frame} x={40 + frame * 40} y="16" font-size="8" fill="currentColor" text-anchor="middle">{frame}</text>
+		))}
+		<rect x="20" y="64" width="40" height="4" fill="#2f9e36" />
+		<rect x="180" y="64" width="40" height="4" fill="#ff4d8d" />
+		<g font-size="8">
+			<text x="20" y="78" fill="#2f9e36">group A starts here</text>
+			<text x="180" y="78" fill="#ff4d8d">group B starts here</text>
+		</g>
+		<image href="/images/tiles/pond_full.png" x="84" y="86" width="192" height="48" style={{ imageRendering: 'pixelated' }} />
+		{Array.from({ length: 36 }, (_, wave) => {
+			const x = wave % 12;
+			const y = Math.floor(wave / 12);
+			const groupB = (x + y) % 2 === 1 ? false : true;
+			return <rect key={wave} x={84 + x * 16} y={86 + y * 16} width="16" height="16" fill={groupB ? '#ff4d8d' : '#2f9e36'} fill-opacity="0.3" />;
+		})}
+		<text x="180" y="146" font-size="8" fill="currentColor" fill-opacity="0.75" text-anchor="middle">every 10 frames, both groups move one frame</text>
+	</svg>
+	<figcaption>The wave's frames at 2.5x, and the pond at 1x tinted by group.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero around a plaza with three fountains and a pond. Everything that moves in the background takes at most 23 tile copies in one frame: 15 for the fountains and 4 for each group of waves.
+
+<Code code={tiles} lang="cpp" title="snippets/tiles/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/tiles/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="A grass plaza with three stone fountains along the top and a pond below. The fountains' spray rises and falls in step, and the pond's waves roll in a checkerboard, neighbors half a cycle apart. The hero walks left and right between them." />
+	<figcaption>The plaza, all three fountains and the whole pond animated. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="tiles" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `const bn::regular_bg_tiles_item& frames;` | A reference member: the struct points at the item in the ROM instead of copying it. A struct with a reference can still be built with braces, as `animations` is. |
+| `constexpr tile_animation animations[] = { ... };` | The animations are data, fixed at compile time. Adding a torch is one more line, not more code. |
+| `bn::regular_bg_tiles_ptr tiles = plaza.tiles();` | `tiles()` returns a `const` reference, and a `const` object only allows `const` functions. `plaza.tiles().overwrite_tile(...)` doesn't compile: "passing 'const bn::regular_bg_tiles_ptr' as 'this' argument discards qualifiers". The copy shares the same tiles and can change them. |
+| `bn::span<const bn::tile> frame_tiles = animation.frames.tiles_ref();` | A view of the frames' tiles in the ROM, indexed like an array, with no copy. |
+| `a.data[index] != b.data[index]` | A `bn::tile` is a plain struct of 8 words with no `==`, so `same_tile` compares the words. |
+| `(frame + animation.frame_count - 1) % animation.frame_count` | The previous frame, going around: from frame 0 it gives the last one. Adding `frame_count` first keeps the number positive, because `%` of a negative number is negative in C++. |
+
+Art: the fountain and the waves are from `Overworld.png` in [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. `snippets/tools/tiles_assets.py` builds the plaza and both strips of frames. The hero is the one from [the hitboxes page](/math/hitboxes/).
+
+## Pitfalls
+
+**"There's no space for more overwritten tiles."**
+Butano copies at most 32 tiles per frame with `overwrite_tile`. The first version of the snippet copied every cell of the fountain and of one wave, 40 tiles on the same frame, and stopped right away with that error. Skip the tiles that don't change, give animations different speeds so they rarely change on the same frame, or raise the limit with `BN_CFG_BG_BLOCKS_MAX_OVERWRITE_TILES` in the Makefile's `USERFLAGS`.
+
+**Waves cut in half, because the importer stored mirrored tiles once.**
+By default, a tile that's another tile mirrored is stored once, and the cell shows it flipped. The wave's right half is its left half mirrored, so both halves pointed at one tile. Each frame, the code copied the left half and then the right half over that same tile, and the waves came out broken (top: the default; bottom: with `"flipped_tiles_reduction": false` in `plaza.json`). The `BN_ASSERT` in `show_frame` stops the game with "Flipped animated cell" instead.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/tiles/flipped.png" width="288" height="102" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Two rows of the pond's waves at 3x. Top row, with the default import: each wave is split, its two halves not matching. Bottom row, with flipped_tiles_reduction set to false: smooth wave arcs." />
+	<figcaption>The same waves with the default import (top) and with flipped tile reduction off (bottom).</figcaption>
+</figure>
+
+**A copy that's off the 8-pixel grid never moves.**
+A copy only shares tiles if it lines up with the 8x8 grid the same way. In a test ROM with the middle fountain at x = 100 instead of 104, all 36 of its cells had tiles of their own: the background went from 49 to 91 tiles, and that fountain didn't change once in 30 captured frames while the other two did. Place copies on multiples of 8 pixels.
+
+**The frames' colors come out wrong.**
+A tile stores color numbers, not colors, and those numbers mean whatever the background's palette says. In a test ROM, the fountain's frames were saved with their own palette, in a different order, and the fountains turned white and green. The asset script builds one list of colors and saves the plaza and both strips with it.
+
+## Read more
+
+- Butano example: the "animated tiles" scene of [`examples/regular_bgs`](https://github.com/GValiente/butano/tree/master/examples/regular_bgs), which animates a puddle by overwriting one tile.
+- Headers: [`bn_regular_bg_tiles_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_tiles_ptr.h) for `overwrite_tile`, [`bn_regular_bg_map_cell_info.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_map_cell_info.h), and [`bn_config_bg_blocks.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_bg_blocks.h) for the 32-tile limit.
+- Tonc: [9. Regular tiled backgrounds](https://gbadev.net/tonc/regbg.html), *Map layout*, for how cells hold a tile number and the flip bits.
