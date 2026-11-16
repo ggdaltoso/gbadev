@@ -1,0 +1,188 @@
+---
+title: Screen shake
+description: A hit that shakes the screen, as trauma that adds up and drains, a random offset the size of trauma squared, and a camera that gets the shake last, after the follow and the clamp.
+sidebar:
+  order: 7.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import shake from '../../../../../snippets/shake/src/main.cpp?raw';
+
+{/* Measured in a test ROM with the snippet's numbers: hits at frames 0, 16 and 32. Each row is trauma x 100, strength x 100 in pixels, and the x and y shift on screen. */}
+export const samples = [
+	[50, 200, -2, -1], [48, 187, -1, 1], [47, 174, 1, -1], [45, 162, 0, 0], [43, 150, -1, 0], [42, 139, 1, 0], [40, 128, -1, -2], [38, 118, 1, 0],
+	[37, 108, -1, -1], [35, 98, -1, 0], [33, 89, 0, 0], [32, 80, 0, 0], [30, 72, -1, 0], [28, 64, 0, 0], [27, 57, -1, 0], [25, 50, 0, -1],
+	[73, 431, 1, 4], [72, 412, 2, 0], [70, 393, -4, 1], [68, 375, 0, 0], [67, 357, 0, 3], [65, 339, -3, -4], [63, 322, 2, -3], [62, 306, 0, 1],
+	[60, 289, -2, -1], [58, 274, -2, -2], [57, 258, 2, 2], [55, 243, 1, 1], [54, 229, 2, 1], [52, 215, 0, -2], [50, 202, -1, -1], [49, 188, 0, -2],
+	[97, 751, 4, -1], [95, 725, -7, -2], [94, 700, -5, 0], [92, 675, 2, 2], [90, 651, -1, 2], [89, 628, -4, -2], [87, 604, 1, -2], [85, 581, 3, -4],
+	[84, 559, -3, 1], [82, 537, -3, 2], [80, 515, -2, 0], [79, 494, -3, 0], [77, 474, 1, 0], [75, 454, 0, -4], [74, 434, 2, -3], [72, 414, 1, -3],
+	[70, 396, -4, 2], [69, 377, -1, 1], [67, 359, -3, -2], [65, 341, 1, 1], [64, 324, 2, 3], [62, 308, 0, 1], [60, 291, -2, -1], [59, 275, -1, 0],
+	[57, 260, -2, 2], [55, 245, 2, 0], [54, 231, 1, 0], [52, 217, -1, 1], [50, 203, 0, 1], [49, 190, -1, -2], [47, 177, 0, 1], [45, 165, 0, -1],
+	[44, 153, -1, -1], [42, 142, 0, 0], [40, 131, 1, -2], [39, 120, -1, 0], [37, 110, -1, 0], [35, 100, -1, -1], [34, 91, -1, -1], [32, 82, 0, 0],
+	[30, 74, -1, -1], [29, 66, -1, 0], [27, 59, -1, 0], [25, 52, -1, -1], [24, 45, -1, -1], [22, 39, 0, 0], [21, 34, -1, 0], [19, 28, 0, -1],
+	[17, 24, -1, 0], [16, 19, -1, -1], [14, 15, -1, -1], [12, 12, -1, -1], [11, 9, 0, -1], [9, 6, -1, 0], [7, 4, 0, 0], [6, 2, -1, 0],
+	[4, 1, -1, 0], [2, 0, -1, 0], [1, 0, 0, 0], [0, 0, 0, 0],
+];
+
+export const chartX = (frame) => 36 + frame * 3.35;
+export const chartY = (value) => 120 - value * 100;
+export const tracePath = (pick) => samples.map((sample, frame) => `${frame === 0 ? 'M' : 'L'}${chartX(frame).toFixed(1)} ${chartY(pick(sample)).toFixed(1)}`).join(' ');
+export const panels = [
+	{ title: 'one hit: frames 0 to 15', first: 0, x: 20 },
+	{ title: 'three hits: frames 32 to 47', first: 32, x: 200 },
+];
+export const cellSize = 8;
+
+## When to use it
+
+When something lands hard: a sword hits, a boulder falls, a boss stomps, the player takes damage. A few frames of shaking make the hit feel heavy without any new art. Keep it for the hits that matter: if everything shakes, nothing feels strong, and a screen that never sits still is tiring to look at.
+
+## How to think about it
+
+**The camera is where to look, plus the shake.** The shake is an offset added to the camera's position as the very last step, and it's never stored. `focus` follows the hero smoothly, `view` is `focus` kept inside the map, and only `camera.set_position` gets `view + offset`. Next frame, the follow starts again from `focus`, which never saw the shake. The hint text isn't on the camera, so it stays still:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 120" role="img" aria-label="Four steps from left to right. The hero's position. focus, which moves an eighth of the way to the hero each frame. view, which is focus clamped to the map. The camera, which gets view plus the shake offset. Trauma feeds the offset. The offset goes only into the camera, never back into focus or view." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="shake-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<image href="/images/shake/hero.png" x="16" y="24" width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		<g fill="none" stroke="currentColor" stroke-opacity="0.5">
+			<rect x="86" y="26" width="72" height="34" rx="4" />
+			<rect x="186" y="26" width="72" height="34" rx="4" />
+			<rect x="286" y="26" width="64" height="34" rx="4" stroke="#1e7cb8" stroke-opacity="1" />
+			<rect x="186" y="82" width="72" height="28" rx="4" stroke="#ff4d8d" stroke-opacity="1" />
+		</g>
+		<g stroke="currentColor" stroke-opacity="0.6" stroke-width="1.2" fill="none">
+			<line x1="52" y1="43" x2="82" y2="43" marker-end="url(#shake-arrow)" />
+			<line x1="160" y1="43" x2="182" y2="43" marker-end="url(#shake-arrow)" />
+			<line x1="260" y1="43" x2="282" y2="43" marker-end="url(#shake-arrow)" />
+		</g>
+		<path d="M260 96 C 300 96 318 80 318 64" stroke="#ff4d8d" stroke-width="1.5" fill="none" marker-end="url(#shake-arrow)" />
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="32" y="70">hero</text>
+			<text x="122" y="41">focus</text>
+			<text x="122" y="52" fill-opacity="0.7">+= gap / 8</text>
+			<text x="222" y="41">view</text>
+			<text x="222" y="52" fill-opacity="0.7">clamp to map</text>
+			<text x="318" y="41">camera</text>
+			<text x="318" y="52" fill-opacity="0.7">view + offset</text>
+			<text x="222" y="94">offset</text>
+			<text x="222" y="104" fill-opacity="0.7">from trauma</text>
+			<text x="122" y="16" fill-opacity="0.7">kept between frames</text>
+			<text x="318" y="16" fill-opacity="0.7">only this one shakes</text>
+		</g>
+	</svg>
+	<figcaption>Each frame, from the hero to the camera. The offset only goes into the last step.</figcaption>
+</figure>
+
+**Trauma adds up and drains, and the shake is trauma squared.** Each hit adds 0.5 of trauma, up to 1, and every frame drains 1/60, so a full shake lasts one second. The shake's strength is trauma squared times 8 pixels. Squaring makes one hit small (2 pixels) and three hits in a row big (7.5 pixels), and makes the end fade out softly instead of stopping:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 150" role="img" aria-label="Trauma and strength over 92 frames, with hits at frames 0, 16 and 32. Trauma jumps to 0.5, then 0.73, then 0.97, and drains in a straight line to 0 at frame 91. Strength, as trauma squared times 8 pixels, reaches 2 pixels, then 4.3, then 7.5, and curves down to 0." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g stroke="currentColor" stroke-opacity="0.15">
+			{[0, 0.5, 1].map((value) => <line key={value} x1="36" x2="342" y1={chartY(value)} y2={chartY(value)} />)}
+		</g>
+		<g font-size="8" fill="currentColor">
+			{[0, 0.5, 1].map((value) => <text key={value} x="30" y={chartY(value) + 3} text-anchor="end">{value}</text>)}
+			{[0, 4, 8].map((pixels) => <text key={pixels} x="346" y={chartY(pixels / 8) + 3} fill="#ff4d8d">{pixels} px</text>)}
+			{[0, 30, 60, 90].map((frame) => <text key={frame} x={chartX(frame)} y="134" text-anchor="middle" fill-opacity="0.7">{frame}</text>)}
+			<text x="189" y="146" text-anchor="middle" fill-opacity="0.7">frame</text>
+		</g>
+		{[0, 16, 32].map((frame) => (
+			<g key={frame}>
+				<line x1={chartX(frame)} x2={chartX(frame)} y1="14" y2="120" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="2 2" />
+				<text x={chartX(frame)} y="11" font-size="8" fill="currentColor" text-anchor="middle">hit</text>
+			</g>
+		))}
+		<path d={tracePath((sample) => sample[0] / 100)} fill="none" stroke="#1e7cb8" stroke-width="1.8"><title>trauma</title></path>
+		<path d={tracePath((sample) => sample[1] / 800)} fill="none" stroke="#ff4d8d" stroke-width="1.8"><title>strength in pixels</title></path>
+		<g font-size="9">
+			<text x="232" y="36" fill="#1e7cb8">trauma</text>
+			<text x="232" y="49" fill="#ff4d8d">strength = trauma² × 8</text>
+		</g>
+	</svg>
+	<figcaption>Trauma (left scale) and strength (right scale), as the test ROM measured them, one value per frame.</figcaption>
+</figure>
+
+**Every frame picks a new random spot inside the strength.** The x and y offsets are each a random number from −1 to 1 times the strength, so the screen jumps somewhere in a square that shrinks as trauma drains. The screen moves in whole pixels and Butano rounds down, so a 2-pixel shake mostly lands on a handful of spots, while a 7.5-pixel one spreads out:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 180" role="img" aria-label="Two grids of pixels, 17 by 17, centered on no shift. Left: after one hit, the 16 shifts of frames 0 to 15 land in a small cluster between -2 and 1. Right: after the third hit, the shifts of frames 32 to 47 spread between -7 and 4. A square marks the strength at the first frame: 2 pixels on the left, 7.5 on the right." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{panels.map((panel) => {
+			const centerX = panel.x + 8.5 * cellSize;
+			const centerY = 28 + 8.5 * cellSize;
+			const strength = samples[panel.first][1] / 100;
+			return (
+				<g key={panel.title}>
+					<text x={centerX} y="16" font-size="9" fill="currentColor" text-anchor="middle">{panel.title}</text>
+					<rect x={panel.x} y="28" width={17 * cellSize} height={17 * cellSize} fill="none" stroke="currentColor" stroke-opacity="0.15" />
+					{Array.from({ length: 16 }, (_, line) => (
+						<g key={line} stroke="currentColor" stroke-opacity="0.07">
+							<line x1={panel.x + (line + 1) * cellSize} x2={panel.x + (line + 1) * cellSize} y1="28" y2={28 + 17 * cellSize} />
+							<line y1={28 + (line + 1) * cellSize} y2={28 + (line + 1) * cellSize} x1={panel.x} x2={panel.x + 17 * cellSize} />
+						</g>
+					))}
+					<rect x={centerX - cellSize / 2} y={centerY - cellSize / 2} width={cellSize} height={cellSize} fill="none" stroke="currentColor" stroke-opacity="0.5" />
+					<rect x={centerX - strength * cellSize} y={centerY - strength * cellSize} width={strength * 2 * cellSize} height={strength * 2 * cellSize} fill="none" stroke="#ff4d8d" stroke-dasharray="3 2" />
+					{samples.slice(panel.first, panel.first + 16).map((sample, index) => (
+						<rect key={index} x={centerX + (sample[2] - 0.5) * cellSize + 1} y={centerY + (sample[3] - 0.5) * cellSize + 1} width={cellSize - 2} height={cellSize - 2} fill="#1e7cb8" fill-opacity="0.35">
+							<title>frame {panel.first + index}: {sample[2]}, {sample[3]}</title>
+						</rect>
+					))}
+					<text x={centerX} y={28 + 17 * cellSize + 12} font-size="8" fill="#ff4d8d" text-anchor="middle">strength {strength} px at the start</text>
+				</g>
+			);
+		})}
+	</svg>
+	<figcaption>Where the screen went, one square per frame, darker where frames repeat. The outlined center is no shift.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero, and the camera follows. **A** swings the sword. A swing that reaches the stump shakes the screen, and swinging again before the shake ends makes it stronger.
+
+<Code code={shake} lang="cpp" title="snippets/shake/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/shake/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero stands next to a snoring stump and swings the sword once: the map jumps by a pixel or two. Then three swings in a row: the map, the hero and the stump shake harder, up to about 6 pixels, then settle. The A: swing hint stays still." />
+	<figcaption>One hit, then three in a row. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="shake" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr int max_offset = 8;` | A `bn::fixed` times an `int` is exact. A `bn::fixed` times a `bn::fixed` cuts precision on both sides first: see the pitfalls. |
+| `bn::min(trauma + trauma_per_hit, bn::fixed(1))` | `bn::min` takes two values of the same type. With a plain `1`, one side is `bn::fixed` and the other `int`, and it doesn't compile: `no matching function for call to 'min(bn::fixed_t<12>, int)'`. |
+| `bn::optional<bn::sprite_animate_action<4>> swing;` | An action that only exists during a swing. `if(swing)` asks whether it's there, `swing->` reaches it, and `swing.reset()` throws it away. |
+| `bn::fixed reach = hero.horizontal_flip() ? -gap.x() : gap.x();` | Turns "in front of the hero" into a positive number for both directions, so one check works facing left or right. |
+| `focus += (hero.position() - focus) / 8;` | The smooth follow from [the camera page](/basics/camera/): an eighth of the remaining distance each frame. |
+| `bn::random shake_random;` | Its own generator, so shaking doesn't change the numbers the rest of the game draws, as on [the particles page](/effects/particles/). |
+
+Art: the stump is the one from [the camera page](/basics/camera/). The map, hero and font are the ones from [the hitboxes page](/math/hitboxes/).
+
+## Pitfalls
+
+**Trauma below zero brings the shake back, bigger.**
+`trauma -= trauma_drain` without the `bn::max` keeps going past 0. The shake uses trauma squared, so a negative trauma shakes as hard as a positive one. In a test ROM, one hit stopped shaking at frame 30, then started again and kept growing: at frame 200, the strength was 63.63 pixels. Keep trauma at 0 or above.
+
+**No cap, and fast hits shake off the scale.**
+Without the `bn::min`, five hits 16 frames apart pushed trauma to 1.44 in a test ROM, and the strength to 16.53 pixels, twice the 8 the game was tuned for. Cap trauma at 1, and `max_offset` stays the real maximum.
+
+**Clamping after the shake cuts it in half at the map's edge.**
+With the camera already at the edge, clamping `view + offset` throws away every move past the edge. In a test ROM with full trauma for 20 frames at the right edge, the screen moved between −7 and 0 pixels, against −7 and 6 when the shake came after the clamp. Clamp first, then add the shake. The cost is that the screen can show up to 8 pixels past the map, and a regular background wraps around there, so keep those pixels plain or leave a border in the map.
+
+**`bn::fixed` times `bn::fixed` makes the shake stop early.**
+The first version of the snippet had `constexpr bn::fixed max_offset = 8`. That multiplication drops precision on both sides, so the strength came in steps of 1/8 of a pixel, and one hit stopped shaking at frame 23 instead of 30. With an `int`, the steps are gone. [The fixed-point page](/math/fixed/) has the details.
+
+## Read more
+
+- Talk: [Math for Game Programmers: Juicing Your Cameras With Math](https://www.gdcvault.com/play/1023557/Math-for-Game-Programmers-Juicing), by Squirrel Eiserloh at GDC 2016, where trauma squared comes from. It also shakes with noise instead of random numbers, which moves the screen smoothly, and shakes the rotation.
+- Butano examples: [`examples/cameras`](https://github.com/GValiente/butano/tree/master/examples/cameras) for cameras on sprites and backgrounds, and [`examples/rumble`](https://github.com/GValiente/butano/tree/master/examples/rumble) for the other way to feel a hit, on cartridges and controllers that can vibrate.
+- Header: [`bn_camera_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_camera_ptr.h).
