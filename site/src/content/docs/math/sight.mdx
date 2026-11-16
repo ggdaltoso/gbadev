@@ -1,0 +1,251 @@
+---
+title: Line of sight
+description: A sentinel that sees the hero only inside its view cone and with no crate in between, with a dot product for the cone and a ray that walks the map cell by cell.
+sidebar:
+  order: 6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import sight from '../../../../../snippets/sight/src/main.cpp?raw';
+
+export const rad = (degrees) => (degrees * Math.PI) / 180;
+export const polar = (center, degrees, length) => ({
+	x: center.x + Math.cos(rad(degrees)) * length,
+	y: center.y + Math.sin(rad(degrees)) * length,
+});
+export const wedge = (center, from, to, length) => {
+	const a = polar(center, from, length);
+	const b = polar(center, to, length);
+	return `M ${center.x} ${center.y} L ${a.x} ${a.y} A ${length} ${length} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x} ${b.y} Z`;
+};
+// Figure 1: the three checks, in figure units.
+export const eye = { x: 60, y: 90 };
+export const cone = 125;
+export const seenHero = polar(eye, -12, 100);
+export const blockedHero = polar(eye, 15, 108);
+export const blockedCrate = { x: 118, y: 97, size: 20 };
+export const blockedStop = { x: 118, y: 90 + Math.tan(rad(15)) * 58 };
+export const outsideHero = polar(eye, 62, 72);
+// Figure 2: one ray through a grid, worked out the way cast_ray does it.
+export const cell = 30;
+export const grid = { x: 20, y: 12, columns: 8, rows: 5 };
+export const walk = (() => {
+	const start = { x: 1.4, y: 3.6 };
+	const direction = { x: Math.cos(rad(-25)), y: Math.sin(rad(-25)) };
+	const crate = { x: 6, y: 1 };
+	let column = 1;
+	let row = 3;
+	let nextX = (column + 1 - start.x) / direction.x;
+	let nextY = (start.y - row) / -direction.y;
+	const cells = [{ x: column, y: row }];
+	const crossings = [];
+	while (!(column === crate.x && row === crate.y)) {
+		let travelled;
+		let axis;
+		if (nextX < nextY) {
+			travelled = nextX;
+			nextX += 1 / direction.x;
+			column += 1;
+			axis = 'x';
+		} else {
+			travelled = nextY;
+			nextY += 1 / -direction.y;
+			row -= 1;
+			axis = 'y';
+		}
+		crossings.push({ axis, x: start.x + direction.x * travelled, y: start.y + direction.y * travelled });
+		cells.push({ x: column, y: row });
+	}
+	return { start, crate, cells, crossings };
+})();
+export const gx = (x) => grid.x + x * cell;
+export const gy = (y) => grid.y + y * cell;
+// Figure 3: the cone test with a dot product.
+export const dotCenter = { x: 60, y: 110 };
+export const dotLength = 140;
+export const dotRays = [
+	{ degrees: -18, color: '#2f9e36', label: 'cos 18° = 0.951: seen' },
+	{ degrees: -38, color: '#ff4d8d', label: 'cos 38° = 0.788: not seen' },
+];
+// Pitfall: the joint between two crates, in room pixels.
+export const joint = { left: 136, top: 24, scale: 3 };
+export const jx = (x) => 20 + (x - joint.left) * joint.scale;
+export const jy = (y) => 10 + (y - joint.top) * joint.scale;
+export const jointCrates = [{ x: 144, y: 32 }, { x: 160, y: 48 }];
+export const jointSamples = [40, 48, 64, 72].map((t) => ({ t, x: 120 + t * Math.SQRT1_2, y: 88 - t * Math.SQRT1_2 }));
+// Pitfall: the cone without dividing by the distance, widest angles measured in the test ROM.
+export const rawCenter = { x: 40, y: 100 };
+
+## When to use it
+
+When an enemy should react to the player only if it could plausibly see them: a guard in a stealth game, a turret that fires when you're in the open, a monster that notices you around a corner but not through a wall. Distance alone isn't enough, because walls and facing matter.
+
+## How to think about it
+
+**Seeing is three checks, cheapest first.** Is the hero close enough? Is the hero inside the cone the sentinel faces? Is there nothing solid on the line between them? The first two are a little math. The third walks the map, so it runs only when the first two pass.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 300 180" role="img" aria-label="A sentinel on the left faces right, with a 50 degree cone of view. One hero inside the cone has a clear pink line to the sentinel: seen. Another hero inside the cone has a crate in the way, and the line stops at the crate: blocked. A third hero is below, outside the cone: not checked." style={{ display: 'block', width: '100%', maxWidth: '540px', marginInline: 'auto' }}>
+		<path d={wedge(eye, -25, 25, cone)} fill="#1e7cb8" fill-opacity="0.12" stroke="#1e7cb8" stroke-opacity="0.6" stroke-dasharray="3 2" />
+		<rect x={blockedCrate.x} y={blockedCrate.y} width={blockedCrate.size} height={blockedCrate.size} fill="#8a5a2b" stroke="currentColor" stroke-opacity="0.6" />
+		<line x1={eye.x} y1={eye.y} x2={seenHero.x} y2={seenHero.y} stroke="#ff4d8d" stroke-width="2" />
+		<line x1={eye.x} y1={eye.y} x2={blockedStop.x} y2={blockedStop.y} stroke="currentColor" stroke-opacity="0.7" stroke-width="1.5" />
+		<line x1={blockedStop.x} y1={blockedStop.y} x2={blockedHero.x} y2={blockedHero.y} stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="2 2" />
+		<line x1={eye.x} y1={eye.y} x2={outsideHero.x} y2={outsideHero.y} stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="2 2" />
+		<image href="/images/sight/sentinel.png" x={eye.x - 16} y={eye.y - 18} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/sight/hero.png" x={seenHero.x - 16} y={seenHero.y - 18} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/sight/hero.png" x={blockedHero.x - 16} y={blockedHero.y - 18} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/sight/hero.png" x={outsideHero.x - 16} y={outsideHero.y - 18} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="9" fill="currentColor">
+			<text x={seenHero.x + 16} y={seenHero.y + 3}>seen</text>
+			<text x={blockedHero.x + 16} y={blockedHero.y + 3}>blocked by a crate</text>
+			<text x={outsideHero.x + 16} y={outsideHero.y + 3}>outside the cone: no ray cast</text>
+			<text x={eye.x + cone - 30} y={eye.y - 60}>96 px</text>
+		</g>
+	</svg>
+	<figcaption>The cone is 50 degrees wide and 96 pixels long. Only heroes inside it get a ray.</figcaption>
+</figure>
+
+**A ray walks from grid line to grid line.** The map is a grid of 16-pixel cells, and something only blocks the view if the line enters its cell. So instead of testing points along the line, the ray jumps from one cell to the next. From where it is, it works out how far along the ray the next vertical grid line is, and the next horizontal one, and steps to whichever is nearer. Vertical lines come at equal distances along the ray, `every_x`, and so do horizontal ones, `every_y`, so each step is one addition.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 280 175" role="img" aria-label="A grid of 8 by 5 cells. A ray leaves the eye in the bottom left, going up and to the right. Blue dots mark where it crosses vertical grid lines, green dots where it crosses horizontal ones, numbered in order. Every cell it passes through is shaded, and it stops at the first crate, top right." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{walk.cells.slice(0, -1).map((c, index) => (
+			<rect key={index} x={gx(c.x)} y={gy(c.y)} width={cell} height={cell} fill="#1e7cb8" fill-opacity="0.15" />
+		))}
+		<rect x={gx(walk.crate.x)} y={gy(walk.crate.y)} width={cell} height={cell} fill="#8a5a2b" />
+		<path d={`M ${gx(walk.crate.x)} ${gy(walk.crate.y)} l ${cell} ${cell} M ${gx(walk.crate.x + 1)} ${gy(walk.crate.y)} l ${-cell} ${cell}`} stroke="#000" stroke-opacity="0.35" />
+		<g stroke="currentColor" stroke-opacity="0.35">
+			{Array.from({ length: grid.columns + 1 }, (_, i) => <line key={`v${i}`} x1={gx(i)} y1={gy(0)} x2={gx(i)} y2={gy(grid.rows)} />)}
+			{Array.from({ length: grid.rows + 1 }, (_, i) => <line key={`h${i}`} x1={gx(0)} y1={gy(i)} x2={gx(grid.columns)} y2={gy(i)} />)}
+		</g>
+		<line x1={gx(walk.start.x)} y1={gy(walk.start.y)} x2={gx(walk.crossings.at(-1).x)} y2={gy(walk.crossings.at(-1).y)} stroke="currentColor" stroke-width="1.5" />
+		<line x1={gx(walk.crossings.at(-1).x)} y1={gy(walk.crossings.at(-1).y)} x2={gx(walk.start.x + Math.cos(rad(-25)) * 7.2)} y2={gy(walk.start.y + Math.sin(rad(-25)) * 7.2)} stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="2 2" />
+		<circle cx={gx(walk.start.x)} cy={gy(walk.start.y)} r="3.5" fill="currentColor" />
+		{walk.crossings.map((p, index) => (
+			<g key={index}>
+				<circle cx={gx(p.x)} cy={gy(p.y)} r="3.5" fill={p.axis === 'x' ? '#1e7cb8' : '#2f9e36'} />
+				<text x={gx(p.x) + (p.axis === 'x' ? 4 : -3)} y={gy(p.y) + (p.axis === 'x' ? 11 : -5)} font-size="8" fill="currentColor" text-anchor={p.axis === 'x' ? 'start' : 'end'}>{index + 1}</text>
+			</g>
+		))}
+		<g font-size="9" fill="currentColor">
+			<text x={gx(walk.start.x) - 4} y={gy(walk.start.y) + 14} text-anchor="middle">eye</text>
+			<text x={gx(0)} y={gy(grid.rows) + 13}><tspan fill="#1e7cb8">●</tspan> vertical line   <tspan fill="#2f9e36">●</tspan> horizontal line</text>
+		</g>
+	</svg>
+	<figcaption>{walk.crossings.length} steps, one per line crossed, and only the shaded cells get checked. Step {walk.crossings.length} enters the crate.</figcaption>
+</figure>
+
+**The cone is a dot product.** Make both the facing and the direction to the hero length 1. Then multiply their x's, multiply their y's, and add: that's the dot product, and it's the cosine of the angle between them: 1 straight ahead, 0 to the side, negative behind. Inside a 50-degree cone means at most 25 degrees off, so the test is `cosine >= cos(25°)`, 0.9063, with no angle to work out at all.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 300 140" role="img" aria-label="The facing direction points right, with the cone's edge dashed at 25 degrees up. A green direction at 18 degrees lands inside, and its shadow on the facing line is 0.951 long. A pink direction at 38 degrees lands outside, with a shadow of 0.788. The cone's edge has a shadow of 0.9063." style={{ display: 'block', width: '100%', maxWidth: '540px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="sight-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<line x1={dotCenter.x} y1={dotCenter.y} x2={polar(dotCenter, -25, dotLength).x} y2={polar(dotCenter, -25, dotLength).y} stroke="#1e7cb8" stroke-dasharray="3 2" />
+		<line x1={polar(dotCenter, -25, dotLength).x} y1={polar(dotCenter, -25, dotLength).y} x2={polar(dotCenter, -25, dotLength).x} y2={dotCenter.y} stroke="#1e7cb8" stroke-opacity="0.4" stroke-dasharray="1 2" />
+		{dotRays.map((ray) => {
+			const tip = polar(dotCenter, ray.degrees, dotLength);
+			return (
+				<g key={ray.degrees}>
+					<line x1={dotCenter.x} y1={dotCenter.y} x2={tip.x} y2={tip.y} stroke={ray.color} stroke-width="2" marker-end="url(#sight-arrow)" />
+					<line x1={tip.x} y1={tip.y} x2={tip.x} y2={dotCenter.y} stroke={ray.color} stroke-opacity="0.6" stroke-dasharray="1 2" />
+					<text x={tip.x + 6} y={tip.y + 3} font-size="8" fill={ray.color}>{ray.label}</text>
+				</g>
+			);
+		})}
+		<line x1={dotCenter.x} y1={dotCenter.y} x2={dotCenter.x + dotLength} y2={dotCenter.y} stroke="currentColor" stroke-width="2" marker-end="url(#sight-arrow)" />
+		<g font-size="8" fill="currentColor">
+			<text x={dotCenter.x - 4} y={dotCenter.y + 3} text-anchor="end">eye</text>
+			<text x={dotCenter.x + dotLength + 6} y={dotCenter.y + 3}>facing, length 1</text>
+			<text x={polar(dotCenter, -25, dotLength).x - 2} y={dotCenter.y + 12} text-anchor="middle" fill="#1e7cb8">0.9063</text>
+			<text x={polar(dotCenter, -25, dotLength).x + 6} y={polar(dotCenter, -25, dotLength).y - 4} fill="#1e7cb8">edge, 25°</text>
+		</g>
+	</svg>
+	<figcaption>The dot product is the shadow one direction casts on the other. The hero is inside the cone if that shadow is at least as long as the edge's.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The sentinel in the middle turns around slowly, and its light dots show the cone's two edges, stopping at the first crate. Walk the hero with the **D-pad**. Inside the cone with nothing in the way, a pink line joins them and a **!** appears.
+
+<Code code={sight} lang="cpp" title="snippets/sight/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/sight/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The sentinel's cone sweeps up and to the left. Its edge stops at the crates the hero hides behind, so the hero isn't seen. The hero steps down into the open while the cone is still there, and a pink line and an exclamation mark appear, until the cone moves on." />
+	<figcaption>Hidden behind the crates, then out in the open. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="sight" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `cosine >= half_cone_cos && cast_ray(...) >= distance` | `&&` stops at the first `false`, so the ray is only cast for a hero inside the cone. The order of the checks is the order of their cost. |
+| `bn::span<bn::sprite_ptr>` and `subspan(...)` | One vector of 24 sprites, seen as three rays of 8 without copying anything. `show_ray` doesn't care which of the three it got. |
+| `.safe_division(...)` instead of `/` | `/` keeps only half of the divisor's bits, so a direction close to an axis stops the game. See the pitfalls. |
+| `toward.x().safe_multiplication(facing.x())` | Plain `*` also drops bits. With the sentinel facing 40 degrees, the measured edge of the cone was 63 degrees with `*` and 65 with `safe_multiplication`, the right answer. |
+| `direction * along` with `int along` | A `bn::fixed_point` times an `int` is exact. Times a `bn::fixed`, it would round the same way `*` does. |
+| `bn::pair<bn::fixed, bn::fixed> sin_and_cos` | Two values from one call: `.first` is the sine, `.second` the cosine. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The room is built by `snippets/tools/collision_assets.py` from `include/room.h`, as on [the map collision page](/basics/collision/). The hero, sentinel and font come from [the state machines page](/structure/states/). The dots are drawn by `snippets/tools/sight_assets.py`.
+
+## Pitfalls
+
+**"32bit integer division by zero detected".**
+The first version of `cast_ray` used `/`, and stopped with that message in its first second, when the cone's edge passed horizontal. The edge was 0.5 degrees off the axis, and its y, 0.0087, isn't 0, so the `!= 0` check let it through. But `bn::fixed`'s `/` cuts the divisor down to half its bits first, and anything under 1/64 becomes 0: in the test ROM, dividing by 63/4096 stopped the game and 64/4096 didn't. Just above that, `/` is still wrong: 16 divided by 0.0244 gave 1024 instead of 655.36. `safe_division` does the division in 64 bits.
+
+**Stepping along the line sees through corners.**
+Testing a point every few pixels looks simpler than walking the grid. Over every place the hero can stand within range, 17325 of them, points 1 pixel apart saw the hero through a crate from 51 places, 4 pixels apart from 137, and 8 pixels apart from 276. Some of those are on the diagonal past the two crates that touch at a corner, top right of the sentinel: the line goes exactly through the corner, and no point lands inside either crate. `cast_ray` stops there, at 56.57 pixels. Stepping 1 pixel was also 9 times slower: 199 timer ticks per ray against 23, out of 4389 in a frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 260 165" role="img" aria-label="Two crates touch at one corner. A diagonal ray goes up and to the right exactly through that corner. Pink dots 8 pixels apart along the ray land before and after the corner, never inside a crate. A blue mark at the corner shows where the grid walk stops, 56.57 pixels from the eye." style={{ display: 'block', width: '100%', maxWidth: '400px', marginInline: 'auto' }}>
+		{jointCrates.map((crate) => (
+			<g key={crate.x}>
+				<rect x={jx(crate.x)} y={jy(crate.y)} width={16 * joint.scale} height={16 * joint.scale} fill="#8a5a2b" />
+				<path d={`M ${jx(crate.x)} ${jy(crate.y)} l ${16 * joint.scale} ${16 * joint.scale} M ${jx(crate.x + 16)} ${jy(crate.y)} l ${-16 * joint.scale} ${16 * joint.scale}`} stroke="#000" stroke-opacity="0.35" />
+			</g>
+		))}
+		<line x1={jx(136)} y1={jy(72)} x2={jx(184)} y2={jy(24)} stroke="currentColor" stroke-opacity="0.6" />
+		{jointSamples.map((sample) => (
+			<circle key={sample.t} cx={jx(sample.x)} cy={jy(sample.y)} r="3" fill="#ff4d8d" />
+		))}
+		<circle cx={jx(160)} cy={jy(48)} r="5" fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<g font-size="8" fill="currentColor">
+			<text x={jx(jointSamples[0].x) - 6} y={jy(jointSamples[0].y) - 4} text-anchor="end" fill="#ff4d8d">every 8 px</text>
+			<text x={jx(176) + 6} y={jy(48) + 3} fill="#1e7cb8">grid walk stops: 56.57 px</text>
+		</g>
+	</svg>
+	<figcaption>The two crates up and to the right of the sentinel, 3x. The points go around the corner.</figcaption>
+</figure>
+
+**The cone grows with distance.**
+Leave out the division by the distance, and the dot product is the cosine times the distance. The test ROM, facing right, still asked for 0.9063: the cone was 25 degrees on each side with directions of length 1, but 86 degrees for a hero 16 pixels away, and 89 at 50 and 90 pixels. The sentinel saw nearly everything in front of it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 220 200" role="img" aria-label="Two cones from the same eye facing right. A narrow green one, 25 degrees on each side, from directions of length 1. A pink one, 89 degrees on each side, almost a half circle, from the raw difference at 50 pixels." style={{ display: 'block', width: '100%', maxWidth: '360px', marginInline: 'auto' }}>
+		<path d={wedge(rawCenter, -89, 89, 80)} fill="#ff4d8d" fill-opacity="0.12" stroke="#ff4d8d" stroke-dasharray="3 2" />
+		<path d={wedge(rawCenter, -25, 25, 80)} fill="#2f9e36" fill-opacity="0.25" stroke="#2f9e36" />
+		<circle cx={rawCenter.x} cy={rawCenter.y} r="2.5" fill="currentColor" />
+		<g font-size="8" fill="currentColor">
+			<text x={rawCenter.x + 86} y={rawCenter.y + 3} fill="#2f9e36">length 1: 25°</text>
+			<text x={rawCenter.x + 62} y={rawCenter.y - 68} fill="#ff4d8d">raw, 50 px away: 89°</text>
+		</g>
+	</svg>
+	<figcaption>The same 0.9063, with and without dividing by the distance.</figcaption>
+</figure>
+
+**Many sentinels, many rays.**
+At 23 ticks a ray, a frame has room for about 190 of them and nothing else. The snippet casts three, and only one of them decides anything. If many enemies look every frame, cast the hero ray only after the cheap checks pass, or look every few frames.
+
+## Read more
+
+- Paper: [A Fast Voxel Traversal Algorithm for Ray Tracing](http://www.cse.yorku.ca/~amana/research/grid.pdf), by John Amanatides and Andrew Woo, the grid walk that `cast_ray` does, in 2D and 3D.
+- Tutorials: [Raycasting](https://lodev.org/cgtutor/raycasting.html), by Lode Vandevenne, the same walk drawing a 3D maze, and [2D visibility](https://www.redblobgames.com/articles/visibility/), by Red Blob Games, which lights up everything a point can see.
+- Headers: [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), for `division`, `safe_division` and their kin, [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h), for `bn::sqrt` and the sine table, and [`bn_span.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_span.h).
+- C++: [logical operators](https://en.cppreference.com/w/cpp/language/operator_logical), on cppreference, for how `&&` skips its right side.
