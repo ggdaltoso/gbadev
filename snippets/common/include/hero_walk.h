@@ -12,7 +12,8 @@ class hero_walk
 
 public:
     // Call once per frame with the step the hero took: -1, 0 or 1 on each axis.
-    void update(bn::sprite_ptr& hero, int step_x, int step_y)
+    // speed is how many pixels that step covers: legs move faster when running, so feet don't slide.
+    void update(bn::sprite_ptr& hero, int step_x, int step_y, int speed = 1)
     {
         if(step_x != 0)
         {
@@ -28,7 +29,7 @@ public:
 
         // Standing still shows the first frame of the walk, facing the last way it went.
         bool moving = step_x != 0 || step_y != 0;
-        _steps = moving ? _steps + 1 : 0;
+        _steps = moving ? _steps + speed : 0;
         int frame = _first_frame + (_steps / frames_per_step) % 4;
 
         if(frame != _frame)
@@ -46,7 +47,7 @@ private:
     static constexpr int walk_down = 5;
     static constexpr int walk_right = 9;
     static constexpr int walk_up = 13;
-    static constexpr int frames_per_step = 8;   // Screen frames per walk frame: 4 steps in about half a second.
+    static constexpr int frames_per_step = 8;   // At 1 pixel a frame, screen frames per walk frame.
 
     int _first_frame = walk_right;
     int _frame = 0;   // Snippets create the hero with frame 0, standing and facing right.

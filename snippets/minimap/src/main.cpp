@@ -50,7 +50,7 @@ int main()
         hero.set_position(bn::clamp(hero.x() + step_x * speed, -half_width + 8, half_width - 8),
                           bn::clamp(hero.y() + step_y * speed, -half_height + 8, half_height - 16));
 
-        walk.update(hero, step_x, step_y);
+        walk.update(hero, step_x, step_y, speed);
 
         camera.set_position(bn::clamp(hero.x(), -camera_x, camera_x), bn::clamp(hero.y(), -camera_y, camera_y));
 
