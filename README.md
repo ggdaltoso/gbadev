@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first thirty-nine pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -74,6 +74,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 37. **Big maps:** a world bigger than 512x512 kept in video memory as a ring of 32x32 cells, a new column copied in every 8 pixels, and the 1024 different tiles a map can use.
 38. **Minimap:** the world shrunk to a 64x64 sprite by the art script, markers placed by dividing world positions by the scale, and the screen's box from the camera.
 39. **Save slots:** several saves at offsets worked out from the struct's size, a checksum that tells a good slot from a damaged one, and a save cut in half.
+40. **Music by region:** rectangles of the world with a song each, one song at a time with a fade out and a fade in, and a walk back that doesn't restart the song.
 
 ### Effects
 
