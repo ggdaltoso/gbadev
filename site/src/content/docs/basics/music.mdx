@@ -9,11 +9,12 @@ import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import music from '../../../../../snippets/music/src/main.cpp?raw';
 import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+import makefile from '../../../../../snippets/music/Makefile?raw';
 
 export const toMap = (v) => 10 + (v + 512) / 4;
 export const toMapY = (v) => 5 + (v + 512) / 4;
 export const areas = [
-	{ name: 'Forest', song: 'Blue Intermission', color: '#2f9e36', left: -480, top: -480, right: -16, bottom: -96 },
+	{ name: 'Forest', song: 'forest, by Beyond', color: '#2f9e36', left: -480, top: -480, right: -16, bottom: -96 },
 	{ name: 'Village', song: 'My Street', color: '#ff4d8d', left: -448, top: 112, right: 48, bottom: 488 },
 ];
 export const fade = 30;
@@ -33,14 +34,14 @@ When the music should say where the player is: a calm tune in the fields, a busi
 **A region is a rectangle with a song.** Every frame, the game asks which rectangle the hero is in, and that's the song it wants. The rectangles are checked in order and the first one that holds the hero wins, so the last one can cover the whole map and catch everything else. They don't have to match the art exactly: the forest's trees end in a diagonal, and its rectangle doesn't care.
 
 <figure style={{ textAlign: 'center' }}>
-	<svg viewBox="0 0 410 266" role="img" aria-label="The big map, shrunk. A green rectangle over the forest in the top left, labeled Forest, Blue Intermission. A pink rectangle over the village in the bottom left, labeled Village, My Street. Everything else is labeled Fields, Napping on a Cloud." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+	<svg viewBox="0 0 410 266" role="img" aria-label="The big map, shrunk. A green rectangle over the forest in the top left, labeled Forest, forest by Beyond. A pink rectangle over the village in the bottom left, labeled Village, My Street. Everything else is labeled Fields, Napping on a Cloud." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
 		<image href="/images/bigmap/map.png" x="10" y="5" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
 		{areas.map((area) => (
 			<rect key={area.name} x={toMap(area.left)} y={toMapY(area.top)} width={(area.right - area.left) / 4} height={(area.bottom - area.top) / 4} fill={area.color} fill-opacity="0.18" stroke={area.color} stroke-width="2" />
 		))}
 		<g font-size="9" fill="currentColor">
 			<text x="276" y="50" font-weight="bold" fill="#2f9e36">1. Forest</text>
-			<text x="276" y="62">Blue Intermission</text>
+			<text x="276" y="62">forest, by Beyond</text>
 			<text x="276" y="196" font-weight="bold" fill="#ff4d8d">2. Village</text>
 			<text x="276" y="208">My Street</text>
 			<text x="276" y="128" font-weight="bold">3. Fields</text>
@@ -106,6 +107,10 @@ Walk with the **D-pad**, and hold **B** to run. The name of the region is in the
 
 </details>
 
+The forest song has 28 channels, and Butano gives music 16 by default. The snippet's `Makefile` raises the limit for this ROM only:
+
+<Code code={makefile} lang="makefile" title="snippets/music/Makefile" />
+
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/music/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs from the fields into the village, then up into the forest, then right into the fields again. The name in the corner changes from Fields to Village to Forest to Fields." />
 	<figcaption>Fields, village, forest, fields. A GIF has no sound: run the ROM below to hear the songs change. Captured from the emulator (2x).</figcaption>
@@ -125,7 +130,7 @@ Some of the C++ in the snippet:
 | `if(here.name != shown_name)` | Two `const char*` compared as pointers: each region's name is one string in ROM, so the same region gives the same pointer, and the text is only made again when the region changes. |
 | `bn::music_item playing = region_at(hero.position()).song;` | A music item is just a number naming a song, cheap to copy and compare with `!=`. |
 
-Music: [My Street](https://opengameart.org/content/my-street), [Napping on a Cloud](https://opengameart.org/content/napping-on-a-cloud) and [Blue Intermission](https://opengameart.org/content/blue-intermission) by congusbongus, CC0, copied and renamed by `snippets/tools/music_assets.py`. The map comes from [the big map page](/basics/bigmap/) and the font from [the HUD page](/basics/hud/).
+Music: [My Street](https://opengameart.org/content/my-street) and [Napping on a Cloud](https://opengameart.org/content/napping-on-a-cloud) by congusbongus, CC0, and [forest](https://modarchive.org/index.php?request=view_by_moduleid&query=184100) by Beyond, public domain, copied and renamed by `snippets/tools/music_assets.py`. The map comes from [the big map page](/basics/bigmap/) and the font from [the HUD page](/basics/hud/).
 
 ## Pitfalls
 
@@ -135,11 +140,14 @@ Calling `play` whenever the region changes, with a 10-frame visit to the village
 **The song never gets past its first notes.**
 Calling `play` every frame for the region's song starts it over every frame. After 15 seconds in the test ROM, it was still at its first pattern. Start a song only when it changes.
 
+**A song with more channels than the limit doesn't play.**
+Butano gives music 16 channels by default, plus 4 for sound effects, and in maxmod's source the player stops reading a row of the song when it finds a note on a channel past them. With that default, the forest song used 4.1% of the CPU in the test ROM, the same as with no music at all: nothing was being mixed. With the limit raised to 28 in the `Makefile`, it used 21.2%. Check how many channels a module has before using it (The Mod Archive lists it on the module's page), and raise `BN_CFG_AUDIO_MAX_MUSIC_CHANNELS` or pick another song.
+
 **A silent song isn't free.**
-At volume 0 the mixer still runs the song. In the test ROM, the CPU used was 9.5% with the village song at full volume, 6.9% at volume 0, and 4.1% with the music stopped. If an area should be silent for a while, `bn::music::stop()` it.
+At volume 0 the mixer still runs the song. In the test ROM, the CPU used was 9.9% with the village song at full volume, 7.1% at volume 0, and 4.1% with the music stopped. If an area should be silent for a while, `bn::music::stop()` it.
 
 ## Read more
 
 - Butano examples: [`examples/audio`](https://github.com/GValiente/butano/tree/master/examples/audio), for music, volume and jingles.
-- Headers: [`bn_music.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_music.h), for `play`, `set_volume`, `position` and `stop`, and [`bn_music_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_music_actions.h), for a fade written as an action instead.
+- Headers: [`bn_music.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_music.h), for `play`, `set_volume`, `position` and `stop`, and [`bn_music_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_music_actions.h), for a fade written as an action instead, and [`bn_config_audio.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_audio.h), for the channel limits.
 - Guide pages: [Music and sound](/basics/audio/), [Big maps](/basics/bigmap/) and [Interpolation and easing](/math/easing/), for fades that aren't straight lines.
