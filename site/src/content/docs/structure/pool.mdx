@@ -1,0 +1,151 @@
+---
+title: Object pools
+description: Every stone made at the start and kept hidden, a throw that wakes one up and resets it, a pool sized from one stone's life and the time between throws, and what it saves, measured.
+sidebar:
+  order: 2.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import pool from '../../../../../snippets/pool/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const slotStates = [0, 0, 3, 5, 0, -1, -1, -1];
+export const slotX = (i) => 14 + i * 44;
+export const life = { fly: 40, dust: 24, every: 8 };
+export const pxPerFrame = 2.2;
+export const frameX = (f) => 64 + f * pxPerFrame;
+export const throwY = (i) => 26 + i * 14;
+export const costs = [
+	{ label: 'create and destroy, no other stone made', ticks: 2344, color: '#ff4d8d' },
+	{ label: 'create and destroy, the tiles already there', ticks: 1293, color: '#ff4d8d' },
+	{ label: 'wake and sleep a pooled stone', ticks: 691, color: '#2f9e36' },
+];
+export const tickWidth = 300 / 4389;
+
+## When to use it
+
+When things appear and disappear all the time: shots, thrown stones, hit sparks. The [Game objects](/structure/objects/) page makes each one when it's born and destroys it when it's done. A pool makes all of them once, at the start, and reuses them. Making a sprite costs more than moving one, and a pool never makes one while the game runs.
+
+Don't reach for it first. In this snippet one stone is thrown every 8 frames, and the pool saves about 2 ticks a frame out of 4389: nothing you could see. It pays off when dozens appear in the same frame. Measure with the [Performance](/structure/profiler/) page first. What a pool always gives you is a number known in advance: there are 8 stones, never a ninth.
+
+## How to think about it
+
+**A pool makes everything at the start: throwing wakes one up, and done puts it back to sleep.** The 8 stones are made before the game loop, hidden, and never destroyed. Each one knows if it's awake. A throw looks for the first one asleep, puts it at the hero's hand and shows it. When a stone has broken into dust, it hides again and is asleep, ready for the next throw. The vector is filled once and never erased from, so no stone ever moves inside it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 118" role="img" aria-label="Eight slots in a row, numbered 0 to 7. Slots 0, 1 and 4 hold a flying stone, slot 2 and 3 a stone breaking into dust: those five are awake. Slots 5, 6 and 7 are dashed and empty: those stones are asleep, hidden. An arrow from the label A: throw points at slot 5, the first one asleep. Under the awake slots, a label says back to sleep after 64 frames." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{slotStates.map((frame, i) => (
+			<g>
+				<rect x={slotX(i)} y="30" width="40" height="40" rx="3" fill={frame >= 0 ? '#2f9e36' : 'none'} fill-opacity="0.15" stroke={frame >= 0 ? '#2f9e36' : 'currentColor'} stroke-opacity={frame >= 0 ? 1 : 0.4} stroke-dasharray={frame >= 0 ? 'none' : '3 3'} />
+				{frame >= 0 && (
+					<svg x={slotX(i) + 4} y="34" width="32" height="32" viewBox={`${frame * 32} 0 32 32`}>
+						<image href="/images/pool/stone.png" width="224" height="32" style={{ imageRendering: 'pixelated' }} />
+					</svg>
+				)}
+				<text x={slotX(i) + 20} y="84" font-size="10" fill="currentColor" text-anchor="middle">{i}</text>
+			</g>
+		))}
+		<g font-size="10" fill="currentColor">
+			<text x={slotX(5) + 20} y="14" text-anchor="middle" fill="#1e7cb8">A: throw</text>
+			<path d={`M ${slotX(5) + 20} 18 L ${slotX(5) + 20} 27`} stroke="#1e7cb8" stroke-width="1.5" />
+			<path d={`M ${slotX(5) + 16} 23 L ${slotX(5) + 20} 28 L ${slotX(5) + 24} 23`} fill="none" stroke="#1e7cb8" stroke-width="1.5" />
+			<text x={slotX(0)} y="104" fill="#2f9e36">awake: flying or breaking</text>
+			<text x={slotX(5)} y="104" fill-opacity="0.7">asleep: hidden, still made</text>
+		</g>
+	</svg>
+	<figcaption>The pool partway through a throw. A throw wakes the first stone asleep; a stone goes back to sleep 64 frames after it was thrown.</figcaption>
+</figure>
+
+**Its size is one stone's life divided by the time between throws.** A stone flies for 40 frames and breaks into dust for 24: 64 frames. With A held, a stone is thrown every 8 frames. So when the first stone goes back to sleep, 64 / 8 = 8 have been thrown, and the ninth throw wakes the first one again. The snippet works the size out from those numbers, so changing one of them changes the pool.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 180" role="img" aria-label="A timeline in frames, from 0 to 128. Nine bars, one per throw, each starting 8 frames after the one above: a blue part of 40 frames for flying, then a pink part of 24 frames for the dust. The first eight bars use slots 0 to 7. The ninth bar starts at frame 64, exactly where the first one ends, and uses slot 0 again. A dashed line at frame 60 crosses eight bars." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+			<g>
+				<rect x={frameX(i * life.every)} y={throwY(i)} width={life.fly * pxPerFrame} height="9" fill="#1e7cb8" />
+				<rect x={frameX(i * life.every + life.fly)} y={throwY(i)} width={life.dust * pxPerFrame} height="9" fill="#ff4d8d" />
+				<text x="56" y={throwY(i) + 8} font-size="9" fill="currentColor" text-anchor="end">slot {i % 8}</text>
+			</g>
+		))}
+		<line x1={frameX(60)} y1="18" x2={frameX(60)} y2={throwY(8) - 2} stroke="currentColor" stroke-dasharray="3 3" />
+		<g font-size="9" fill="currentColor">
+			<text x={frameX(60)} y="13" text-anchor="middle">frame 60: 8 awake</text>
+			{[0, 32, 64, 96, 128].map((f) => (
+				<text x={frameX(f)} y="168" text-anchor="middle" fill-opacity="0.7">{f}</text>
+			))}
+			<text x={frameX(6)} y={throwY(0) + 8} fill="#ffffff">fly 40</text>
+			<text x={frameX(life.fly + 1)} y={throwY(0) + 8} fill="#ffffff">dust 24</text>
+		</g>
+	</svg>
+	<figcaption>One bar per throw, worked out from the snippet's constants. The ninth throw starts the frame the first stone goes back to sleep.</figcaption>
+</figure>
+
+**Waking a sprite costs less than making one, and the reset is most of it.** Making a sprite finds its tiles and palette in video memory, or copies them there when no other sprite has them, and sorts it in with the others. Waking one sets a position, a frame and a flag. Measured in a test ROM, for 32 stones at once, against a frame of 4389 ticks: making and destroying them took half a frame when they were the only stones, and less than a third when another stone already had the tiles. Waking and putting them back to sleep took 691 ticks, and setting the frame back to the stone was most of it: without `set_tiles`, 32 wakes and sleeps took 186.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 120" role="img" aria-label="Three bars, in ticks for 32 stones. Making and destroying them when no other stone was made: 2344. Making and destroying them when the tiles were already in video memory: 1293. Waking and putting to sleep pooled stones: 691. A dashed line marks a whole frame, 4389 ticks, at the right end." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{costs.map((cost, i) => (
+			<g>
+				<text x="10" y={14 + i * 32} font-size="9" fill="currentColor">{cost.label}</text>
+				<rect x="10" y={18 + i * 32} width={cost.ticks * tickWidth} height="10" fill={cost.color} />
+				<text x={14 + cost.ticks * tickWidth} y={27 + i * 32} font-size="9" fill="currentColor">{cost.ticks}</text>
+			</g>
+		))}
+		<line x1={10 + 300} y1="4" x2={10 + 300} y2="100" stroke="currentColor" stroke-dasharray="3 3" />
+		<text x={10 + 300} y="112" font-size="9" fill="currentColor" text-anchor="middle">one frame: 4389</text>
+	</svg>
+	<figcaption>Ticks for 32 stones, measured with <code>bn::timer</code> and averaged over 60 frames in a test ROM.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad** and hold **A** to throw stones the way the hero faces. The top of the screen counts the stones asleep: with A held it stays at 0, because 8 is exactly enough.
+
+<Code code={pool} lang="cpp" title="snippets/pool/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/pool/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero holds A and throws a stream of stones to the right; each flies, then breaks into a cloud of dust. The count of stones asleep drops from 8 to 0. The hero walks down and left, still throwing, and then lets go: the count climbs back to 8." />
+	<figcaption>A held facing right, then down, then left, then let go. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="pool" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `stone{ sprite, bn::fixed_point() }` | Aggregate initialization: the members in the order they're declared. `age` and `awake` aren't listed, so they keep their defaults. `step` is listed only because the compiler warns about a member left out with no default. |
+| `constexpr int pool_size = life_frames / throw_frames;` | Worked out by the compiler, and usable as the vector's capacity. Integer division rounds down: if the life weren't a multiple of the time between throws, round up with `(life_frames + throw_frames - 1) / throw_frames`. |
+| `bn::sprite_ptr sprite = ...; stones.push_back(stone{ sprite, ... });` | The stone gets a copy of the handle. When the loop's `sprite` goes away, the sprite stays: the stone still holds a handle to it. See [Game objects](/structure/objects/). |
+| `for(stone& thrown : stones) { ... break; }` | A reference, so the wake changes the stone in the pool and not a copy. `break` stops at the first one asleep. |
+| `continue;` | Skips the rest of the loop for a stone asleep, after counting it. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The stone and its dust are cut from the pack's objects by [`snippets/tools/pool_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/pool_assets.py).
+
+## Pitfalls
+
+**The stream has holes.**
+A pool smaller than one life divided by the time between throws runs out. In a test ROM with 6 stones instead of 8, the throws at frames 48 and 56 found every stone awake and didn't happen, so 2 of every 8 throws were missing: the stones flew 16 pixels apart, with a 48-pixel hole every 8 throws. Work the size out from the timing, as the snippet does.
+
+**A thrown stone is already dust.**
+A woken stone keeps everything from its last throw, and it went to sleep on its last dust frame. In a test ROM without the `set_tiles(..., 0)` in the wake, the first 8 throws were stones, and from then on every stone flew as the few specks of dust it ended on. Set everything again when one wakes up: position, frame, way and age.
+
+**"No more sprite items available".**
+A hidden sprite is still a sprite. Butano keeps every sprite, shown or not, in a pool of its own of `BN_CFG_SPRITES_MAX_ITEMS`, 128 by default (`bn_sprites_manager.cpp`). In a test ROM, making 128 hidden sprites on top of a line of text stopped the game with that error. Count the pools' sprites with everything else on screen.
+
+**A sleeping sprite isn't free.**
+Hidden sprites are skipped when drawing, but Butano still goes through them every frame. In a test ROM with a line of text on screen, the CPU went from 4.0% to 4.8% with 100 hidden sprites, and to 5.0% with the same 100 shown. For 8 stones it's nothing. A pool of hundreds costs every frame, even when nothing is thrown.
+
+## Read more
+
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_visible` and `set_tiles`, [`bn_config_sprites.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_sprites.h), for `BN_CFG_SPRITES_MAX_ITEMS`, and [`bn_pool.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_pool.h): `bn::pool` builds and destroys objects in fixed slots that never move. Butano keeps its own sprites in one, in [`bn_sprites_manager.cpp`](https://github.com/GValiente/butano/blob/master/butano/src/bn_sprites_manager.cpp).
+- cppreference: [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization).
+- Guide pages: [Game objects](/structure/objects/), for making and erasing objects instead, [Particles](/effects/particles/), for a fixed number of slots where the oldest makes room, and [Performance](/structure/profiler/), for measuring before reaching for a pool.

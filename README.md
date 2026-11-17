@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first forty-two pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty-three pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -95,6 +95,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 
 18. **Scenes:** a title, a game and a result as functions, what each one owns, and fading between them.
 19. **Game objects:** a class per kind of thing, a `bn::vector` of them, and removing them with `erase_if`.
+43. **Object pools:** every stone made at the start and kept hidden, a throw that wakes one up and resets it, a size worked out from one stone's life and the time between throws, and what it saves, measured.
 20. **Files and headers:** a class in its own `.h` and `.cpp`, include guards, and the compiler and linker errors.
 21. **State machines:** an enemy with an `enum class`, one `switch`, and a single place where the state changes.
 22. **Performance:** CPU usage on screen, `bn::profiler`, and fixing what it finds.
