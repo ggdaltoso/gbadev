@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first thirty-five pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first thirty-six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -84,6 +84,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 30. **Screen shake:** trauma that adds up with each hit and drains, a random offset the size of trauma squared, and a camera that gets the shake last.
 31. **Animated tiles:** water and fountains that move all over a background by copying a few tiles per frame, copies that share tiles, and phases that need their own.
 35. **Hitstop:** a few frozen frames on each hit, a counter that skips the world while the spark and the buttons keep running, and one hit per swing.
+36. **Iris transition:** a circle-shaped window from an H-Blank effect, a transition as a state with input waiting, and the swap while the screen is black.
 
 ### Structure
 

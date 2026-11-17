@@ -1,0 +1,99 @@
+---
+title: Iris transition
+description: A circle that closes on the hero, changes the place while the screen is black, and opens on the new one. A window shaped line by line with an H-Blank effect, and the transition as a state of its own.
+sidebar:
+  order: 6.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import iris from '../../../../../snippets/iris/src/main.cpp?raw';
+
+export const circle = { x: 150, y: 70, r: 52 };
+export const lineStep = 8;
+export const lines = Array.from({ length: Math.floor((2 * circle.r) / lineStep) + 1 }, (_, i) => {
+	const dy = -circle.r + i * lineStep;
+	const half = Math.sqrt(Math.max(0, circle.r * circle.r - dy * dy));
+	return { y: circle.y + dy, left: circle.x - half, right: circle.x + half };
+});
+export const stepLabels = ['open: the hero steps on the hole', 'closing', 'closing', 'swapped, opening', 'open again'];
+
+## When to use it
+
+When the hero goes from one place to another: through a door, down a hole, into a house. The circle closing on the hero says *this is where you were*, and opening on them says *this is where you are*. [The mosaic page](/effects/mosaic/) has a teleport that dissolves the picture, and [the scenes page](/structure/scenes/) fades to black. The iris is a third way, and the way the transition is built is the same for all three.
+
+## How to think about it
+
+**A circle is a window, one line at a time.** A rectangle window has a left, a right, a top and a bottom. The GBA draws the screen line by line, so an [H-Blank effect](/effects/hblank/) can give the window a different left and right on each of the 160 lines. Make each line as wide as the circle is at that height, and the window is a circle. Inside it everything shows; outside it nothing does, and the black backdrop shows through.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 300 152" role="img" aria-label="A circle drawn as horizontal bars, one every few lines. Each bar goes from the circle's left edge to its right edge at that height: short near the top and bottom, long in the middle. Dots mark the left and right of one bar, labeled with the pair the code stores for that line." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<rect x="40" y="10" width="220" height="120" fill="#000" />
+		<circle cx={circle.x} cy={circle.y} r={circle.r} fill="none" stroke="#2f9e36" stroke-dasharray="3 2" />
+		{lines.map((line, index) => (
+			<line key={index} x1={line.left} y1={line.y} x2={line.right} y2={line.y} stroke="#2f9e36" stroke-width="5" />
+		))}
+		<circle cx={lines[3].left} cy={lines[3].y} r="3" fill="#ff4d8d" />
+		<circle cx={lines[3].right} cy={lines[3].y} r="3" fill="#ff4d8d" />
+		<g font-size="8" fill="currentColor">
+			<text x={lines[3].right + 6} y={lines[3].y + 3} fill="#ff4d8d">(left, right) for this line</text>
+			<text x="150" y="147" text-anchor="middle">the screen, black outside the window</text>
+		</g>
+	</svg>
+	<figcaption>The snippet sets all 160 lines; here every 8th is drawn. Each width is the circle's, from `bn::sqrt`.</figcaption>
+</figure>
+
+**The transition is a state, not a function.** It takes 48 frames, and the game keeps running through them: the loop draws every frame, and the iris changes a little each time. So the game is in one of three phases. *Open*: the hero walks. *Closing*: the circle shrinks over 24 frames and input waits. When it's closed, the screen is black, and that's the moment to change places: hide one background, show the other, move the hero. *Opening*: the circle grows back on the new place.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/iris/steps.png" width="1232" height="160" style={{ imageRendering: 'pixelated', marginInline: 'auto', width: '100%', height: 'auto' }} alt="Five frames from the snippet: the hero on the hole on the grass; the circle closing around them; a small circle; the cave inside a growing circle; the cave with the circle fully open." />
+	<figcaption>{stepLabels.join(' → ')}. Captured from the emulator.</figcaption>
+</figure>
+
+**The circle starts just big enough.** At its largest, the circle only has to cover the screen corner furthest from the hero. With the hero by the hole at (56, -36), that's a radius of 211. Starting from a round 300 instead, it would take 7 of the 24 frames to shrink below 211, and for those 7 nothing on screen would change, worked out from the snippet's numbers. `covering_radius` works out the smallest one each time.
+
+## The smallest thing that works
+
+Walk the hero with the **D-pad** onto the hole in the grass. The circle closes on them, and opens again in a cave, next to the hole back up. Step on that one to come back.
+
+<Code code={iris} lang="cpp" title="snippets/iris/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/iris/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks onto the hole on the grass. A circle closes on them to black and opens on a cave. They walk a little, step back onto the cave's hole, and the circle closes and opens on the grass again." />
+	<figcaption>Down the hole and back up. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="iris" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `using window_lines = bn::array<bn::pair<bn::fixed, bn::fixed>, bn::display::height()>;` | A short name for a long type. The size comes from the screen, so it can't be off by one. |
+| `enum class iris_phase { open, closing, opening };` | The three phases by name. An `enum class` won't mix with plain numbers by accident. |
+| `void shape_iris(window_lines& lines, ...)` | The array is changed in place, by reference. The H-Blank effect keeps reading this same array, so copying it would draw nothing new. |
+| `constexpr bn::fixed_point outside_hole(56, -24);` | A point built at compile time. The hole's sprite and the arrival spot come from the same constant. |
+| `phase == iris_phase::closing ? full * (iris_frames - frame) / iris_frames : full * frame / iris_frames` | One expression for both directions. Multiplying before dividing keeps the steps even with `int`: `frame / iris_frames` alone would be 0 until the last frame. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The cave room and the hole are cut from its `cave.png` by `snippets/tools/iris_assets.py`. The grass comes from [the depth sorting page](/basics/depth/) and the hero from [the state machines page](/structure/states/).
+
+## Pitfalls
+
+**The circle never shows, and the place just changes.**
+The H-Blank effect read the array once, when it was created. Without `reload_deltas_ref()` after each change, the test ROM kept the full-screen window through the whole transition, and after 24 frames the grass turned into the cave at once. The effect keeps a reference to your array, and only reads it again when you tell it to.
+
+**Arriving on the way back.**
+Putting the hero right on the other hole sends them back at once. In the test ROM, with the hero arriving with their feet on the hole, the game went back and forth between the grass and the cave by itself, a round about every 48 frames, with no button pressed. The snippet puts the hero 20 pixels above the hole, so they have to step onto it.
+
+**Input that doesn't wait.**
+Checking the hole every frame, during the transition too, restarted the closing on every frame the hero stood on it. In the test ROM the iris got one frame in, a black corner at the bottom left, and stayed there. Only the open phase reads the D-pad and checks the hole.
+
+**Past the screen's sides isn't a problem.**
+The window's hardware registers only go from 0 to 255, so a left edge at -150 looks like trouble. The first version of the snippet clamped every line to the screen, just in case. Without the clamp, the test ROM's circle shrank evenly frame after frame: Butano clamps the values itself, in `bn_display_manager.cpp`. One less thing to write.
+
+## Read more
+
+- Butano example: [`examples/windows`](https://github.com/GValiente/butano/tree/master/examples/windows), whose last scene shapes a window with the same H-Blank effect.
+- Headers: [`bn_rect_window_boundaries_hbe_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_rect_window_boundaries_hbe_ptr.h) and [`bn_rect_window.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_rect_window.h).
+- Tonc: [Windowing](https://gbadev.net/tonc/gfx.html#sec-win), for the hardware's windows and what each one shows.
+- Guide pages: [Windows](/effects/windows/), [H-Blank effects](/effects/hblank/), [Mosaic](/effects/mosaic/) and [Scenes](/structure/scenes/).
