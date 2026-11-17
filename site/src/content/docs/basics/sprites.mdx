@@ -8,7 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import sprites from '../../../../../snippets/sprites/src/main.cpp?raw';
-import heroJson from '../../../../../snippets/sprites/graphics/hero.json?raw';
+import heroJson from '../../../../../snippets/common/graphics/hero.json?raw';
 
 ## When to use it
 
@@ -32,11 +32,11 @@ For big things that don't move apart from the rest, like the level itself, use a
 
 **Left** and **right** turn the hero around. **A** swings the sword, with a small lunge forward.
 
-The image is a 160x32 indexed `.bmp`: five 32x32 frames side by side, the first one standing and the other four the swing.
+The image is an indexed `.bmp` of 32x32 frames side by side, shared by every snippet in the guide. This one uses the first five: standing, then the four frames of the swing. The rest are walking in three directions and swinging up and down; facing left is facing right, flipped.
 
 <figure>
-	<img src="/images/sprites/hero-sheet.png" width="640" height="128" style={{ imageRendering: 'pixelated' }} alt="The hero.bmp sheet: the hero standing, then four frames of a sword swing to the right." />
-	<figcaption>`hero.bmp`, 4x bigger.</figcaption>
+	<img src="/images/sprites/hero-sheet.png" width="640" height="128" style={{ imageRendering: 'pixelated' }} alt="The first five frames of hero.bmp: the hero standing, then four frames of a sword swing to the right." />
+	<figcaption>The first five frames of `hero.bmp`, 4x bigger.</figcaption>
 </figure>
 
 On screen, the sprite shows frame 0 while standing. The action plays frames 1 to 4 once, each for 4 screen frames (about 70 ms), and the code goes back to frame 0:
@@ -54,7 +54,7 @@ On screen, the sprite shows frame 0 while standing. The action plays frames 1 to
 
 The `.json` says how to cut it:
 
-<Code code={heroJson} lang="json" title="snippets/sprites/graphics/hero.json" />
+<Code code={heroJson} lang="json" title="snippets/common/graphics/hero.json" />
 
 The `.bmp` has 16 colors, so the sprite uses 4 bits per pixel. The first color in the palette is the transparent one.
 

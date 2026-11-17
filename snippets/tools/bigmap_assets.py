@@ -3,13 +3,12 @@
 world: a 1024x1024 map, four times the area a regular background can hold in hardware, with
 regions you can tell apart from far away: a forest, a lake with its river, a village and a field.
 Its colors don't fit one 16-color palette, so Butano splits it into several ("bpp_4_auto").
-hero: copied from the state machines snippet.
+The hero is the shared one in snippets/common/graphics.
 
 Usage: python3 bigmap_assets.py <assets/zelda-like folder> <snippets/bigmap folder>
 """
 import json
 import random
-import shutil
 import sys
 
 from PIL import Image
@@ -100,5 +99,3 @@ out.save(f'{snippet}/graphics/world.bmp')
 json.dump({'type': 'regular_bg', 'bpp_mode': 'bpp_4_auto'}, open(f'{snippet}/graphics/world.json', 'w'), indent=4)
 print(len(colors), 'colors')
 
-for ext in ('bmp', 'json'):
-    shutil.copy(f'{snippet}/../states/graphics/hero.{ext}', f'{snippet}/graphics/hero.{ext}')

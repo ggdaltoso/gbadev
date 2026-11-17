@@ -8,7 +8,8 @@ PYTHON      	:=  python3
 SOURCES     	:=  src
 INCLUDES    	:=  include
 DATA        	:=
-GRAPHICS    	:=  graphics
+# common/graphics holds the art every snippet shares, like the hero.
+GRAPHICS    	:=  graphics ../common/graphics
 AUDIO       	:=  audio
 AUDIOBACKEND	:=  maxmod
 AUDIOTOOL		:=

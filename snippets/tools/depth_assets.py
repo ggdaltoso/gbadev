@@ -80,7 +80,7 @@ save_indexed(pieces, 'stall', {'type': 'sprite', 'height': 32})
 
 # How far below each sprite's center its art touches the ground, for the code's feet constants.
 for name in ('hero', 'villager'):
-    img = Image.open(f'{snippet}/graphics/{name}.bmp')
+    img = Image.open(f'{snippet}/../common/graphics/hero.bmp' if name == 'hero' else f'{snippet}/graphics/{name}.bmp')
     frame = img.crop((0, 0, min(img.size[0], 32), 32)).convert('RGB')
     rows = [y for y in range(32) for x in range(frame.size[0]) if frame.getpixel((x, y)) != frame.getpixel((0, 0))]
     print(name, 'art bottom row', max(rows), 'feet offset', max(rows) + 1 - 16)

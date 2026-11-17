@@ -4,7 +4,7 @@ minimap: a 64x64 sprite, the 1024x1024 world at 1/16: one pixel per 16x16 tile, 
 color, so regions stay flat and readable. A dark frame is drawn over its outer pixels.
 dot: an 8x8 sprite, the hero's marker, white with a dark outline so it shows on any region.
 view: a 16x16 sprite, the outline of the screen at 1/16: 15x10 pixels.
-world and hero are copied from the big map snippet.
+world is copied from the big map snippet; the hero is the shared one in snippets/common/graphics.
 
 Usage: python3 minimap_assets.py <snippets folder>
 """
@@ -63,6 +63,5 @@ for y in range(3, 13):
     view.putpixel((15, y), WHITE)
 save_indexed(view, 'view', {'type': 'sprite'})
 
-for name in ('world', 'hero'):
-    for ext in ('bmp', 'json'):
-        shutil.copy(f'{snippets}/bigmap/graphics/{name}.{ext}', f'{out}/{name}.{ext}')
+for ext in ('bmp', 'json'):
+    shutil.copy(f'{snippets}/bigmap/graphics/world.{ext}', f'{out}/world.{ext}')
