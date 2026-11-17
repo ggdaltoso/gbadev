@@ -1,0 +1,170 @@
+---
+title: Scripted cutscenes
+description: A cutscene as a list of steps the code reads one at a time, each step done when its own condition says so, the next one starting on the next frame, and a skip that leaves the world as the cutscene would.
+sidebar:
+  order: 4.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import cutscene from '../../../../../snippets/cutscene/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const script = [...cutscene.matchAll(/\{ action::(\w+)(?:, "([^"]*)")?(?:, (\d+))? \}/g)].map((match) => ({ what: match[1], text: match[2], frames: match[3] }));
+export const kind = {
+	say: { color: '#1e7cb8', done: 'when A is pressed' },
+	pan_to_log: { color: '#2f9e36', done: 'when the camera is there' },
+	pan_back: { color: '#2f9e36', done: 'when the camera is there' },
+	wait: { color: 'currentColor', done: 'after its frames' },
+	wake_log: { color: '#ff4d8d', done: 'at once' },
+};
+export const rowY = (i) => 22 + i * 20;
+
+## When to use it
+
+When the game takes over for a moment: a character talks, the camera goes to look at something, something happens, and then the player gets control back. Written as code, each new cutscene is another tangle of flags and timers. Written as a list of steps, a cutscene is data, and one small piece of code plays any list.
+
+## How to think about it
+
+**A cutscene is a list of steps, read top to bottom.** Each step is one thing: say a line, move the camera, wait, wake the log up. The list holds what to do and with what, like the text or the number of frames. The code that plays it only knows how to do each kind of step. Adding a line of dialog or a longer wait changes the list, not the code.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox={`0 0 420 ${rowY(script.length) + 4}`} role="img" aria-label={`The snippet's script, ${script.length} steps, one per row: the step's number, its action, what it holds, and when it's done. Says are done when A is pressed, pans when the camera is there, waits after their frames, and waking the log at once.`} style={{ display: 'block', width: '100%', maxWidth: '620px', marginInline: 'auto' }}>
+		<g font-size="9" fill="currentColor" fill-opacity="0.7">
+			<text x="24" y="10" text-anchor="end">#</text>
+			<text x="34" y="10">action</text>
+			<text x="104" y="10">holds</text>
+			<text x="300" y="10">done</text>
+		</g>
+		{script.map((step, i) => (
+			<g font-size="10">
+				<rect x="2" y={rowY(i) - 4} width="416" height="18" rx="3" fill={kind[step.what].color} fill-opacity="0.1" />
+				<text x="24" y={rowY(i) + 9} text-anchor="end" fill="currentColor" fill-opacity="0.7">{i}</text>
+				<text x="34" y={rowY(i) + 9} fill={kind[step.what].color} font-family="monospace">{step.what}</text>
+				<text x="104" y={rowY(i) + 9} fill="currentColor">{step.text ? `"${step.text}"` : step.frames ? `${step.frames} frames` : ''}</text>
+				<text x="300" y={rowY(i) + 9} fill="currentColor" fill-opacity="0.8">{kind[step.what].done}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>The script, read from the snippet's source when this page is built.</figcaption>
+</figure>
+
+**One step at a time, and each step says when it's done.** The code keeps two numbers: which step is playing, and how many frames it has run. Every frame it runs that one step and asks if it's done. A say is done when A is pressed, a pan when the camera gets there, a wait after its frames. When a step is done, the number moves on, and the next step starts on the next frame. On its first frame a step sets itself up: the say shows its box then.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 150" role="img" aria-label="A loop, once per frame. Run the current step. Is it done? If not, add 1 to its frame count and wait for the next frame. If it is, move to the next step with a frame count of 0, and wait for the next frame. After the last step, the player gets control back." style={{ display: 'block', width: '100%', maxWidth: '620px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="cutscene-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+			</marker>
+		</defs>
+		<g fill="none" stroke="currentColor" stroke-width="1.2">
+			<rect x="10" y="50" width="110" height="36" rx="4" />
+			<rect x="160" y="50" width="90" height="36" rx="4" />
+			<rect x="290" y="10" width="120" height="36" rx="4" stroke="#1e7cb8" />
+			<rect x="290" y="90" width="120" height="36" rx="4" stroke="#2f9e36" />
+			<path d="M 120 68 L 158 68" marker-end="url(#cutscene-arrow)" />
+			<path d="M 250 60 L 288 32" marker-end="url(#cutscene-arrow)" />
+			<path d="M 250 76 L 288 104" marker-end="url(#cutscene-arrow)" />
+			<path d="M 350 10 L 350 2 L 65 2 L 65 48" stroke-dasharray="3 3" marker-end="url(#cutscene-arrow)" />
+			<path d="M 350 126 L 350 142 L 65 142 L 65 88" stroke-dasharray="3 3" marker-end="url(#cutscene-arrow)" />
+		</g>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="65" y="66">run</text>
+			<text x="65" y="79" font-family="monospace" font-size="9">script[current]</text>
+			<text x="205" y="72">done?</text>
+			<text x="268" y="40" font-size="9">no</text>
+			<text x="268" y="102" font-size="9">yes</text>
+			<text x="350" y="26" fill="#1e7cb8" font-family="monospace" font-size="9">++step_frames</text>
+			<text x="350" y="39" font-size="9">same step</text>
+			<text x="350" y="106" fill="#2f9e36" font-family="monospace" font-size="9">++current</text>
+			<text x="350" y="119" font-family="monospace" font-size="9">step_frames = 0</text>
+			<text x="200" y="138" font-size="9" fill-opacity="0.7">next frame</text>
+		</g>
+	</svg>
+	<figcaption>One frame of the code that plays the script. Past the last step, <code>current</code> goes back to -1 and the player walks again.</figcaption>
+</figure>
+
+**Skipping plays what the steps leave behind, not the steps.** Pressing START mid-cutscene must leave the world as if the cutscene had played. So the skip goes through the steps that haven't run and applies only what each one leaves behind. In this script, only waking the log leaves something: text goes away when its box closes, waits leave nothing, and the camera follows the hero again as soon as the player has control.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 130" role="img" aria-label="Two rows. Played: the log goes from asleep to awake during the cutscene. Skipped right after the first line: the skip runs only wake_log from the steps left, and the log ends awake too. Text, waits and pans leave nothing behind." style={{ display: 'block', width: '100%', maxWidth: '620px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<text x="10" y="34">played</text>
+			<text x="10" y="94">skipped</text>
+			<text x="250" y="18" text-anchor="middle" fill-opacity="0.7" font-size="9">the log, after</text>
+		</g>
+		<rect x="70" y="10" width="40" height="40" rx="4" fill="#3e9a3a" />
+		<image href="/images/cutscene/log-asleep.png" x="70" y="10" width="40" height="40" style={{ imageRendering: 'pixelated' }} />
+		<rect x="70" y="70" width="40" height="40" rx="4" fill="#3e9a3a" />
+		<image href="/images/cutscene/log-asleep.png" x="70" y="70" width="40" height="40" style={{ imageRendering: 'pixelated' }} />
+		<rect x="230" y="22" width="40" height="40" rx="4" fill="#3e9a3a" />
+		<image href="/images/cutscene/log-awake.png" x="230" y="22" width="40" height="40" style={{ imageRendering: 'pixelated' }} />
+		<rect x="230" y="70" width="40" height="40" rx="4" fill="#3e9a3a" />
+		<image href="/images/cutscene/log-awake.png" x="230" y="70" width="40" height="40" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="currentColor" stroke-width="1.2" fill="none">
+			<path d="M 116 30 L 222 40" marker-end="url(#cutscene-arrow)" />
+			<path d="M 116 90 L 222 90" marker-end="url(#cutscene-arrow)" stroke="#ff4d8d" />
+		</g>
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			<text x="168" y="26">steps 0 to 8</text>
+			<text x="168" y="84" fill="#ff4d8d">START: only wake_log</text>
+			<text x="340" y="66">text, waits and pans</text>
+			<text x="340" y="78">leave nothing</text>
+		</g>
+	</svg>
+	<figcaption>The log's frames from the snippet's sheet, on grass: asleep with its Zs at the start, awake at the end, played or skipped.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad** into the sandy field. The cutscene starts: press **A** to close each line, or **START** to skip the rest. It plays once.
+
+<Code code={cutscene} lang="cpp" title="snippets/cutscene/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/cutscene/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks into the sandy field and a box says: Hero: Is someone snoring? The camera moves right, across the river, to a log asleep on a patch of sand. The log sits up and says Who woke me up?, then Go away. Let me sleep. The camera moves back to the hero, who says Okay, okay..., and then walks away." />
+	<figcaption>The whole cutscene, then the hero walking again. Captured from the emulator (1x).</figcaption>
+</figure>
+
+<Rom name="cutscene" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `enum class action { say, pan_to_log, ... };` | The kinds of steps. `enum class` keeps the names inside `action::`, so `wait` can't clash with anything else called `wait`. |
+| `{ action::wait, "", 60 }` | Aggregate initialization: the members in order. Leave the last ones out and they keep their defaults, so a say is just `{ action::say, "..." }`. |
+| `constexpr auto script = bn::to_array<step>({ ... });` | The compiler counts the steps: `script.size()` is always right, and adding a step needs no other change. |
+| `const step& now = script[current];` | A reference to the step in the script, not a copy of it. `const`, because playing a step never changes the script. |
+| `auto wake_log = [&]() { ... };` | A lambda: a small function written inside `main` that uses its variables by reference. The step and the skip both call it, so they wake the log the same way. |
+| `default: BN_ERROR("Unknown action");` | Stops the game with a message if a step's action has no case, like the [State machines](/structure/states/) page does. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The world, the box and the log are the ones the [Dialog boxes](/basics/dialog/) and [State machines](/structure/states/) snippets use.
+
+## Pitfalls
+
+**One press closes two boxes.**
+Playing the next step in the same frame saves a frame per step, but the frame's buttons are still the same. In a test ROM where a done step went straight into the next one, and a say read A on its first frame too, the A that closed "Who woke me up?" also closed "Go away. Let me sleep.", which never showed: the camera started back right away. Start the next step on the next frame, or read A only after the box's first frame. The snippet does both.
+
+**A skip that just stops.**
+Ending the cutscene on START without running what its steps leave behind skips their results too. In a test ROM with the skip only hiding the box, walking to the log after skipping found it still asleep and snoring, after a cutscene that was meant to wake it. Go through the steps left and apply what each one leaves.
+
+**The cutscene plays again.**
+The trigger is a place, and the hero is still standing there when the cutscene ends. In a test ROM without `played`, the first line, "Hero: Is someone snoring?", came back right after the last one closed. Remember that it played; in a game that saves, keep that in the save, like the [SRAM saves](/basics/saves/) page.
+
+**A pan that never ends.**
+A step that waits for an exact position must be able to reach it. In a test ROM where the camera moved an eighth of the way each frame, it slowed down near the log and the cutscene stayed there: after six seconds the log was still asleep, and the steps after the pan never ran. Move by at most a fixed step and clamp, as `pan` does, so the last step lands exactly. The [Interpolation and easing](/math/easing/) page has more on arriving exactly.
+
+## Read more
+
+- Headers: [`bn_camera_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_camera_ptr.h), for the camera the pans move, [`bn_array.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_array.h), for `bn::to_array`, and [`bn_string_view.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_string_view.h), for text that stays where the compiler put it.
+- cppreference: [lambda expressions](https://en.cppreference.com/w/cpp/language/lambda) and [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization).
+- Guide pages: [Dialog boxes](/basics/dialog/), for wrapped text, letters one by one and pages, [State machines](/structure/states/), for one `switch` over an `enum class`, and [Camera](/basics/camera/), for world and screen coordinates.

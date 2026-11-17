@@ -1,4 +1,4 @@
-"""Builds graphics/log.bmp for the objects, files and states snippets, from the Zelda-like pack.
+"""Builds graphics/log.bmp for the objects, files, states and cutscene snippets, from the Zelda-like pack.
 
 Frames 0-3: the log walking, facing right. Frames 4-7: asleep, with its Zs.
 Frame 8: awake, sitting. The objects and files snippets were built before frame 8 existed, and don't use it.
