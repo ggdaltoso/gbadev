@@ -1,0 +1,144 @@
+---
+title: Minimap
+description: The whole world in a corner of the screen, with a dot for the hero and a box for what the screen shows. A shrunk copy of the map made by the art script, and world positions divided by the scale.
+sidebar:
+  order: 5.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import minimap from '../../../../../snippets/minimap/src/main.cpp?raw';
+
+export const world = { x: 20, y: 20, size: 180 };
+export const mini = { x: 270, y: 60, size: 100 };
+export const hero = { x: 200, y: -100 };
+export const toWorld = (v) => world.x + ((v + 512) / 1024) * world.size;
+export const toWorldY = (v) => world.y + ((v + 512) / 1024) * world.size;
+export const toMini = (v) => mini.x + ((v / 16 + 32) / 64) * mini.size;
+export const toMiniY = (v) => mini.y + ((v / 16 + 32) / 64) * mini.size;
+
+## When to use it
+
+When the world is bigger than a few screens and the player should know where they are in it: an overworld, a big dungeon, a town on [a big map](/basics/bigmap/). A minimap answers *where am I* and *what's around* without leaving the game, so it stays on screen while the hero walks.
+
+## How to think about it
+
+**A minimap is a second picture of the world, made once.** The game doesn't shrink the map while it runs. The art script does it when the art is built: one minimap pixel for each 16x16 tile of the world, colored with the tile's most common color. Averaging the colors instead smeared the houses into the grass and gave 94 colors; the most common color keeps each region flat. The 1024x1024 world becomes 64x64 pixels, the largest a single sprite can be, in 12 colors plus a dark frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 210" role="img" aria-label="Left: a house on the world map, 6 by 6 tiles of 16 pixels with a grid. Right: the same 6 by 6 area of the minimap, each tile now a single big pixel: green for grass, brown for the roof and the street, dark for the door." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<image href="/images/minimap/patch.png" x="4" y="4" width="192" height="192" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="#fff" stroke-opacity="0.55" stroke-width="0.6">
+			{[1, 2, 3, 4, 5].map((i) => (
+				<g key={i}>
+					<line x1={4 + i * 32} y1="4" x2={4 + i * 32} y2="196" />
+					<line x1="4" y1={4 + i * 32} x2="196" y2={4 + i * 32} />
+				</g>
+			))}
+		</g>
+		<image href="/images/minimap/pixels.png" x="204" y="4" width="192" height="192" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			<text x="100" y="207">the world: 6x6 tiles of 16x16</text>
+			<text x="300" y="207">the minimap: 6x6 pixels</text>
+		</g>
+	</svg>
+	<figcaption>The same house, 2x on the left and 32x on the right, from the snippet's art.</figcaption>
+</figure>
+
+**Both pictures are centered on (0, 0), so a position just gets divided.** The world goes from -512 to 512; the minimap, from -32 to 32 around its own center. A spot in the world divided by 16 is the same spot on the minimap, measured from the minimap's center. Add the minimap's position on screen, and that's where the marker goes. No offsets, no corners: that's the reason to keep both centered.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 230" role="img" aria-label="A big square for the world, from -512 to 512, with the hero at (200, -100). An arrow labeled divide by 16 leads to a small square for the minimap, from -32 to 32, with the dot at (12.5, -6.25)." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="mm-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<rect x={world.x} y={world.y} width={world.size} height={world.size} fill="#2f9e36" fill-opacity="0.15" stroke="currentColor" stroke-opacity="0.6" />
+		<rect x={mini.x} y={mini.y} width={mini.size} height={mini.size} fill="#2f9e36" fill-opacity="0.15" stroke="currentColor" stroke-opacity="0.6" />
+		<g stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="2 2">
+			<line x1={world.x + world.size / 2} y1={world.y} x2={world.x + world.size / 2} y2={world.y + world.size} />
+			<line x1={world.x} y1={world.y + world.size / 2} x2={world.x + world.size} y2={world.y + world.size / 2} />
+			<line x1={mini.x + mini.size / 2} y1={mini.y} x2={mini.x + mini.size / 2} y2={mini.y + mini.size} />
+			<line x1={mini.x} y1={mini.y + mini.size / 2} x2={mini.x + mini.size} y2={mini.y + mini.size / 2} />
+		</g>
+		<circle cx={toWorld(hero.x)} cy={toWorldY(hero.y)} r="4" fill="#ff4d8d" />
+		<circle cx={toMini(hero.x)} cy={toMiniY(hero.y)} r="3" fill="#ff4d8d" />
+		<path d={`M ${world.x + world.size + 8} 110 L ${mini.x - 8} 110`} stroke="currentColor" stroke-opacity="0.6" fill="none" marker-end="url(#mm-arrow)" />
+		<g font-size="8.5" fill="currentColor">
+			<text x={world.x + world.size / 2} y="14" text-anchor="middle">the world</text>
+			<text x={world.x} y={world.y + world.size + 11}>-512</text>
+			<text x={world.x + world.size} y={world.y + world.size + 11} text-anchor="end">512</text>
+			<text x={toWorld(hero.x) + 7} y={toWorldY(hero.y) + 3} fill="#ff4d8d">hero (200, -100)</text>
+			<text x={mini.x + mini.size / 2} y={mini.y - 6} text-anchor="middle">the minimap</text>
+			<text x={mini.x} y={mini.y + mini.size + 11}>-32</text>
+			<text x={mini.x + mini.size} y={mini.y + mini.size + 11} text-anchor="end">32</text>
+			<text x={mini.x + mini.size / 2} y={mini.y + mini.size + 26} text-anchor="middle" fill="#ff4d8d">dot (12.5, -6.25)</text>
+			<text x="235" y="104" text-anchor="middle">÷ 16</text>
+		</g>
+	</svg>
+	<figcaption>Not to scale: the minimap is 16 times smaller than the world, here only about 2.</figcaption>
+</figure>
+
+**Anything with a position can be a marker.** The dot is the hero's position divided by 16. The box is the camera's: the camera is the center of the screen, so its position divided by 16 is the center of what the screen shows, and the box is 15x10 pixels because 240x160 divided by 16 is 15x10. An enemy, a chest or a goal would be the same line with its own position. Markers and the minimap have no camera, so they stay put on the screen like any [HUD](/basics/hud/).
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 264" role="img" aria-label="The snippet's minimap, 4x: forest, lake, field and village. A white box sits over the village street with a white dot inside it. Labels: the box is the camera's position divided by 16, 15x10 pixels; the dot is the hero's position divided by 16." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<image href="/images/minimap/markers.png" x="4" y="4" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="currentColor" stroke-opacity="0.6" fill="none">
+			<path d="M 120 168 L 268 150" />
+			<path d="M 90 186 L 268 196" />
+		</g>
+		<g font-size="9" fill="currentColor">
+			<text x="272" y="146" font-weight="bold">the box</text>
+			<text x="272" y="158">camera.position() / 16</text>
+			<text x="272" y="170">15x10: the screen at 1/16</text>
+			<text x="272" y="194" font-weight="bold">the dot</text>
+			<text x="272" y="206">hero.position() / 16</text>
+		</g>
+	</svg>
+	<figcaption>A frame of the snippet, 4x, with the hero on the village street.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero around the world, and holding **B** runs. The minimap in the top right corner follows along.
+
+<Code code={minimap} lang="cpp" title="snippets/minimap/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/minimap/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs from the field down to the village and across to the lake. In the top right corner, the dot and the box move over the minimap the same way." />
+	<figcaption>From the field to the lake, running. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="minimap" />
+
+The world and the hero are the ones from [the big map page](/basics/bigmap/); what's new is the three sprites in the corner and the two lines that place the markers.
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr bn::fixed_point minimap_center(bn::display::width() / 2 - 36, ...);` | A point worked out at compile time from the screen's size: 36 is half the minimap plus a 4 pixel margin from the corner. |
+| `minimap_center + hero.position() / minimap_scale` | A `bn::fixed_point` divided by an `int` is still a `bn::fixed_point`, with the fraction kept. The sprite is drawn at that position rounded down, the same way on both sides of 0. |
+| `dot.set_visible(frame % 32 < 24);` | A comparison is already a `bool`, so it goes straight into `set_visible`: shown for 24 frames out of 32. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, through the big map page's world. The minimap, the dot and the box are made from that world by `snippets/tools/minimap_assets.py`.
+
+## Pitfalls
+
+**The dot sticks in the middle of the map.**
+Dividing whole numbers, `hero.x().integer() / 16`, rounds toward zero, so -15 and 15 both give 0. In the test ROM, sweeping the hero from -40 to 40, the minimap column at 0 covered 31 world positions and its neighbors 16 each: the dot stood still twice as long around the center. Dividing the `bn::fixed` position keeps the fraction, and every column covered 16.
+
+**The markers vanish.**
+Creating the minimap after the dot and the box hid both: in the test ROM the minimap showed, and neither marker did. Sprites with the same z order and priority are drawn with the newest on top. Create the markers last, as the snippet does, or give them a lower `set_z_order` than the minimap.
+
+**A sprite can't be bigger than 64x64.**
+A 128x128 minimap stopped the build with *Invalid sprite width: 128*, followed by the list of sizes a sprite can have. For a bigger minimap, cut it into several sprites of 64x64, or draw it on a background of its own.
+
+## Read more
+
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_z_order` and `set_visible`, and [`bn_fixed_point.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_point.h), for dividing a point.
+- Tonc: [regular sprites](https://gbadev.net/tonc/regobj.html), for the sprite sizes the hardware has.
+- C++: [arithmetic operators](https://en.cppreference.com/w/cpp/language/operator_arithmetic), on cppreference, for integer division rounding toward zero.
+- Guide pages: [Big maps](/basics/bigmap/), [Camera](/basics/camera/), [Text and HUD](/basics/hud/) and [Depth sorting](/basics/depth/), for how sprites are ordered.
