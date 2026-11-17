@@ -32,7 +32,7 @@ The official reference stays the source of truth for signatures. Pages link to i
 ## Rules
 
 - **Every snippet compiles.** Each snippet is its own ROM in a folder under `snippets/`, and `make` there builds them all. Pages import the source straight from that folder, so what you read is what was built. A guide with code that doesn't build is worse than no guide.
-- **Examples are our own.** They show the tool with a different example than the gg-game lesson challenges, so the guide never spoils a lesson.
+- **Examples are our own.** Each one is written for the guide, small and complete, not copied from another project.
 - **Only CC0 art** goes in `assets/`, with a `CREDITS.md` per pack. No assets with "use in games, don't redistribute" licenses.
 - **English** for pages, code and comments.
 

@@ -9,15 +9,9 @@ How this guide is built and how to work on it. README.md has the public rules an
 - On a yes: commit and push straight to `main`, then go on to the next lesson.
 - Need art the pack doesn't have? Ask the owner for CC0 art instead of bending the example to fit.
 
-## Don't spoil gg-game
+## Scope
 
-The examples must not solve the challenges of the owner's gg-game lessons. Stay away from:
-
-- gravity and thrust, grid movement, NPC routes, cross-shaped explosions;
-- a map whose contents change at runtime;
-- menus, palette flash, knockback, parallax.
-
-When in doubt, pick another example and say why.
+A general guide to making GBA games with Butano, not tied to gg-game: any topic is fair game, including the ones the owner's game needs. Examples are still written for the guide, not copied from gg-game.
 
 ## Snippets
 
@@ -77,3 +71,30 @@ Writing rules:
   - sprites go up to 64x64;
   - regular backgrounds go up to 512x512 in hardware, and bigger ones are "big" maps (multiples of 256, never compressed, at most 1024 different tiles).
 - **Windows:** Butano clamps window boundaries to the screen.
+
+## Next lessons
+
+The plan agreed with the owner, for the minigames of their game ("Lucas vs Trabalho", described in `~/projects/gg-game/GAME.md`). One phase at a time, in this order; each lesson follows the usual process above. Tick each one here when it's committed.
+
+1. **Bug Invaders** (Space Invaders):
+   - [ ] Formation that moves as one: sideways, down at the edge, faster as fewer are left.
+   - [ ] Sprite budget: dozens of enemies and shots under the 128-sprite limit; when a background beats sprites, measured.
+2. **Sexta, 17h59** (Jetpack Joyride):
+   - [ ] Hold to fly: thrust and gravity in `bn::fixed`, with a top speed.
+   - [ ] Parallax: layers at different speeds.
+   - [ ] Warning before the danger: a scheduled event with a warning first (a sound, a blinking laser), its timing as data.
+3. **Segunda-feira** (Subway Surfers, seen from above):
+   - [ ] Endless run: a vertical background that repeats, obstacles spawned by distance.
+   - [ ] Jump seen from above: height as a third axis, with the shadow on the ground (builds on Shadows and reflections).
+   - [ ] Difficulty curve: speed and obstacle density rising with distance, as data.
+4. **Alt+Tab**:
+   - [ ] Bars and meters: a bar that fills smoothly, drawn with tiles.
+   - [ ] Instant screen swap: two screens alive at once, switched with a button, state kept.
+   - [ ] A character that follows a route: from a door to a desk.
+5. **Backlog infinito** (Bomberman-like):
+   - [ ] Grid-locked movement: cell by cell, smooth between cells.
+   - [ ] Cross-shaped explosion: spreads over the map and stops at walls.
+   - [ ] A map that changes while the game runs: tiles removed and added.
+6. **The compilation**:
+   - [ ] Level menu: cursor, locked levels, the goal still missing.
+   - [ ] Several minigames in one ROM: each one a scene that owns its resources, one shared save.
