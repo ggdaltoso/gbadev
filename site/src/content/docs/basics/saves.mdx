@@ -98,7 +98,7 @@ The struct holds something that manages a resource, like a `bn::sprite_ptr`. Sav
 `write` always starts at the beginning of SRAM. Keep everything in one struct, or use `bn::sram::write_offset` with an offset past the first one, like `sizeof(save_data)`.
 
 **The power goes off in the middle of a save.**
-Half the bytes are new and half are old, and the format value still looks right. If that would hurt, keep two copies at different offsets, write them in turns, and store a counter and a checksum in each. On start, load the valid copy with the highest counter.
+Half the bytes are new and half are old, and the format value still looks right. If that would hurt, keep two copies at different offsets, write them in turns, and store a counter and a checksum in each. On start, load the valid copy with the highest counter. [The save slots page](/basics/slots/) shows a checksum catching a save cut in half.
 
 **Saving every frame.**
 SRAM is written one byte at a time over a slow 8-bit bus. A struct like this one on a button press is fine; there's no reason to repeat it 60 times per second.
