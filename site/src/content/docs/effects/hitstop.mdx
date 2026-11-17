@@ -1,0 +1,162 @@
+---
+title: Hitstop
+description: Freezing the world for a few frames when a hit lands, so it feels heavy. A counter that skips the world's update, what keeps running through it, and presses that aren't lost.
+sidebar:
+  order: 7.6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import hitstop from '../../../../../snippets/hitstop/src/main.cpp?raw';
+
+export const frames = 22;
+export const without = Array.from({ length: frames }, (_, f) => (f < 16 ? 1 + Math.floor(f / 4) : 0));
+export const withStop = [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
+export const frozen = (f) => f >= 5 && f <= 10;
+export const sparkFrames = [4, 5, 6, 7, 8, 9, 10, 11, 12];
+export const poseColors = ['transparent', '#cfe3f1', '#ff4d8d', '#8cc0e0', '#1e7cb8'];
+export const cellW = 13;
+
+## When to use it
+
+When a hit should feel like it landed: a sword striking an enemy, a punch, a hammer on a rock. For a fraction of a second everything stops, as if the blow met resistance, and then the game goes on. Fighting games and action games use it on nearly every hit, from about 3 frames for a light one to 10 or more for a heavy one.
+
+## How to think about it
+
+**The world stops, the hit doesn't.** During hitstop the hero stays in the pose with the sword out and the target stops its own animation. But the spark of the impact keeps playing, because it *is* the hit, and the game still reads the buttons and draws the HUD. Freezing everything, input included, feels like the game hitched, not like a heavy blow.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 150" role="img" aria-label="The hero with the sword out, touching the log, and a spark between them. Labels on the left say what freezes: the hero's pose and the log's steps. Labels on the right say what keeps running: the spark, the buttons and the text." style={{ display: 'block', width: '100%', maxWidth: '580px', marginInline: 'auto' }}>
+		<image href="/images/hitstop/hit.png" x="94" y="3" width="192" height="144" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="9" fill="currentColor">
+			<text x="88" y="40" text-anchor="end" fill="#1e7cb8" font-weight="bold">frozen</text>
+			<text x="88" y="54" text-anchor="end">the hero's pose</text>
+			<text x="88" y="66" text-anchor="end">the log's steps</text>
+			<text x="88" y="78" text-anchor="end">the hero's walking</text>
+			<text x="292" y="40" fill="#ff4d8d" font-weight="bold">still running</text>
+			<text x="292" y="54">the spark</text>
+			<text x="292" y="66">reading the buttons</text>
+			<text x="292" y="78">the text</text>
+		</g>
+	</svg>
+	<figcaption>A frame from the middle of a hitstop, 3x.</figcaption>
+</figure>
+
+**Hitstop is a counter that skips the world.** A hit sets `freeze` to 6. Every frame, if it's above 0, the game counts it down and skips the part of the loop that moves the world. Everything still goes through `bn::core::update()`, so the screen keeps being drawn: it just shows the same pose. Nothing in the world needs to know about the hitstop, because nothing in the world runs.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 340 120" role="img" aria-label="The loop of one frame. Read the buttons. Update the spark. Then a choice: if freeze is above 0, count it down; if not, update the world, the log, the swing, walking. Then bn::core::update, and back to the start." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="hs-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<g fill="none" stroke="currentColor" stroke-opacity="0.6">
+			<rect x="6" y="44" width="62" height="28" rx="4" />
+			<rect x="82" y="44" width="62" height="28" rx="4" stroke="#ff4d8d" stroke-opacity="1" />
+			<rect x="164" y="8" width="96" height="28" rx="4" stroke="#1e7cb8" stroke-opacity="1" />
+			<rect x="164" y="80" width="96" height="28" rx="4" />
+			<rect x="272" y="44" width="62" height="28" rx="4" />
+		</g>
+		<g stroke="currentColor" stroke-opacity="0.6" fill="none">
+			<line x1="68" y1="58" x2="80" y2="58" marker-end="url(#hs-arrow)" />
+			<path d="M144 58 L154 58 L154 22 L162 22" marker-end="url(#hs-arrow)" />
+			<path d="M154 58 L154 94 L162 94" marker-end="url(#hs-arrow)" />
+			<path d="M260 22 L266 22 L266 58 L270 58" marker-end="url(#hs-arrow)" />
+			<path d="M260 94 L266 94 L266 58" />
+			<path d="M303 72 L303 116 L37 116 L37 74" marker-end="url(#hs-arrow)" />
+		</g>
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="37" y="56">read the</text>
+			<text x="37" y="66">buttons</text>
+			<text x="113" y="56">update</text>
+			<text x="113" y="66">the spark</text>
+			<text x="212" y="20">freeze &gt; 0:</text>
+			<text x="212" y="30">count it down</text>
+			<text x="212" y="92">otherwise: the log,</text>
+			<text x="212" y="102">the swing, walking</text>
+			<text x="303" y="56">bn::core::</text>
+			<text x="303" y="66">update()</text>
+		</g>
+	</svg>
+	<figcaption>One frame of the snippet. Only one of the two middle boxes runs.</figcaption>
+</figure>
+
+**It makes the swing longer, and that's the point.** The swing is 4 poses of 4 frames. Without hitstop, the sword is out for 4 frames, 67 milliseconds, too short to read. With 6 frames of hitstop on the first frame of that pose, the sword stays out for 10, and the whole swing takes 22 frames instead of 16. The spark starts on the hit and keeps animating, so it plays across the freeze.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 340 92" role="img" aria-label="Two rows of 22 frames. Without hitstop: pose 1 for 4 frames, pose 2 for 4, pose 3 for 4, pose 4 for 4, then standing. With hitstop: pose 1 for 4 frames, pose 2 for 10, six of them marked frozen, then poses 3 and 4. A third row shows the spark playing from the hit until after the stop." style={{ display: 'block', width: '100%', maxWidth: '620px', marginInline: 'auto' }}>
+		<g font-size="7.5" fill="currentColor">
+			<text x="2" y="14">without</text>
+			<text x="2" y="38">with</text>
+			<text x="2" y="62">spark</text>
+		</g>
+		{without.map((pose, f) => (
+			<rect key={`a${f}`} x={44 + f * cellW} y="4" width={cellW - 1} height="14" fill={poseColors[pose]} stroke="currentColor" stroke-opacity="0.25" />
+		))}
+		{withStop.map((pose, f) => (
+			<g key={`b${f}`}>
+				<rect x={44 + f * cellW} y="28" width={cellW - 1} height="14" fill={poseColors[pose]} stroke="currentColor" stroke-opacity="0.25" />
+				{frozen(f) && <path d={`M ${44 + f * cellW} 42 l ${cellW - 1} -14`} stroke="currentColor" stroke-opacity="0.6" />}
+			</g>
+		))}
+		{sparkFrames.map((f) => (
+			<rect key={`s${f}`} x={44 + f * cellW} y="52" width={cellW - 1} height="14" fill="#f5c542" stroke="currentColor" stroke-opacity="0.25" />
+		))}
+		<g font-size="7.5" fill="currentColor" text-anchor="middle">
+			{[1, 2, 3, 4].map((pose) => (
+				<g key={pose}>
+					<rect x={60 + (pose - 1) * 58} y="76" width="10" height="10" fill={poseColors[pose]} />
+					<text x={86 + (pose - 1) * 58} y="84">pose {pose}</text>
+				</g>
+			))}
+			<text x="300" y="84">/ frozen</text>
+		</g>
+	</svg>
+	<figcaption>Frame by frame, worked out from the snippet's constants. Pose 2 has the sword out.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+**A** swings the sword at the log, and the **D-pad** walks. **B** turns the hitstop off and on, to compare. The counter at the top counts the hits.
+
+<Code code={hitstop} lang="cpp" title="snippets/hitstop/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/hitstop/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero swings at the log. The sword stays out for a moment while the spark plays, then the swing finishes. With the hitstop turned off, the next swing goes straight through and the spark plays over a moving swing." />
+	<figcaption>One hit with hitstop, then one without. Captured from the emulator every frame, 2x.</figcaption>
+</figure>
+
+<Rom name="hitstop" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr int swing_frames = frames_per_pose * 4;` | Constants built from other constants. Change the speed of the swing in one place and the hit frame follows. |
+| `if(++swing == swing_frames)` | `++swing` adds one first and gives the new value, so the swing ends on its last frame. `swing++` would give the old one and end a frame late. |
+| `bn::optional<bn::sprite_animate_action<4>> spark_flash;` | An animation that exists only while it plays. `reset()` throws it away, and `if(spark_flash)` asks whether there is one. |
+| `void show_text(..., bn::vector<bn::sprite_ptr, 16>& sprites, ...)` | The vector of text sprites is passed by reference, so the function fills the caller's own vector and the text stays on screen. |
+| `hitstop_on ? "A: swing   B: hitstop on" : "..."` | Two string literals of different lengths: `?:` turns both into a `const char*`, and `generate` takes that as a `bn::string_view`. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The hero and log come from [the state machines page](/structure/states/), the spark from [the dialog page](/basics/dialog/), and the grass from [the depth sorting page](/basics/depth/).
+
+## Pitfalls
+
+**One swing, four hits.**
+Checking for the hit on every frame of pose 2, instead of on its first frame, hit again as soon as each stop ended: the sword was still out. In the test ROM a single swing hit 4 times and the world was frozen for 24 frames. Check once per swing, or remember that this swing already hit.
+
+**Presses during the stop are lost.**
+`bn::keypad::a_pressed()` is true for one frame only. A version that read it only when the hero was free to swing dropped a second press made 200 milliseconds after the first: one swing in the test ROM, against two in the snippet. The snippet reads the buttons every frame and keeps `wants_swing` until the hero can use it.
+
+**Two hits add up.**
+With two logs in reach, `freeze += 6` froze the test ROM for 12 frames on one swing. Each extra target makes the stop longer, and a crowd turns one swing into a pause. The snippet sets `freeze = 6`, so a second hit on the same frame leaves it at 6.
+
+**Waiting inside the loop freezes the spark too.**
+Calling `bn::core::update()` 6 times in a row at the hit, instead of counting down, does stop the world. But nothing else runs either: in the test ROM the spark stayed on its first frame for the whole stop and only played afterwards, and no button could be read in between.
+
+## Read more
+
+- Headers: [`bn_sprite_animate_actions.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_animate_actions.h), for animations you update yourself, and so can stop, and [`bn_optional.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_optional.h).
+- Guide pages: [Screen shake](/effects/shake/), the other half of a hit that feels heavy, and [Particles](/effects/particles/), for more than one spark.
+- C++: [increment and decrement](https://en.cppreference.com/w/cpp/language/operator_incdec), on cppreference, for `++swing` against `swing++`.
