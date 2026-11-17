@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first forty-four pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty-five pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -100,6 +100,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 21. **State machines:** an enemy with an `enum class`, one `switch`, and a single place where the state changes.
 44. **Scripted cutscenes:** a cutscene as a list of steps played one at a time, each step done when its own condition says so, and a skip that leaves the world as the cutscene would.
 22. **Performance:** CPU usage on screen, `bn::profiler`, and fixing what it finds.
+45. **Input replays:** the seed and the buttons instead of what happened, a game that reads its buttons from one place, and buttons stored as runs of frames.
 
 ### Math
 

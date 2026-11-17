@@ -1,0 +1,161 @@
+---
+title: Input replays
+description: Recording what the player pressed instead of what happened, a game that reads its buttons from one place, the same seed and start for the replay, and buttons stored as runs of frames.
+sidebar:
+  order: 6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import replay from '../../../../../snippets/replay/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const bits = [
+	{ name: 'up', value: 1 },
+	{ name: 'down', value: 2 },
+	{ name: 'left', value: 4 },
+	{ name: 'right', value: 8 },
+	{ name: 'run (B)', value: 16 },
+];
+export const example = ['R', 'R', 'R', 'R', 'R', 'R', 'RB', 'RB', 'RB', 'RB', 'RB', 'RB', 'RB', 'RB', 'RB', '', '', '', '', ''];
+export const exampleRuns = [
+	{ keys: 'R', frames: 6, color: '#1e7cb8' },
+	{ keys: 'RB', frames: 9, color: '#2f9e36' },
+	{ keys: 'none', frames: 5, color: 'currentColor' },
+];
+export const cell = 18;
+
+## When to use it
+
+For a replay of the last run, a demo that plays on the title screen, a ghost to race against, or a bug that happens only after a certain sequence of moves. A replay keeps what the player pressed, which is tiny, instead of where everything was on every frame, which isn't.
+
+For a bug you want to see again while developing, Butano already has a tool: the keypad logger (`BN_CFG_KEYPAD_LOG_ENABLED`) writes the buttons to the emulator's log, and `bn::core::init` takes them back to play them from the start. A replay inside the game, started from a menu or a key, is what this page builds.
+
+## How to think about it
+
+**A replay is the inputs, not what happened.** The game is the same code every frame: given where everything is and which buttons are held, it works out the next frame. Start it from the same place, with the same random seed, and give it the same buttons on the same frames, and it does the same thing. So a replay only needs the seed and the buttons. In the snippet, the last frame of the recording and the last frame of its replay were the same, pixel for pixel, except for the line of text at the top.
+
+<figure style={{ textAlign: 'center' }}>
+	<div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+		<figure style={{ margin: 0 }}>
+			<img src="/images/replay/recorded.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The last frame of a recording: the hero at the right edge, three coins taken, and the text Recording at the top." />
+			<figcaption>Last frame recorded</figcaption>
+		</figure>
+		<figure style={{ margin: 0 }}>
+			<img src="/images/replay/replayed.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The last frame of its replay: the hero in the same spot, the coins in the same places, three coins taken, and the text START: record at the top." />
+			<figcaption>Last frame replayed</figcaption>
+		</figure>
+	</div>
+	<figcaption>Captured from the snippet (1x). Below the top line of text, the two frames don't differ by a single pixel.</figcaption>
+</figure>
+
+**The game reads its buttons from one place.** Every frame, the buttons the game uses are packed into one number, one bit each. `game::update` gets that number and never asks the keypad itself. While recording or playing, the number comes from the keypad; while replaying, it comes from the recording. The game can't tell the difference, and that's the point.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 150" role="img" aria-label="Two sources on the left: the keypad, and the recording. A switch picks one: the recording while replaying, the keypad otherwise. The result is one number, keys, with five bits: up 1, down 2, left 4, right 8 and run 16. An arrow takes it to game update. While recording, the same number is also added to the recording." style={{ display: 'block', width: '100%', maxWidth: '620px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="replay-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+				<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+			</marker>
+		</defs>
+		<g fill="none" stroke="currentColor" stroke-width="1.2">
+			<rect x="8" y="20" width="84" height="30" rx="4" />
+			<rect x="8" y="84" width="84" height="30" rx="4" stroke="#2f9e36" />
+			<path d="M 92 35 L 130 60" marker-end="url(#replay-arrow)" />
+			<path d="M 92 99 L 130 74" marker-end="url(#replay-arrow)" stroke="#2f9e36" />
+			<path d="M 322 67 L 346 67" marker-end="url(#replay-arrow)" />
+			<rect x="348" y="52" width="66" height="30" rx="4" />
+			<path d="M 230 86 L 230 128 L 50 128 L 50 116" stroke-dasharray="3 3" marker-end="url(#replay-arrow)" stroke="#ff4d8d" />
+		</g>
+		{bits.map((bit, i) => (
+			<g>
+				<rect x={134 + i * 38} y="52" width="36" height="30" rx="3" fill="#1e7cb8" fill-opacity="0.15" stroke="#1e7cb8" />
+				<text x={152 + i * 38} y="66" font-size="9" fill="currentColor" text-anchor="middle">{bit.name}</text>
+				<text x={152 + i * 38} y="77" font-size="9" fill="#1e7cb8" text-anchor="middle">{bit.value}</text>
+			</g>
+		))}
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="50" y="39">keypad</text>
+			<text x="50" y="103" fill="#2f9e36">recording</text>
+			<text x="228" y="44" font-size="9">keys: one number per frame</text>
+			<text x="381" y="71" font-family="monospace" font-size="9">update</text>
+			<text x="140" y="142" font-size="9" fill="#ff4d8d">while recording: kept</text>
+			<text x="128" y="112" font-size="9" fill="#2f9e36" text-anchor="start">while replaying</text>
+		</g>
+	</svg>
+	<figcaption>Where the game's buttons come from. START isn't one of them: it runs the recorder, so it's never recorded.</figcaption>
+</figure>
+
+**Buttons change a few times a second, so store runs.** Held buttons stay the same for many frames in a row. Instead of one entry per frame, the recording keeps runs: these buttons, for this many frames. Measured in a test ROM with the same moves as the GIF below, a recording of 481 frames, about 8 seconds, was 15 runs. A run is two bytes, so that's 30 bytes, against 481 for one byte per frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 110" role="img" aria-label="Twenty frames in a row: six with right held, nine with right and B held, five with nothing held. Below them, the same twenty frames as three runs: right for 6 frames, right and B for 9, nothing for 5." style={{ display: 'block', width: '100%', maxWidth: '620px', marginInline: 'auto' }}>
+		<text x="10" y="18" font-size="9" fill="currentColor" fill-opacity="0.7">20 frames, one entry each</text>
+		{example.map((keys, i) => (
+			<g>
+				<rect x={30 + i * cell} y="26" width={cell - 2} height={cell} rx="2" fill={keys === 'R' ? '#1e7cb8' : keys === 'RB' ? '#2f9e36' : 'currentColor'} fill-opacity={keys ? 0.25 : 0.08} />
+				<text x={30 + i * cell + (cell - 2) / 2} y="38" font-size="7" fill="currentColor" text-anchor="middle">{keys}</text>
+			</g>
+		))}
+		<text x="10" y="68" font-size="9" fill="currentColor" fill-opacity="0.7">the same frames, 3 runs</text>
+		{exampleRuns.map((run, i) => {
+			const start = exampleRuns.slice(0, i).reduce((sum, r) => sum + r.frames, 0);
+			return (
+				<g>
+					<rect x={30 + start * cell} y="76" width={run.frames * cell - 2} height={cell} rx="3" fill={run.color} fill-opacity={run.keys === 'none' ? 0.08 : 0.25} stroke={run.color} />
+					<text x={30 + start * cell + (run.frames * cell - 2) / 2} y="88" font-size="9" fill="currentColor" text-anchor="middle">{run.keys}, {run.frames}</text>
+				</g>
+			);
+		})}
+	</svg>
+	<figcaption>An example: R is right held, RB is right and B. Twenty entries become three.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Press **START** to record. Walk with the **D-pad**, hold **B** to run, and pick up coins. Press **START** again: the game starts over with the same seed and plays back what you did. When the replay ends, you have control again from where it ended.
+
+<Code code={replay} lang="cpp" title="snippets/replay/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/replay/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="START is pressed and the text says Recording. The hero runs left and up, then sweeps right, down, left, down and right across the screen, picking up three coins. START again: the hero is back in the middle, the coins are back where they started, and the text says Replay of 15 runs. The hero runs the same path by itself, picks up the same three coins, and stops where the recording stopped." />
+	<figcaption>A recording, then its replay. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="replay" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `enum key_bits { up_bit = 1, ... };` | A plain `enum`, not `enum class`: its values are `int`s that combine with `\|` and test with `&`, like `keys & run_bit`. |
+| `struct run { uint8_t keys; uint8_t frames; };` | Two bytes. `uint8_t` holds 0 to 255, which is why a run stops growing at 255 frames. |
+| `bn::optional<game> current;` and `current.emplace(seed);` | The game is built in place inside the optional. `emplace` destroys the old game first, sprites included, then builds a new one: a fresh start with nothing left over. |
+| `game` with members like `= bn::sprite_items::hero.create_sprite(0, 0)` | Default member initializers: every new `game` starts with the same values, so a start can't forget one. |
+| `seed = frames * 2654435761u;` | A seed from when START was pressed, spread out so nearby frames give unrelated numbers. See [Timers and random numbers](/basics/timers/). |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The world and the coin are the ones the [Particles](/effects/particles/) snippet uses.
+
+## Pitfalls
+
+**The coins are somewhere else.**
+The random numbers are part of the start. In a test ROM where the replay got a new seed, the hero ran the same path and stopped at the same spot, but the coins were in other places: the recording took 3 coins and the replay 5. Keep the seed with the recording and start the replay with it.
+
+**One button read straight from the keypad.**
+A single `bn::keypad` call inside the game breaks the replay, because during a replay nobody holds that button. In a test ROM where running read `bn::keypad::b_held()` instead of the run bit, the replay walked where the recording had run, and ended at (54, -30) instead of (108, 2). Every button the game uses goes through `keys`.
+
+**A run longer than its counter.**
+A `uint8_t` counts up to 255 and then wraps to 0. In a test ROM without the `< 255` check, holding right for 5 seconds was recorded as 173 frames in all, when the base snippet recorded the same moves as 431. The replay walked right for much less time and ended at x -68 instead of 112. Start a new run when the count is full.
+
+## Read more
+
+- Headers: [`bn_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_keypad.h), [`bn_seed_random.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_seed_random.h), [`bn_optional.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_optional.h), for `emplace`, and, for Butano's own logger and replay at boot, [`bn_config_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_keypad.h) and [`bn_core.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_core.h).
+- cppreference: [bitwise operators](https://en.cppreference.com/w/cpp/language/operator_arithmetic#Bitwise_logic_operators) and [default member initializers](https://en.cppreference.com/w/cpp/language/data_members#Member_initialization).
+- Guide pages: [Timers and random numbers](/basics/timers/), for replaying a seed, [Input](/basics/input/), for held and pressed, and [Game objects](/structure/objects/).
