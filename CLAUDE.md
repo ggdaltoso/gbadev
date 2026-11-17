@@ -57,6 +57,7 @@ Writing rules:
 
 - `cd site && npm run build` must end with `Complete!`. Copy new ROMs to `site/public/roms/`, or run `npm run -s static`.
 - Open the page in the owner's Edge through the Chrome extension, in the light theme. Check every figure and the Run button, then close the tab.
+- Don't mention the dark theme in reports, not even as "not checked". The owner will say when it's a problem.
 - Update README.md:
   - add the numbered item in the right section;
   - update the status line ("the first thirty-N pages are live...").
