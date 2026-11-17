@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first forty-one pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty-two pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -79,6 +79,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 ### Effects
 
 12. **Blending:** transparency, intensity and fade.
+42. **Shadows and reflections:** a half see-through shadow at the feet and behind the hero, a reflection mirrored on the feet, and a ground layer with a hole that cuts the reflection to the water.
 13. **Windows:** a rectangle that chooses which layers show, and the four kinds of window.
 14. **Mosaic:** bigger pixels, and a teleport transition.
 15. **Rotation and scaling:** affine sprites and backgrounds.

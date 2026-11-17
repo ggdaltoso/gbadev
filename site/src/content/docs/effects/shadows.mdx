@@ -1,0 +1,156 @@
+---
+title: Shadows and reflections
+description: A half see-through shadow under the hero's feet, and a reflection in a pond that's the hero upside down, mirrored on its feet and cut to the water by the ground layer in front of it.
+sidebar:
+  order: 1.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import shadows from '../../../../../snippets/shadows/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const zoom = 4;
+export const hero = { x: 70, y: 18 };
+export const center = hero.y + 16 * zoom;
+export const feetLine = center + 10 * zoom;
+export const panel = { width: 120, height: 80, gap: 14 };
+export const panelX = (i) => 10 + i * (panel.width + panel.gap);
+
+## When to use it
+
+When a sprite should look like it stands on the ground and not float over it. A shadow under the feet ties it to the floor; a reflection in water says the water is there. Both cost a sprite each, and the hardware does the see-through part with [blending](/effects/blending/).
+
+## How to think about it
+
+**The ground is where the feet are.** The hero sprite is 32x32, but the hero touches the ground at the bottom of its boots, 10 pixels below the sprite's center. The shadow goes there, centered under the boots. It's a dark oval with blending on, so the grass shows through it and the oval only darkens it. And it's behind the hero, so it never covers the boots.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 350 165" role="img" aria-label="The hero sprite, four times bigger, with its 32 by 32 box. A dashed line through the sprite's center, and another 10 pixels lower at the bottom of the boots, labeled feet. A dark half see-through oval is centered on the feet line, behind the boots." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<ellipse cx={hero.x + 16 * zoom} cy={feetLine - 1 * zoom} rx={6.5 * zoom} ry={2.5 * zoom} fill="currentColor" fill-opacity="0.35" />
+		<image href="/images/shadows/hero.png" x={hero.x} y={hero.y} width={32 * zoom} height={32 * zoom} style={{ imageRendering: 'pixelated' }} />
+		<rect x={hero.x} y={hero.y} width={32 * zoom} height={32 * zoom} fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-dasharray="3 3" />
+		<line x1={hero.x - 20} y1={center} x2={hero.x + 32 * zoom + 20} y2={center} stroke="#1e7cb8" stroke-dasharray="4 3" />
+		<line x1={hero.x - 20} y1={feetLine} x2={hero.x + 32 * zoom + 20} y2={feetLine} stroke="#2f9e36" stroke-width="2" />
+		<g font-size="10" fill="currentColor">
+			<text x={hero.x + 32 * zoom + 26} y={center + 4} fill="#1e7cb8">sprite's center</text>
+			<text x={hero.x + 32 * zoom + 26} y={feetLine + 4} fill="#2f9e36">feet: center + 10</text>
+			<text x={hero.x + 32 * zoom + 26} y={feetLine + 18}>shadow, behind the hero</text>
+			<text x={hero.x - 24} y={(center + feetLine) / 2 + 4} text-anchor="end">10 px</text>
+		</g>
+	</svg>
+	<figcaption>The hero's first frame, with the lines the snippet uses. The lowest boot pixel is in row 25 of 32, measured in the art.</figcaption>
+</figure>
+
+**A reflection is the hero upside down, mirrored on the feet.** A second sprite with the same tiles, flipped vertically. Water mirrors on the line where the hero touches it, so every pixel of the reflection is as far below the feet as the matching pixel of the hero is above them. The sprite's center is 10 pixels above the feet, so the reflection's center goes 10 pixels below them: 20 below the hero's. Giving the reflection the same steps as the hero keeps it on the same frame and facing the same way.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 350 240" role="img" aria-label="The hero sprite, four times bigger, and below it the same sprite flipped upside down, half see-through. The feet line is between them. The hero's center is 10 pixels above the feet line and the reflection's center 10 pixels below it, so the reflection's center is 20 pixels below the hero's." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<image href="/images/shadows/hero.png" x={hero.x} y={hero.y} width={32 * zoom} height={32 * zoom} style={{ imageRendering: 'pixelated' }} />
+		<g transform={`translate(0 ${2 * feetLine}) scale(1 -1)`} opacity="0.5">
+			<image href="/images/shadows/hero.png" x={hero.x} y={hero.y} width={32 * zoom} height={32 * zoom} style={{ imageRendering: 'pixelated' }} />
+		</g>
+		<line x1={hero.x - 20} y1={center} x2={hero.x + 32 * zoom + 20} y2={center} stroke="#1e7cb8" stroke-dasharray="4 3" />
+		<line x1={hero.x - 20} y1={feetLine} x2={hero.x + 32 * zoom + 20} y2={feetLine} stroke="#2f9e36" stroke-width="2" />
+		<line x1={hero.x - 20} y1={2 * feetLine - center} x2={hero.x + 32 * zoom + 20} y2={2 * feetLine - center} stroke="#ff4d8d" stroke-dasharray="4 3" />
+		<g font-size="10" fill="currentColor">
+			<text x={hero.x + 32 * zoom + 26} y={center + 4} fill="#1e7cb8">hero's center: y</text>
+			<text x={hero.x + 32 * zoom + 26} y={feetLine + 4} fill="#2f9e36">feet: the mirror</text>
+			<text x={hero.x + 32 * zoom + 26} y={2 * feetLine - center + 4} fill="#ff4d8d">reflection: y + 20</text>
+			<text x={hero.x - 24} y={(center + feetLine) / 2 + 4} text-anchor="end">10 px</text>
+			<text x={hero.x - 24} y={(3 * feetLine - center) / 2 + 4} text-anchor="end">10 px</text>
+		</g>
+	</svg>
+	<figcaption>Mirrored on the feet, worked out from the snippet's <code>feet * 2</code>.</figcaption>
+</figure>
+
+**The ground hides the reflection: a layer with a hole in it.** The reflection must show only over water. Instead of cutting the sprite, the snippet stacks the screen so it gets cut for free. The water is a background at the back. The ground is a background in front of it, with a hole where the pond is. The reflection's priority puts it between them, so the ground covers all of it except what's over the hole. The hero and its shadow are in front of everything.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 548 128" role="img" aria-label="Four layers from back to front, then the screen. First, the water, a plain blue screen, priority 2. Second, the reflection sprite alone, priority 2. Third, the ground, grass with a transparent hole in the shape of the pond, priority 1. Fourth, the hero and its shadow, priority 1. Last, the screen: the reflection shows only inside the pond." style={{ display: 'block', width: '100%', maxWidth: '760px', marginInline: 'auto' }}>
+		<rect x={panelX(0)} y="10" width={panel.width} height={panel.height} fill="#1e7cb8" />
+		<rect x={panelX(1)} y="10" width={panel.width} height={panel.height} fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="3 3" />
+		<g transform={`translate(0 ${2 * (10 + 37)}) scale(1 -1)`} opacity="0.6">
+			<image href="/images/shadows/hero.png" x={panelX(1) + 52} y={10 + 24} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+		</g>
+		<rect x={panelX(2)} y="10" width={panel.width} height={panel.height} fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="3 3" />
+		<image href="/images/shadows/ground.png" x={panelX(2)} y="10" width={panel.width} height={panel.height} style={{ imageRendering: 'pixelated' }} />
+		<rect x={panelX(3)} y="10" width={panel.width} height={panel.height} fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="3 3" />
+		<ellipse cx={panelX(3) + 60} cy={10 + 36.5} rx="3.5" ry="1.5" fill="currentColor" fill-opacity="0.4" />
+		<image href="/images/shadows/hero.png" x={panelX(3) + 52} y={10 + 24} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			<text x={panelX(0) + 60} y="104">water</text>
+			<text x={panelX(0) + 60} y="116" fill-opacity="0.7">bg, priority 2</text>
+			<text x={panelX(1) + 60} y="104">reflection</text>
+			<text x={panelX(1) + 60} y="116" fill-opacity="0.7">sprite, priority 2</text>
+			<text x={panelX(2) + 60} y="104">ground, with a hole</text>
+			<text x={panelX(2) + 60} y="116" fill-opacity="0.7">bg, priority 1</text>
+			<text x={panelX(3) + 60} y="104">hero and shadow</text>
+			<text x={panelX(3) + 60} y="116" fill-opacity="0.7">sprites, priority 1</text>
+		</g>
+		<g font-size="14" fill="currentColor" fill-opacity="0.5" text-anchor="middle">
+			<text x={panelX(1) - panel.gap / 2} y="55">+</text>
+			<text x={panelX(2) - panel.gap / 2} y="55">+</text>
+			<text x={panelX(3) - panel.gap / 2} y="55">+</text>
+		</g>
+	</svg>
+	<figure style={{ margin: '0.5rem auto 0' }}>
+		<img src="/images/shadows/screen.png" width="360" height="240" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The four layers together on screen: the hero on the shore and its reflection in the pond, cut at the shoreline." />
+	</figure>
+	<figcaption>Back to front, with the screen they make below. A lower priority number is drawn in front, and a sprite is drawn in front of a background with the same number. The screen is captured from the snippet (1.5x).</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad**. Stand at the pond's shore to see the reflection; walk past its edge and the reflection is cut at the shoreline.
+
+<Code code={shadows} lang="cpp" title="snippets/shadows/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/shadows/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks to the north shore of the pond and its reflection appears in the water below it, walking with it. It walks along the shore and then past the pond's left edge, where the reflection is cut at the shoreline." />
+	<figcaption>To the shore, along it, and past the edge. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="shadows" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr bn::fixed_rect pond(bn::fixed_point(-1, 24), bn::fixed_size(88, 56));` | A rectangle made from its center and its size. `constexpr`, so it's worked out by the compiler. |
+| `pond.intersects(bn::fixed_rect(...))` | The feet as a small box, built on the spot and thrown away: a temporary, with no name. |
+| `hero_walk reflection_walk;` | A second walker for the reflection. Each one keeps its own frame and step count, so they stay together only because they get the same steps. |
+| `reflection.set_vertical_flip(true);` | Set once: `hero_walk` only sets the horizontal flip, so the vertical one stays. |
+| `bn::blending::set_transparency_alpha(0.5);` | One value for the whole screen: the shadow and the reflection can't have different alphas. See [Blending](/effects/blending/). |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The ground, the water and the shadow are built by [`snippets/tools/shadows_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/shadows_assets.py), which makes the pond's open water transparent in the ground.
+
+## Pitfalls
+
+**The shadow erases the feet.**
+A shadow made after the hero, with the same z order, is drawn in front of it: on a tie, the newest sprite is on top. It doesn't darken the boots, it replaces them: a sprite that blends mixes with the background under it, never with another sprite. In the test ROM, 20 pixels around the boots changed: where the shadow overlaps them, the boots were replaced by darkened grass. Give the shadow a higher z order, as the snippet does.
+
+**The reflection shows on the grass.**
+With the reflection at the hero's priority, nothing is in front of it, so it's drawn wherever it is. In the test ROM, with the hero away from the pond, the upside-down hero showed on the grass under its feet. Put it at the water's priority, behind the ground.
+
+**A gap between the feet and the reflection.**
+Mirroring on the sprite's bottom edge, 16 pixels below its center, instead of on the feet puts the reflection 12 pixels lower. In the test ROM, 8 rows of open water showed between the shore and the reflection's boots, so the hero seemed to float. Mirror on the row where the feet end, measured in the art.
+
+**A shadow drawn into the art.**
+The guide's shared hero has its shadow drawn into the sprite, in one opaque color picked for a plain backdrop: the GBA has no see-through pixels inside a sprite. With it, in the test ROM, 28 pixels at the shore were that flat green instead of darkened grass, with no grass showing through. The snippet uses `bare_hero`, the same frames with that color made transparent by its art script, and `hero_walk` takes the sheet to use.
+
+**The hero disappears.**
+Sprites and backgrounds both start at priority 3. Raise the ground to priority 1 and forget the hero, and the hero is behind the ground. In the test ROM, only its shadow and its reflection were left on screen. Every sprite that stands on the ground needs the ground's priority.
+
+## Read more
+
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_bg_priority`, `set_z_order` and `set_vertical_flip`, [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h), for `set_priority`, and [`bn_blending.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_blending.h).
+- Tonc: [Regular sprites](https://gbadev.net/tonc/regobj.html), for sprite priority against backgrounds, and [graphic effects](https://gbadev.net/tonc/gfx.html), for what a blending sprite mixes with.
+- Guide pages: [Blending](/effects/blending/), for the one shared alpha and two blended sprites over each other, [Depth sorting](/basics/depth/), for z order from the feet, and [Backgrounds](/basics/backgrounds/), for layers and priorities.
