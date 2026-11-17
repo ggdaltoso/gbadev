@@ -1,0 +1,175 @@
+---
+title: Pathfinding
+description: A trail of dots from the hero to a coin through a maze, the shortest way, from a breadth-first search that starts at the coin and answers every start at once.
+sidebar:
+  order: 8
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import pathfinding from '../../../../../snippets/pathfinding/src/main.cpp?raw';
+import mazeHeader from '../../../../../snippets/pathfinding/include/maze.h?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const rows = [...mazeHeader.matchAll(/"([#.]+)",/g)].map((match) => match[1]);
+export const steps = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+export const search = (goal) => {
+	const distance = rows.map((row) => [...row].map(() => -1));
+	const queue = [goal];
+	distance[goal[1]][goal[0]] = 0;
+	for (let next = 0; next < queue.length; next++) {
+		const [x, y] = queue[next];
+		for (const [dx, dy] of steps) {
+			if (rows[y + dy][x + dx] === '.' && distance[y + dy][x + dx] < 0) {
+				distance[y + dy][x + dx] = distance[y][x] + 1;
+				queue.push([x + dx, y + dy]);
+			}
+		}
+	}
+	return { distance, queue };
+};
+export const goal = [13, 8];
+export const found = search(goal);
+export const trail = (start) => {
+	const cells = [start];
+	let [x, y] = start;
+	while (found.distance[y][x] > 0) {
+		const [dx, dy] = steps.find(([dx, dy]) => found.distance[y + dy][x + dx] === found.distance[y][x] - 1);
+		x += dx;
+		y += dy;
+		cells.push([x, y]);
+	}
+	return cells;
+};
+export const size = 20;
+export const cx = (x) => 10 + x * size + size / 2;
+export const cy = (y) => 10 + y * size + size / 2;
+export const cells = rows.flatMap((row, y) => [...row].map((c, x) => ({ x, y, crate: c === '#' })));
+export const ring = 4;
+export const startA = [1, 1];
+export const startB = [3, 7];
+
+## When to use it
+
+When something has to find its way through walls: a hint that shows the player the way to the next goal, a cursor that says how many steps away a spot is, or anything that must reach a place without walking into a dead end. Going straight toward the goal fails as soon as a wall is in the way; a search finds the way around.
+
+## How to think about it
+
+**A breadth-first search is a wave that leaves the goal.** The goal is at distance 0. Its floor neighbors are at 1, their new neighbors at 2, and so on, ring after ring, until every floor cell has a number. A queue keeps the rings in order: a cell joins at the back when it gets its number, and cells are taken from the front. Every cell at distance 1 joins before any at 2, so the first time the wave reaches a cell is by a shortest way, and its number never has to change.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 320 262" role="img" aria-label={`The maze, with the coin in the bottom right corner at distance 0. The cells at distance 1 to ${ring} are shaded and numbered, a ring at a time, up the right side of the maze. Below, the queue: the cells in the order they joined it, with their distances 0, 1, 2, 3 and so on, in order.`} style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{cells.map((c) => (
+			<rect key={`a${c.x},${c.y}`} x={10 + c.x * size} y={10 + c.y * size} width={size} height={size} fill={c.crate ? 'currentColor' : 'none'} fill-opacity={c.crate ? 0.22 : 0} stroke="currentColor" stroke-opacity="0.15" />
+		))}
+		{cells.filter((c) => !c.crate && found.distance[c.y][c.x] >= 0 && found.distance[c.y][c.x] <= ring).map((c) => (
+			<rect key={`b${c.x},${c.y}`} x={10 + c.x * size} y={10 + c.y * size} width={size} height={size} fill={found.distance[c.y][c.x] === 0 ? '#ff4d8d' : '#1e7cb8'} fill-opacity={found.distance[c.y][c.x] === 0 ? 0.5 : 0.55 - found.distance[c.y][c.x] * 0.1} />
+		))}
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			{cells.filter((c) => !c.crate && found.distance[c.y][c.x] >= 0 && found.distance[c.y][c.x] <= ring).map((c) => (
+				<text key={`t${c.x},${c.y}`} x={cx(c.x)} y={cy(c.y) + 3}>{found.distance[c.y][c.x]}</text>
+			))}
+		</g>
+		<text x="10" y="226" font-size="9" fill="currentColor">The queue, front first:</text>
+		{found.queue.slice(0, 14).map(([x, y], i) => (
+			<g key={`q${i}`}>
+				<rect x={10 + i * 21} y="232" width="19" height="19" fill={i === 0 ? '#ff4d8d' : '#1e7cb8'} fill-opacity={i === 0 ? 0.5 : 0.25} stroke="currentColor" stroke-opacity="0.4" />
+				<text x={10 + i * 21 + 9.5} y="245" font-size="9" fill="currentColor" text-anchor="middle">{found.distance[y][x]}</text>
+			</g>
+		))}
+		<text x="318" y="245" font-size="9" fill="currentColor" text-anchor="end">…</text>
+	</svg>
+	<figcaption>The first {ring} rings around the coin, and the queue that holds them in order. Worked out from <code>maze.h</code> with the snippet's search.</figcaption>
+</figure>
+
+**Search from the goal, not from the hero.** A search from the goal gives every floor cell its number of steps to the goal: one map that answers every start. The hero can walk anywhere, take a wrong turn, come back, and the map stays right, because only the goal decides it. The snippet searches once when the coin moves, and never while the hero walks.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 320 214" role="img" aria-label="The whole maze, every floor cell numbered with its steps to the coin. The coin's cell is 0, in the bottom right corner, and the numbers grow up to 26 at the far end of the maze, in the bottom left corner." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{cells.map((c) => (
+			<rect key={`c${c.x},${c.y}`} x={10 + c.x * size} y={10 + c.y * size} width={size} height={size} fill={c.crate ? 'currentColor' : found.distance[c.y][c.x] === 0 ? '#ff4d8d' : 'none'} fill-opacity={c.crate ? 0.22 : 0.5} stroke="currentColor" stroke-opacity="0.15" />
+		))}
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			{cells.filter((c) => !c.crate).map((c) => (
+				<text key={`n${c.x},${c.y}`} x={cx(c.x)} y={cy(c.y) + 3}>{found.distance[c.y][c.x]}</text>
+			))}
+		</g>
+	</svg>
+	<figcaption>The distance map for the first coin: steps to the coin from every cell. Worked out from <code>maze.h</code>.</figcaption>
+</figure>
+
+**The way to the goal is downhill.** From any cell, one of its neighbors is exactly one step closer: its number is one less. Step there, and repeat until 0. That's the trail of dots the snippet draws, and it costs only as many steps as the trail is long. When two neighbors are both one less, both ways are shortest; the snippet takes the first one in its list of steps.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 320 214" role="img" aria-label={`The distance map again, with two trails. A green one from the top left corner, starting at ${found.distance[startA[1]][startA[0]]}, and a blue one from the bottom left, starting at ${found.distance[startB[1]][startB[0]]}. Each goes down one number per cell and they meet before the coin.`} style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{cells.map((c) => (
+			<rect key={`d${c.x},${c.y}`} x={10 + c.x * size} y={10 + c.y * size} width={size} height={size} fill={c.crate ? 'currentColor' : found.distance[c.y][c.x] === 0 ? '#ff4d8d' : 'none'} fill-opacity={c.crate ? 0.22 : 0.5} stroke="currentColor" stroke-opacity="0.15" />
+		))}
+		<polyline points={trail(startA).map(([x, y]) => `${cx(x) - 2},${cy(y) - 2}`).join(' ')} fill="none" stroke="#2f9e36" stroke-width="3" stroke-linejoin="round" />
+		<polyline points={trail(startB).map(([x, y]) => `${cx(x) + 2},${cy(y) + 2}`).join(' ')} fill="none" stroke="#1e7cb8" stroke-width="3" stroke-linejoin="round" />
+		<g font-size="8" fill="currentColor" text-anchor="middle" style={{ paintOrder: 'stroke', stroke: 'var(--sl-color-bg)', strokeWidth: 3 }}>
+			{cells.filter((c) => !c.crate).map((c) => (
+				<text key={`m${c.x},${c.y}`} x={cx(c.x)} y={cy(c.y) + 3}>{found.distance[c.y][c.x]}</text>
+			))}
+		</g>
+	</svg>
+	<figcaption>Two starts, one map: each trail steps to the neighbor whose number is one less. Worked out from <code>maze.h</code> with the snippet's order of steps.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad**. The dots show the shortest way to the coin from where the hero stands; take a wrong turn and they follow. Reach the coin and it moves, and the search runs again.
+
+<Code code={pathfinding} lang="cpp" title="snippets/pathfinding/src/main.cpp" />
+
+<details>
+<summary>The maze, one character per cell: <code>maze.h</code></summary>
+
+<Code code={mazeHeader} lang="cpp" title="snippets/pathfinding/include/maze.h" />
+
+</details>
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/pathfinding/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero follows the dots, takes a wrong turn to the left and the dots follow it, goes back and follows them to the coin in the bottom right. The coin jumps to the middle left of the maze and a new trail appears." />
+	<figcaption>A wrong turn, then the coin. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="pathfinding" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `using distance_map = bn::array<bn::array<int, maze::columns>, maze::rows>;` | A name for an array of rows, each an array of columns, so it's read `distance[row][column]`, like `maze::cells`. |
+| `int& at(distance_map& distance, bn::point cell)` | Returns a reference to the number in the map, not a copy, so `at(distance, goal) = 0` writes into the map. |
+| `for(int next = 0; next < queue.size(); ++next)` | An index, not a range-based `for`: a range-based `for` reads the end once, before the first cell, and would stop before the cells pushed during the loop. |
+| `row.fill(-1);` | Every cell starts unknown. A crate is never reached, so it stays -1. |
+| `while(at(distance, cell) > 1 && ! dots.full())` | Stops one step before the coin, so no dot covers it. And the vector can't overflow, however long the trail. |
+| `trail_from = bn::point(-1, -1);` | A cell that can't exist, so the next frame's `here != trail_from` is true and the trail is drawn again on the new map. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The maze is built by [`snippets/tools/pathfinding_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/pathfinding_assets.py), which reads it from `maze.h`, the coin comes from [the map collision page](/basics/collision/) and the dot from [the minimap page](/basics/minimap/).
+
+## Pitfalls
+
+**Marking a cell when it leaves the queue.**
+If a cell gets its number when it's taken from the queue instead of when it joins, a cell can join several times before it's taken: once from each neighbor that reaches it. The numbers come out the same, but the queue grows. In the test ROM, the maze queued 66 cells for 63 floor cells, and an open 13x8 room queued 188 for 104. With the snippet's queue, room for 150 cells, the open room stopped on Butano's error screen: *Vector is full*.
+
+**Searching every frame.**
+One search of this maze took 462 timer ticks in the test ROM, and a frame is about 4389: a tenth of the frame. The open room took 846, almost a fifth. A search costs more with every floor cell, so run it when the goal or the walls change, not every frame.
+
+**The hero's cell from the sprite's center.**
+The hero sprite is 32x32 and its feet are 10 pixels below its center. At the snippet's start, the center is in the row of crates above the hero: the test ROM read a distance of -1 there, so the trail loop, which runs while the distance is more than 1, would draw no dot at all. The snippet takes the cell under the hero's feet, the same point its collision uses.
+
+## Read more
+
+- Tutorials: [Introduction to A\*](https://www.redblobgames.com/pathfinding/a-star/introduction.html), by Red Blob Games, which starts from this same breadth-first search, and [Flow field pathfinding](https://www.redblobgames.com/pathfinding/tower-defense/), the same site's page on one search from the goal for many walkers.
+- Headers: [`bn_vector.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_vector.h), for `push_back` and `full`, [`bn_array.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_array.h), for `fill`, and [`bn_point.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_point.h).
+- C++: [range-based `for`](https://en.cppreference.com/w/cpp/language/range-for), on cppreference, for when its end is read.
+- Guide pages: [Map collision](/basics/collision/), for cells from positions and one axis at a time, [Line of sight](/math/sight/), another walk through the same kind of grid, and [Cave generation](/math/cave/), for a map made by the code that this search could cross.

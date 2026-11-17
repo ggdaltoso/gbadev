@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first forty pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty-one pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -107,6 +107,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 27. **Interpolation and easing:** a fraction of the way from one point to another, curves that change the feel without changing the duration, and arriving exactly.
 32. **Line of sight:** a view cone from a dot product, a ray that walks the map cell by cell, and the cheap checks first.
 34. **Cave generation:** noise from a seed, cellular automaton passes with two grids, a background map written by the code, and seeds that don't overlap.
+41. **Pathfinding:** a breadth-first search out from the goal, one distance map that answers every start, and a trail that walks downhill to the goal.
 
 ### Pitfalls already collected
 
