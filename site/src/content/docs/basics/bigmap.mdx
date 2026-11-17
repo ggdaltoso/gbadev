@@ -1,0 +1,120 @@
+---
+title: Big maps
+description: A world bigger than the 512x512 the hardware can hold. Butano keeps a small ring of the map in video memory and copies in each new column as the camera reaches it. What that costs, and the limits that come with it.
+sidebar:
+  order: 5.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import bigmap from '../../../../../snippets/bigmap/src/main.cpp?raw';
+
+export const quarter = { x: 10 + 480 / 4, y: 5 + 416 / 4 };
+export const screenPieces = [
+	[224, 160, 32, 96], [0, 160, 208, 96],
+	[224, 0, 32, 64], [0, 0, 208, 64],
+];
+
+## When to use it
+
+When the world doesn't fit in 512x512 pixels, the biggest map a regular background can have in hardware. A town with its surroundings, an overworld, a long level. You could cut the world into rooms and change rooms at the edges, but if the world should scroll as one piece, a big map is the simple way: you create it like any other background, and the camera does the rest.
+
+## How to think about it
+
+**The whole map stays in ROM; video memory holds the part around the camera.** The snippet's map is 1024x1024, four times what the hardware can show. Butano doesn't try to fit it. It keeps a 256x256 window of the map in video memory, just bigger than the 240x160 screen, starting at the screen's top left corner and moving with it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 266" role="img" aria-label="The snippet's whole 1024x1024 map, shrunk: a forest top left, a lake with a river top right, a field in the middle, a village bottom left. Over the field, a pink square marks the 256x256 part in video memory, and inside it a blue rectangle marks the 240x160 screen." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<image href="/images/bigmap/map.png" x="10" y="5" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+		<rect x={quarter.x} y={quarter.y} width="64" height="64" fill="none" stroke="#ff4d8d" stroke-width="2" stroke-dasharray="4 2" />
+		<rect x={quarter.x} y={quarter.y} width="60" height="40" fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<g font-size="9" fill="currentColor">
+			<text x="276" y="40" font-weight="bold">the whole map</text>
+			<text x="276" y="52">1024x1024, in ROM</text>
+			<text x="276" y="110" fill="#ff4d8d" font-weight="bold">video memory</text>
+			<text x="276" y="122">256x256 around</text>
+			<text x="276" y="134">the camera</text>
+			<text x="276" y="160" fill="#1e7cb8" font-weight="bold">the screen</text>
+			<text x="276" y="172">240x160</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's map at a quarter of its size.</figcaption>
+</figure>
+
+**The window is a ring, refilled one column at a time.** Video memory holds 32x32 cells of 8x8 pixels. When the camera moves 8 pixels right, one column of cells leaves the screen on the left and a new one is about to show on the right, so Butano copies the new column of the map into the slot of the one that left. Nothing else moves. The cells are never in order in video memory: the screen starts wherever the ring has got to and wraps around its edges, and the hardware draws it whole because backgrounds wrap anyway.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 560 300" role="img" aria-label="Two 32 by 32 cell squares of video memory. In the first, the screen's area is split in four pieces at the corners, wrapped around the edges, and the field is cut in two. In the second, 32 pixels later, the screen's area starts at the left edge and the four columns on the right are new, holding the river's edge." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<image href="/images/bigmap/ring_before.png" x="10" y="10" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/bigmap/ring_after.png" x="294" y="10" width="256" height="256" style={{ imageRendering: 'pixelated' }} />
+		{screenPieces.map(([x, y, width, height], index) => (
+			<rect key={index} x={10 + x} y={10 + y} width={width} height={height} fill="none" stroke="#1e7cb8" stroke-width="2" />
+		))}
+		<rect x="294" y="170" width="240" height="96" fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<rect x="294" y="10" width="240" height="64" fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<rect x="518" y="10" width="32" height="256" fill="none" stroke="#ff4d8d" stroke-width="2" stroke-dasharray="4 2" />
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			<text x="138" y="282">the screen, in four pieces</text>
+			<text x="422" y="282">32 pixels to the right:</text>
+			<text x="422" y="294" fill="#ff4d8d">4 new columns, the river's edge</text>
+		</g>
+	</svg>
+	<figcaption>Video memory as Butano fills it, worked out from its copying code in <code>bn_bg_blocks_manager.cpp</code>. Bright cells are on screen.</figcaption>
+</figure>
+
+**A big map is a long list of cells over a short list of tiles.** Each 8x8 cell of the map is 2 bytes that say which tile to draw, from which palette, mirrored or not. The snippet's map has 128x128 cells, 32 KB in ROM. But the tiles themselves are shared: the whole map uses 315 of them, with every repeated grass tile, flipped or not, counted once. A cell has room for a tile number up to 1023, so a regular background can't use more than 1024 tiles, however big its map is. A bigger map is cheap. A map with more different tiles isn't.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bigmap/tiles.png" width="380" height="272" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="A grid of a few hundred small 8x8 tiles: grass, water edges, field, tree parts, house parts, paving." />
+	<figcaption>Every different tile in the 1024x1024 map, 2x: 314, plus the empty tile the converter puts first. In the build: 10 KB of tiles, 32 KB of cells.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero around the world, and holding **B** runs. The camera follows the hero and stops at the map's edges.
+
+<Code code={bigmap} lang="cpp" title="snippets/bigmap/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bigmap/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs from the field down to the village, along its street, across open grass to the river, and up the river to the lake." />
+	<figcaption>From the field to the lake, running. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="bigmap" />
+
+Nothing in the code says the map is big. The converter makes it big because it's over 512 pixels on a side, and `world.big()` would return `true`. Changing `world.bmp` for a 256x256 one would run the same code. The only thing that has to follow the map's size is the camera's limit, and it comes from `world.dimensions()`.
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::fixed half_width = world.dimensions().width() / 2;` | `dimensions()` is a `bn::size` in whole pixels. Dividing ints and storing the result in a `bn::fixed` converts it once, so every limit below is the same type as a position. |
+| `bn::clamp(hero.x() + step_x * speed, -half_width + 8, half_width - 8)` | `bn::clamp` needs three arguments of the same type. `hero.x()` plus an `int` is still a `bn::fixed`, and so are the limits. |
+| `int speed = bn::keypad::b_held() ? 4 : 1;` | A value chosen by a condition, in one line. Both sides are `int`, so `speed` is too. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The map is built from its `Overworld.png` by `snippets/tools/bigmap_assets.py`. The hero comes from [the state machines page](/structure/states/).
+
+## Pitfalls
+
+**More than 1024 different tiles won't build.**
+A map drawn by hand, where every cell is a little different, runs out of tiles long before it runs out of size. In a test, changing one pixel in 5000 of the snippet's cells made 1177 different tiles, and the build stopped with *Regular BGs with more than 1024 tiles not supported: 1177*. Draw the map from a tileset, so cells repeat.
+
+**The size has to be a multiple of 256.**
+A 1000x1000 map stopped the build with *Regular BGs width must be divisible by 256: 1000*. Make the image 1024 wide and fill the rest. Big maps go up to 16384 pixels on a side.
+
+**A compressed big map stops the game.**
+With `"compression": "lz77"` in the map's JSON, the test ROM built fine and then stopped at start with *Compressed big maps are not supported*. Butano copies columns straight out of ROM, so the cells have to be there as they are.
+
+**The other side of the map shows at the edge.**
+Big maps wrap too. Following the hero without the clamp, the test ROM, with the hero in the top left corner, showed the lake from the right edge of the map on the left of the screen. Clamp the camera, as on [the camera page](/basics/camera/#pitfalls).
+
+**Jumping across the map isn't a problem.**
+When the camera moves more than 8 cells in one frame, Butano copies the whole 32x32 ring instead of a column. Measured with `bn::core::last_vblank_usage()`, the test ROM used 2.4% of the V-Blank standing still, 4.0% walking a pixel per frame, 4.3% at 4 pixels, and 29.1% on frames where the camera jumped 600 pixels across and 600 down. Even the jump fits in the V-Blank three times over.
+
+## Read more
+
+- Butano FAQ: [What's a big background?](https://gvaliente.github.io/butano/faq.html#faq_backgrounds_big), [How can I disable wrapping in a regular background?](https://gvaliente.github.io/butano/faq.html#faq_backgrounds_regular_wrapping) and [Why can't I import a regular background with 1024 or less tiles?](https://gvaliente.github.io/butano/faq.html#faq_backgrounds_error_grit).
+- Butano's import guide: [regular backgrounds](https://gvaliente.github.io/butano/import.html#import_regular_bg), for the JSON fields, `bpp_4_auto` among them.
+- Headers: [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h), for `big()` and `dimensions()`, and [`bn_regular_bg_map_item.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_map_item.h).
+- Tonc: [regular tiled backgrounds](https://gbadev.net/tonc/regbg.html), for maps, screenblocks and the sizes the hardware has.
+- Guide pages: [Backgrounds](/basics/backgrounds/) and [Camera](/basics/camera/).
