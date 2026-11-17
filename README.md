@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It grew out of [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano. The questions that came up there drive what gets written here.
 
-> Status: the first thirty-two pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first thirty-three pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -70,6 +70,7 @@ The site is planned for `gbadev.ggdaltoso.dev`, with an "unofficial guide" notic
 10. **SRAM saves:** a save struct, recognizing it with a format value, and restarting the game.
 11. **Music and sound:** modules and recordings, sound effects, volume, and what a recording can't do.
 29. **Dialog boxes:** a box over the game, text wrapped by measuring it, letters one by one, pages, and one button that does what fits the moment.
+33. **Depth sorting:** a z order from each sprite's feet, a big thing made of several sprites that sorts as one, and the limit of 16 sort layers.
 
 ### Effects
 

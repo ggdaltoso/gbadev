@@ -1,0 +1,166 @@
+---
+title: Depth sorting
+description: In a top-down view, whoever stands lower on the screen is in front. A z order from the feet of each sprite, big things made of several sprites, and the limits of Butano's sort layers.
+sidebar:
+  order: 6.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import depth from '../../../../../snippets/depth/src/main.cpp?raw';
+
+export const statue = { x: 90, y: 16 };     // top-left of the 64x128 statue image
+export const baseY = statue.y + 128;        // its ground line
+export const heroBehind = { x: 58, y: 74 };  // top-left of the 64x64 hero images
+export const heroFront = { x: 206, y: 96 };
+export const statue2 = { x: 230, y: 16 };
+export const things = [
+	{ name: 'statue', z: -4, image: 'statue.png', w: 16, h: 32 },
+	{ name: 'stall', z: -34, image: 'stall.png', w: 32, h: 32 },
+	{ name: 'villagers', z: -50, image: 'villager.png', w: 8, h: 16 },
+	{ name: '', z: -62, image: 'villager.png', w: 8, h: 16 },
+	{ name: 'hero here', z: -20, image: 'hero.png', w: 16, h: 16 },
+];
+export const zx = (z) => 30 + (z + 70) * 4.4;
+
+## When to use it
+
+In any top-down or three-quarter view, where things stand on a floor seen from above at an angle: a village, a dungeon, a market. The hero walks around a statue, and has to disappear behind it from one side and cover it from the other. Without sorting, whatever was created last is always on top.
+
+## How to think about it
+
+**Lower on the screen is closer.** The floor goes away from you toward the top of the screen. So two things that overlap are ordered by where they touch the floor: the one whose feet are lower is in front. Not the top of the sprite, and not its center, because things have different heights. A tall statue's center is high up, but its feet are what decide.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 180" role="img" aria-label="Left: the hero stands with their feet above the statue's ground line, so the statue covers them. Right: the hero's feet are below the statue's ground line, so the hero covers the statue. A dashed line marks the statue's ground, and a dot marks each hero's feet." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<image href="/images/depth/hero.png" x={heroBehind.x} y={heroBehind.y} width="64" height="64" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/depth/statue.png" x={statue.x} y={statue.y} width="64" height="128" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/depth/statue.png" x={statue2.x} y={statue2.y} width="64" height="128" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/depth/hero.png" x={heroFront.x} y={heroFront.y} width="64" height="64" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="#1e7cb8" stroke-dasharray="3 2">
+			<line x1="40" y1={baseY} x2="180" y2={baseY} />
+			<line x1="190" y1={baseY} x2="330" y2={baseY} />
+		</g>
+		<circle cx={heroBehind.x + 32} cy={heroBehind.y + 56} r="3" fill="#ff4d8d" />
+		<circle cx={heroFront.x + 32} cy={heroFront.y + 56} r="3" fill="#ff4d8d" />
+		<g font-size="9" fill="currentColor">
+			<text x="110" y="176" text-anchor="middle">feet above the line: behind</text>
+			<text x="260" y="176" text-anchor="middle">feet below the line: in front</text>
+			<text x="180" y={baseY + 12} fill="#1e7cb8" text-anchor="middle">statue's ground</text>
+		</g>
+	</svg>
+	<figcaption>The pink dots are the hero's feet. The statue sorts by its own ground line, not by its middle.</figcaption>
+</figure>
+
+**A z order is that depth as a number.** Butano draws sprites with a higher `z_order` first, so they end up behind. Screen y grows downward, so the z order is the feet's y with the sign flipped: `-(y + feet)`. Things that never move get it once. The hero moves, so the hero gets it again every frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 110" role="img" aria-label="A line of z orders from the snippet. On the right, drawn first and furthest back, the statue at -4 and the flags at -2. Then the hero at -20 in this example, the stall at -34, and on the left, drawn last and in front, the villagers at -50 and -62." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="depth-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M0 0 L6 3 L0 6 z" fill="context-stroke" />
+			</marker>
+		</defs>
+		<line x1="340" y1="70" x2="22" y2="70" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#depth-arrow)" />
+		{things.map((thing) => (
+			<g key={thing.z}>
+				<line x1={zx(thing.z)} y1="66" x2={zx(thing.z)} y2="74" stroke="currentColor" />
+				{thing.image && <image href={`/images/depth/${thing.image}`} x={zx(thing.z) - thing.w / 2} y={62 - thing.h} width={thing.w} height={thing.h} style={{ imageRendering: 'pixelated' }} />}
+				<text x={zx(thing.z)} y="86" font-size="8" fill="currentColor" text-anchor="middle">{thing.z}</text>
+				{thing.name && <text x={zx(thing.z)} y="97" font-size="8" fill="currentColor" text-anchor="middle">{thing.name}</text>}
+			</g>
+		))}
+		<g font-size="8" fill="currentColor" fill-opacity="0.75">
+			<text x="340" y="12" text-anchor="end">drawn first, behind</text>
+			<text x="22" y="12">drawn last, in front</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's z orders; the two flags, at -2, sit next to the statue. Only the hero's changes: it slides along this line as the hero walks up and down.</figcaption>
+</figure>
+
+**A big thing is one thing.** A sprite is 64x64 at most, so the market stall is 9 sprites of 32x32. If each piece sorted by its own feet, the hero could stand between two rows of the same stall. So all 9 get the z order of the stall's ground, under its bottom row. One z order for 9 sprites is also one sort layer instead of three, which matters below.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 300 140" role="img" aria-label="The stall cut into a 3 by 3 grid of 32 pixel pieces. Every piece is labeled with the same z order, -34, which comes from the dashed line under the bottom row: the stall's ground." style={{ display: 'block', width: '100%', maxWidth: '420px', marginInline: 'auto' }}>
+		<image href="/images/depth/stall.png" x="40" y="8" width="96" height="96" style={{ imageRendering: 'pixelated' }} />
+		<g stroke="currentColor" stroke-opacity="0.5" fill="none">
+			{[0, 1, 2].map((row) => [0, 1, 2].map((column) => (
+				<rect key={`${row}${column}`} x={40 + column * 32} y={8 + row * 32} width="32" height="32" />
+			)))}
+		</g>
+		<line x1="30" y1="104" x2="150" y2="104" stroke="#1e7cb8" stroke-dasharray="3 2" />
+		<g font-size="9" fill="currentColor">
+			<text x="160" y="40">9 sprites, 32x32</text>
+			<text x="160" y="56">all with z order -34</text>
+			<text x="160" y="107" fill="#1e7cb8">the stall's ground, y 34</text>
+		</g>
+	</svg>
+	<figcaption>Cut from one 96x96 picture, sorted as one thing.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk the hero with the **D-pad** around a market square: a statue, two flags, two villagers and a stall. Walk behind any of them and they cover the hero; walk in front and the hero covers them. The bottom of each thing is solid, so the hero walks around it instead of through it.
+
+<Code code={depth} lang="cpp" title="snippets/depth/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/depth/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks up past the right flag, which covers them, then left behind the statue and out of sight. They walk right, behind the stall, which hides them, then come down its right side and walk left in front of the counter, covering it." />
+	<figcaption>Behind the flag, the statue and the stall, then in front of the counter. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="depth" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `void stand(bn::sprite_ptr& sprite, int feet)` | A reference to the caller's sprite. A copy of a `bn::sprite_ptr` would still point at the same sprite, since it's a handle, but each copy adds and drops a reference to it. |
+| `constexpr bn::fixed_rect solids[] = { ... }` | The solid bases as data, built by the compiler. Moving the statue means moving its rect too, so they sit next to each other in the code. |
+| `for(const bn::fixed_rect& solid : solids)` | A range-based `for` over a plain array: the compiler knows its size. `const&` reads each rect without copying it. |
+| `index % 3 * 32` and `index / 3 * 32` | One index from 0 to 8 turned into a column and a row of a 3x3 grid, the same order the art script cut the pieces in. |
+| `stall.back().y() + stall_feet` | The last piece is on the bottom row, so its bottom edge is the stall's ground. |
+| `-ground_y.round_integer()` | `z_order` takes an `int`. Positions here are whole pixels anyway, so rounding changes nothing, but it says which way a half pixel goes. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The ground, statue, flag and stall are cut from its `Overworld.png` by `snippets/tools/depth_assets.py`. The hero comes from [the state machines page](/structure/states/) and the villager from [the dialog page](/basics/dialog/).
+
+## Pitfalls
+
+**The sign is backwards.**
+With `z_order = y + feet`, without the minus, everything lower on the screen goes further back. In the test ROM the hero stood in front of the statue's base, and the statue covered all of them except the feet. Higher z orders are drawn first; that's easy to read the other way.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/depth/sign.png" width="192" height="330" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Top: the hero in front of the statue's base, covering it. Bottom: the same spot with the sign flipped, and the statue covers the hero except for their feet." />
+	<figcaption>Top: `-(y + feet)`. Bottom: `y + feet`. Same spot, 2x.</figcaption>
+</figure>
+
+**Sorting by the center.**
+`sprite.y()` is the center of the sprite, and the hero is 32 pixels high while the statue is 64. Sorting by the centers, the test ROM drew the hero on top of the statue while they stood behind it. Worked out from the two sizes, the order is wrong for 20 pixels of walking, from where the hero's center passes the statue's to where their feet pass its base.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/depth/center.png" width="192" height="330" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Top: the hero behind the statue, hidden by it. Bottom: the same spot sorted by the centers, with the hero drawn on top of the statue." />
+	<figcaption>Top: sorted by the feet. Bottom: by the centers. Same spot, 2x.</figcaption>
+</figure>
+
+**Each piece of a big thing sorted by itself.**
+Giving each of the stall's 9 pieces its own z order put the hero, standing behind the stall, in front of the awning's row and behind the two rows below it. Only their head showed, on top of the awning.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/depth/pieces.png" width="192" height="330" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Top: the hero behind the stall, hidden. Bottom: the same spot with each piece sorted by itself, and the hero's head shows over the awning." />
+	<figcaption>Top: one z order for the stall. Bottom: one per piece. Same spot, 2x.</figcaption>
+</figure>
+
+**"No more sprite sort layers available".**
+Butano groups sprites by their pair of background priority and z order, and has room for 16 of those groups. In the test ROM, 16 different pairs worked and the 17th stopped the game with that message, from `bn_sorted_sprites.h`. The snippet uses at most 6: the two flags share one, and so do the 9 pieces of the stall. A crowd where everyone moves, each at their own y, runs out fast. The 16 is `BN_CFG_SPRITES_MAX_SORT_LAYERS` in `bn_config_sprites.h`.
+
+**Background priority beats z order.**
+`set_bg_priority` puts sprites in front of or behind backgrounds, and it's checked before the z order. In the test ROM, a villager with background priority 2 and z order 1000 was drawn in front of the hero with priority 3 and z order -1000, though its z order said far behind. Keep everything that sorts by depth at the same background priority.
+
+**Two things at the same depth.**
+With equal z orders, the test ROM drew the sprite created later on top, in both of two pairs tried. The two flags here share a z order but never overlap, so it doesn't matter. If two things can stand on the same line and overlap, don't count on that order: break the tie, for example by x.
+
+## Read more
+
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_z_order`, `set_bg_priority`, `put_above` and `put_below`, [`bn_config_sprites.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_sprites.h), for the sort layer limit, and [`bn_fixed_rect.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_rect.h).
+- Tonc: [Regular sprites](https://gbadev.net/tonc/regobj.html), for the hardware's own sprite priority, which Butano's sorting is built on.
+- C++: [range-based for loop](https://en.cppreference.com/w/cpp/language/range-for), on cppreference.
