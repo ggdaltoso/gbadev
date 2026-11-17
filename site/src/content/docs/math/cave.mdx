@@ -1,0 +1,158 @@
+---
+title: Cave generation
+description: A cave that's different for every seed and the same every time for one seed. Random noise, a few passes of a cellular automaton with two grids, and a background map written by the code.
+sidebar:
+  order: 7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import cave from '../../../../../snippets/cave/src/main.cpp?raw';
+
+export const passes = [["##############################", "##.#.##...##...####...#...##.#", "#.#..#...##.###....#...###...#", "#.###.##..#.#####.#..####....#", "#.#...###.###.#.....#.###....#", "######.##...........##..####.#", "#.####..#..#..#...#.#.#...#.##", "##..###...##...#...##.....#.##", "#.###...#....#####.#.#...#.###", "#..##....#.##...#.#..##.#...##", "####...#...###..#.###...#.##.#", "#.##.#...#.#..#..#.#..#.#.#.##", "#.#####.#.#......##.#..#######", "###.#...#.#..##..######.#...##", "#..#####.#.##.########.....#.#", "##..#...######.###......#...##", "#.###...#...#...##.##.##...###", "#...#.#.##.###.#.##...#.#...##", "#.#.#.#..#..##.#######..####.#", "##############################"], ["##############################", "#######..###########..########", "#######...########....###....#", "##.#..##.#######......###....#", "#########..#.#.......#####...#", "#########............#.#.#..##", "#######............###...#####", "######........##...##......###", "##.###.........##...#......###", "#####.......##.######......###", "#####.....###....###...#.#.###", "#####............###...#######", "######...#.......#####.###.###", "########.#......######.....###", "##.###..##############......##", "##.###..######.######.......##", "##.#....######..###....#....##", "##.#.#......##..######.#...###", "##.###########################", "##############################"], ["##############################", "########.###########.#########", "#######..#########....####..##", "########..######......###....#", "#########...#.........###....#", "########............###.###.##", "#######.............#.....####", "######.............##.....####", "######........###..##......###", "#####...........####.......###", "#####...........####....#.####", "#####............####..#######", "######...........####...######", "#######.###.....######.....###", "#######.##############......##", "#####...#############.......##", "###.#....#####..#####.......##", "###.#...#################..###", "##############################", "##############################"], ["##############################", "##############################", "########.#########....####..##", "########..######......###....#", "########.............#####...#", "########.............#.#.#.###", "#######.............##...#####", "######.............##.....####", "######............###......###", "#####..........#####.......###", "#####...........####.....#####", "#####............####...######", "######...........####...######", "#######..##.....######.....###", "######.###############......##", "######..#############.......##", "####....##############......##", "######..#################..###", "##############################", "##############################"], ["##############################", "##############################", "##################...#####..##", "########..######......####...#", "########..............###...##", "########.............##.######", "#######.............#.....####", "######.............##.....####", "######............###......###", "#####...........####......####", "#####...........####.....#####", "#####............####...######", "######...........####....#####", "#######..##.....######.....###", "#######.##############......##", "#####...##############......##", "#####...##############......##", "######.##################..###", "##############################", "##############################"]];
+export const rawOne = ["##############################", "#####################......###", "##################..........##", "#################............#", "##...#####.######............#", "##....###...#####............#", "##.....#....####............##", "##...........##.............##", "##....................##....##", "##....................###...##", "###..............#....########", "###........##....##..#########", "###.......###.....############", "##.......####......###########", "##....######........##########", "##...######............#######", "###########....###........####", "###########..#######......####", "##############################", "##############################"];
+export const rawTwo = ["##############################", "####################......####", "#################..........###", "################............##", "#########.######............##", "###.####...#####............##", "##....#....####.............##", "##..........##..............##", "##...................##.....##", "##...................###...###", "###.............#....#########", "###.......##....##..##########", "###......###.....#############", "##......####......############", "#....######........###########", "##..######............########", "##########....###.........####", "##########..#######.......####", "##############################", "##############################"];
+export const inPlace = ["##############################", "##############################", "##############################", "##############################", "###############...############", "##############.....###########", "#############......####..#####", "#############......###....####", "######..#####..............###", "#####....####..............###", "#####.....##...............###", "######.....................###", "######.....................###", "#######..........###........##", "#######.........#####.......##", "######..........#####.......##", "######.........######.......##", "######......#########......###", "#######....###########..######", "##############################"];
+export const rock = '#24182c';
+export const floor = '#8a6448';
+export const Grid = ({ rows, x, y, size }) => (
+	<g transform={`translate(${x} ${y})`} shape-rendering="crispEdges">
+		<rect width={30 * size} height={20 * size} fill={floor} />
+		{rows.flatMap((row, ry) => [...row].map((c, rx) => c === '#' ? <rect key={`${rx}-${ry}`} x={rx * size} y={ry * size} width={size} height={size} fill={rock} /> : null))}
+	</g>
+);
+export const passLabels = ['noise', 'pass 1', 'pass 2', 'pass 3', 'pass 4'];
+export const ruleExamples = [
+	{ cells: '###.?.#.#', label: '5 rock around: rock', color: '#ff4d8d' },
+	{ cells: '#.#.?...#', label: '3 rock around: floor', color: '#2f9e36' },
+	{ cells: '##..?#.#.', label: '4 rock around: stays', color: '#1e7cb8' },
+];
+
+## When to use it
+
+When a game wants places nobody drew by hand: a new cave every run in a roguelike, a mine that's different on each visit, a level you can share by telling a friend its number. On the GBA there's no room to store hundreds of maps, but there's room for a little code and one number per map.
+
+## How to think about it
+
+**Start from noise, then smooth it.** First every cell is rock or floor at random, 45% rock, like static on a TV. Then a pass looks at every cell's 8 neighbors and lets the majority win. Single rocks in the open disappear, lone holes in the rock fill in, and after a few passes what's left are rounded caves.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 470 82" role="img" aria-label="Five small maps of the same cave, seed 1. The first is noise, rock and floor at random. Each of the next four, after one more pass, has fewer lone cells and smoother walls, until the fourth pass shows a big cave in the middle and two small ones on the right." style={{ display: 'block', width: '100%', maxWidth: '760px', marginInline: 'auto' }}>
+		{passes.map((rows, index) => (
+			<g key={index}>
+				<Grid rows={rows} x={index * 94} y={0} size={3} />
+				<text x={index * 94 + 45} y="76" font-size="9" fill="currentColor" text-anchor="middle">{passLabels[index]}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>Seed 1, read from the snippet's screen after each pass. Dark is rock, brown is floor.</figcaption>
+</figure>
+
+**The rule counts neighbors.** More than 4 of the 8 are rock: the cell becomes rock. Fewer than 4: floor. Exactly 4: it stays as it was. Cells outside the grid count as rock, so the cave closes at the edges. Every cell decides from the grid as it was before the pass, so the pass reads one grid and writes another.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 330 96" role="img" aria-label="Three 3 by 3 neighborhoods. In the first, 5 of the 8 neighbors are rock, so the middle cell becomes rock. In the second, 3 are rock, so it becomes floor. In the third, 4 are rock, so it keeps what it was." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{ruleExamples.map((example, index) => (
+			<g key={index} transform={`translate(${20 + index * 105} 6)`}>
+				{[...example.cells].map((c, i) => (
+					<rect key={i} x={(i % 3) * 20} y={Math.floor(i / 3) * 20} width="20" height="20" fill={c === '#' ? rock : c === '.' ? floor : 'none'} stroke="currentColor" stroke-opacity="0.4" />
+				))}
+				<rect x="20" y="20" width="20" height="20" fill="none" stroke={example.color} stroke-width="2.5" />
+				<text x="30" y="34" font-size="12" fill={example.color} text-anchor="middle">?</text>
+				<text x="30" y="80" font-size="8.5" fill="currentColor" text-anchor="middle">{example.label}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>The middle cell's next state. Its own state only matters in a tie.</figcaption>
+</figure>
+
+**A seed is where the counting starts.** `bn::seed_random` keeps a counter: each number it gives is the counter, plus one, scrambled. So the same seed always gives the same numbers in the same order, and the same cave. But the next seed starts one count later, and gives the same numbers shifted by one. A cave reads 504 numbers, one per cell inside the edge, so the snippet spaces the seeds 1024 counts apart and no two caves share a number.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 360 108" role="img" aria-label="Two number lines of counts. Top, seeds used as they are: seed 1 uses counts 2 to 505 and seed 2 uses 3 to 506, almost the same stretch. Bottom, seeds times 1024: seed 1 uses 1025 to 1528 and seed 2 uses 2049 to 2552, far apart." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="8.5" fill="currentColor">
+			<text x="10" y="14">seed as it is</text>
+			<rect x="20" y="22" width="150" height="10" fill="#ff4d8d" fill-opacity="0.75" />
+			<rect x="23" y="36" width="150" height="10" fill="#ff4d8d" fill-opacity="0.45" />
+			<text x="178" y="31">seed 1: counts 2 to 505</text>
+			<text x="181" y="45">seed 2: counts 3 to 506</text>
+			<text x="10" y="68">seed × 1024</text>
+			<rect x="20" y="76" width="70" height="10" fill="#2f9e36" fill-opacity="0.75" />
+			<rect x="150" y="90" width="70" height="10" fill="#2f9e36" fill-opacity="0.75" />
+			<text x="96" y="85">seed 1: 1025 to 1528</text>
+			<text x="226" y="99">seed 2: 2049 to 2552</text>
+		</g>
+	</svg>
+	<figcaption>Each bar is the stretch of counts one cave reads. Not to scale.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The snippet shows seed 1 being smoothed, one pass every 20 frames. **A** goes to the next seed and **B** back to the one before, which comes out exactly as it was. The cave is written into a background map that lives in RAM, and `reload_cells_ref` sends it to the screen after each change.
+
+<Code code={cave} lang="cpp" title="snippets/cave/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/cave/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Seed 2 starts as noise and smooths into caves over four passes. B goes back to seed 1, whose noise smooths into the same cave as before." />
+	<figcaption>Seed 2, then back to seed 1. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="cave" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `struct cave { bool rock[rows][columns]; };` | A plain array can't be copied with `=`, but a struct that holds one can. The 600 cells become one value with a name. |
+| `cave caves[2];` and `current = 1 - current;` | The two grids swap roles by index: the one just written becomes the one read next. Nothing is copied. |
+| `smooth(const cave& from, cave& to)` | `const` says which grid is only read, and the compiler stops `smooth` from writing to it. It doesn't stop a caller passing the same cave twice: that's the in-place pitfall below. |
+| `edge \|\| random.get_int(100) < rock_percent` | `\|\|` stops at the first `true`, so edge cells draw no number. Changing which cells are edges shifts the numbers for every cell after them. |
+| `bn::unique_ptr<cave_map> map(new cave_map());` | The map's 1024 cells live on the heap, as in Butano's own example, and are freed when `map` goes away. |
+| `bn::regular_bg_map_cell_info info;` | A cell is 16 bits holding the tile number, two flips and a palette. The info object sets the parts by name and gives back the cell. |
+
+Art: [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0. The rock and floor tiles are cut from its `cave.png` by `snippets/tools/cave_assets.py`, and the font comes from [the HUD page](/basics/hud/).
+
+## Pitfalls
+
+**The next seed is the same cave, one cell over.**
+The first version passed the seed to `bn::seed_random` as it was. Seeds 1, 2 and 3 all came out as one cave in slightly different places. In the test ROM, the noise of seed 2 matched the noise of seed 1 shifted by one cell in all 503 cells it could compare. With the seeds 1024 apart, as in the snippet, it matched in 261, which is chance.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 200 76" role="img" aria-label="Two caves side by side, from seeds 1 and 2 used as they are. They have the same shape, the second one moved one cell to the left." style={{ display: 'block', width: '100%', maxWidth: '440px', marginInline: 'auto' }}>
+		<Grid rows={rawOne} x={5} y={0} size={3} />
+		<Grid rows={rawTwo} x={105} y={0} size={3} />
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="50" y="72">seed 1, as it is</text>
+			<text x="150" y="72">seed 2, as it is</text>
+		</g>
+	</svg>
+	<figcaption>After 4 passes, read from a test ROM's screen.</figcaption>
+</figure>
+
+**Smoothing the grid in place.**
+Writing each cell back into the grid being read means the cells after it see its new value, not the old one. Over the first 20 seeds, the test ROM found 142 cells different on average out of 600, and rock went from 335 cells to 402. The change sweeps across the grid in the order of the loops, top to bottom and left to right.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 200 76" role="img" aria-label="Seed 1 smoothed with two grids, a big cave in the middle, and smoothed in place, a different cave, lower down and with more rock." style={{ display: 'block', width: '100%', maxWidth: '440px', marginInline: 'auto' }}>
+		<Grid rows={passes[4]} x={5} y={0} size={3} />
+		<Grid rows={inPlace} x={105} y={0} size={3} />
+		<g font-size="8" fill="currentColor" text-anchor="middle">
+			<text x="50" y="72">two grids</text>
+			<text x="150" y="72">in place</text>
+		</g>
+	</svg>
+	<figcaption>Seed 1 after 4 passes both ways: 145 cells differ.</figcaption>
+</figure>
+
+**Pockets you can't reach.**
+Nothing in the rule keeps the cave in one piece. Of the first 20 seeds, 13 had floor cut off from the rest, up to 4 separate areas, and 819 of their 5294 floor cells were outside the biggest one, 15%. Seed 11 lost 115 cells that way, and seed 1, in the demo, is in 3 pieces. Before putting a hero and an exit in a cave, [flood fill](https://en.wikipedia.org/wiki/Flood_fill) from one floor cell and fill in, or connect, whatever it doesn't reach.
+
+**It takes several frames.**
+Timed in the test ROM, the noise took 2109 timer ticks, one pass 7613, and writing the map 928, against 4389 in a frame. One pass alone is 1.7 frames, and the whole cave about 7.6. The snippet spreads the passes out to show them, so each one costs a dropped frame. A game would build the cave while the screen is dark, between two scenes.
+
+## Read more
+
+- Article: [Cellular Automata Method for Generating Random Cave-Like Levels](http://www.roguebasin.com/index.php/Cellular_Automata_Method_for_Generating_Random_Cave-Like_Levels), on RogueBasin, with other rules and their shapes.
+- Butano example: [`examples/dynamic_regular_bg`](https://github.com/GValiente/butano/tree/master/examples/dynamic_regular_bg), a map written by the code that the snippet's `cave_map` follows.
+- Headers: [`bn_seed_random.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_seed_random.h), where you can see the counter, and [`bn_regular_bg_map_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_map_ptr.h), for `reload_cells_ref`.
+- C++: [logical operators](https://en.cppreference.com/w/cpp/language/operator_logical), on cppreference, for how `||` skips its right side.
