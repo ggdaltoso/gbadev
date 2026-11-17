@@ -6,7 +6,8 @@ BUILD       	:=  build
 LIBBUTANO   	?=  ../../../butano/butano
 PYTHON      	:=  python3
 SOURCES     	:=  src
-INCLUDES    	:=  include
+# common/include holds the code every snippet can share, like hero_walk.h.
+INCLUDES    	:=  include ../common/include
 DATA        	:=
 # common/graphics holds the art every snippet shares, like the hero.
 GRAPHICS    	:=  graphics ../common/graphics

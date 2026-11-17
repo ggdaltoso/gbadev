@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import tiles from '../../../../../snippets/tiles/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 {/* Measured in a test ROM: the tile index of map cells (4, 18) to (11, 21), the pond's top-left corner. */}
 export const pondIndexes = [
@@ -105,6 +106,13 @@ When the world itself should move: water, lava, torches on a wall, grass in the 
 The **D-pad** walks the hero around a plaza with three fountains and a pond. Everything that moves in the background takes at most 23 tile copies in one frame: 15 for the fountains and 4 for each group of waves.
 
 <Code code={tiles} lang="cpp" title="snippets/tiles/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/tiles/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="A grass plaza with three stone fountains along the top and a pond below. The fountains' spray rises and falls in step, and the pond's waves roll in a checkerboard, neighbors half a cycle apart. The hero walks left and right between them." />

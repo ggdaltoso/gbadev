@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import depth from '../../../../../snippets/depth/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const statue = { x: 90, y: 16 };     // top-left of the 64x128 statue image
 export const baseY = statue.y + 128;        // its ground line
@@ -103,6 +104,13 @@ In any top-down or three-quarter view, where things stand on a floor seen from a
 Walk the hero with the **D-pad** around a market square: a statue, two flags, two villagers and a stall. Walk behind any of them and they cover the hero; walk in front and the hero covers them. The bottom of each thing is solid, so the hero walks around it instead of through it.
 
 <Code code={depth} lang="cpp" title="snippets/depth/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/depth/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks up past the right flag, which covers them, then left behind the statue and out of sight. They walk right, behind the stall, which hides them, then come down its right side and walk left in front of the counter, covering it." />

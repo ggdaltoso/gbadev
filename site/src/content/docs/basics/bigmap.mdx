@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import bigmap from '../../../../../snippets/bigmap/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const quarter = { x: 10 + 480 / 4, y: 5 + 416 / 4 };
 export const screenPieces = [
@@ -74,6 +75,13 @@ When the world doesn't fit in 512x512 pixels, the biggest map a regular backgrou
 The **D-pad** walks the hero around the world, and holding **B** runs. The camera follows the hero and stops at the map's edges.
 
 <Code code={bigmap} lang="cpp" title="snippets/bigmap/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/bigmap/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs from the field down to the village, along its street, across open grass to the river, and up the river to the lake." />

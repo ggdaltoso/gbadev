@@ -12,6 +12,8 @@
 #include "bn_sprite_items_statue.h"
 #include "bn_sprite_items_villager.h"
 
+#include "hero_walk.h"
+
 // How far below each sprite's center its art touches the ground, measured from the art.
 constexpr int hero_feet = 12;
 constexpr int villager_feet = 10;
@@ -93,6 +95,7 @@ int main()
     }
 
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(0, 56);
+    hero_walk walk;
 
     while(true)
     {
@@ -110,10 +113,7 @@ int main()
             hero.set_y(hero.y() + step_y);
         }
 
-        if(step_x != 0)
-        {
-            hero.set_horizontal_flip(step_x < 0);
-        }
+        walk.update(hero, step_x, step_y);
 
         // The hero moves, so the hero sorts again every frame.
         stand(hero, hero_feet);

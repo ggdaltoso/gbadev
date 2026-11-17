@@ -12,6 +12,8 @@
 #include "bn_sprite_items_coin.h"
 #include "bn_sprite_items_hero.h"
 
+#include "hero_walk.h"
+
 #include "font.h"
 
 // An easing curve takes the fraction of time gone (0 to 1) and returns the fraction of the way done.
@@ -75,6 +77,7 @@ int main()
     bn::random random;
 
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(0, 30);
+    hero_walk walk;
     bn::sprite_ptr icon = bn::sprite_items::coin.create_sprite(counter_icon);
 
     bn::vector<bn::sprite_ptr, 3> coins;
@@ -103,10 +106,7 @@ int main()
         int step_y = bn::keypad::down_held() - bn::keypad::up_held();
         hero.set_position(hero.position() + bn::fixed_point(step_x, step_y));
 
-        if(step_x != 0)
-        {
-            hero.set_horizontal_flip(step_x < 0);
-        }
+        walk.update(hero, step_x, step_y);
 
         bn::fixed_rect hero_box(hero.position() + bn::fixed_point(0, 4), bn::fixed_size(12, 14));
 

@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import minimap from '../../../../../snippets/minimap/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const world = { x: 20, y: 20, size: 180 };
 export const mini = { x: 270, y: 60, size: 100 };
@@ -105,6 +106,13 @@ When the world is bigger than a few screens and the player should know where the
 The **D-pad** walks the hero around the world, and holding **B** runs. The minimap in the top right corner follows along.
 
 <Code code={minimap} lang="cpp" title="snippets/minimap/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/minimap/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs from the field down to the village and across to the lake. In the top right corner, the dot and the box move over the minimap the same way." />

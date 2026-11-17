@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import easing from '../../../../../snippets/easing/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const linear = (t) => t;
 export const easeOut = (t) => 1 - (1 - t) * (1 - t);
@@ -141,6 +142,13 @@ Butano does the plain, even version for you: `bn::sprite_move_to_action`, `bn::b
 The **D-pad** walks the hero. Touch a coin, and a copy flies to the counter in the corner in 40 frames, while the coin on the map jumps somewhere else. The counter goes up when the copy gets there. **A** picks the curve for the next coins: linear, ease out or smoothstep. The hitboxes are the tight ones from [the hitboxes page](/math/hitboxes/).
 
 <Code code={easing} lang="cpp" title="snippets/easing/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/easing/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks left and picks up a coin, which flies at an even speed to the counter in the top-left corner. Then the curve changes to ease out, and the next coin shoots off and slows down into the counter. The last coin uses smoothstep, starting and ending slowly. The counter goes from 0 to 3." />

@@ -14,6 +14,8 @@
 #include "bn_sprite_items_hero.h"
 #include "bn_sprite_items_spark.h"
 
+#include "hero_walk.h"
+
 #include "font.h"
 
 // A spark flies from where it was born along its way, slowing down, for spark_frames frames.
@@ -65,6 +67,7 @@ int main()
     bn::random spark_random;
 
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(0, 30);
+    hero_walk walk;
 
     bn::vector<bn::sprite_ptr, 3> coins;
     coins.push_back(bn::sprite_items::coin.create_sprite(-60, 32));
@@ -83,10 +86,7 @@ int main()
         int step_y = bn::keypad::down_held() - bn::keypad::up_held();
         hero.set_position(hero.position() + bn::fixed_point(step_x, step_y));
 
-        if(step_x != 0)
-        {
-            hero.set_horizontal_flip(step_x < 0);
-        }
+        walk.update(hero, step_x, step_y);
 
         if(bn::keypad::a_pressed())
         {

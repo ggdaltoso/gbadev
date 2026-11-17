@@ -13,6 +13,8 @@
 #include "bn_sprite_items_spark.h"
 #include "bn_sprite_items_villager.h"
 
+#include "hero_walk.h"
+
 #include "font.h"
 
 constexpr bn::string_view villager_text =
@@ -71,6 +73,7 @@ int main()
     bn::regular_bg_ptr world = bn::regular_bg_items::world.create_bg(0, 0);
     bn::sprite_ptr villager = bn::sprite_items::villager.create_sprite(40, -10);
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(-40, 20);
+    hero_walk walk;
 
     bn::sprite_text_generator text_generator(hud::font);
     text_generator.set_bg_priority(0);
@@ -99,6 +102,7 @@ int main()
     {
         if(talking)
         {
+            walk.update(hero, 0, 0);   // The hero doesn't walk while talking, so they stand.
             if(bn::keypad::a_pressed())
             {
                 if(shown < page_size)
@@ -167,10 +171,7 @@ int main()
             int step_y = bn::keypad::down_held() - bn::keypad::up_held();
             hero.set_position(hero.position() + bn::fixed_point(step_x, step_y));
 
-            if(step_x != 0)
-            {
-                hero.set_horizontal_flip(step_x < 0);
-            }
+            walk.update(hero, step_x, step_y);
 
             bn::fixed_point gap = villager.position() - hero.position();
             bool near = bn::abs(gap.x()) < 24 && bn::abs(gap.y()) < 24;

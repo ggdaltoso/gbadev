@@ -12,6 +12,8 @@
 #include "bn_sprite_items_hero.h"
 #include "bn_sprite_items_log.h"
 
+#include "hero_walk.h"
+
 #include "font.h"
 #include "room.h"
 
@@ -151,6 +153,7 @@ int main()
 
     bn::regular_bg_ptr room_bg = bn::regular_bg_items::room.create_bg(0, 0);
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(-80, -40);
+    hero_walk walk;
     bn::sprite_ptr sentinel = bn::sprite_items::log.create_sprite(0, 8, 8);
 
     // Three rays of dots: the cone's two edges, then the line to the hero.
@@ -189,6 +192,8 @@ int main()
         {
             hero.set_y(hero.y() + step_y);
         }
+
+        walk.update(hero, step_x, step_y);
 
         // The sentinel turns around slowly, like a lighthouse.
         facing_angle += turn_speed;

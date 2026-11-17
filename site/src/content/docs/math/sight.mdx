@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import sight from '../../../../../snippets/sight/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const rad = (degrees) => (degrees * Math.PI) / 180;
 export const polar = (center, degrees, length) => ({
@@ -174,6 +175,13 @@ When an enemy should react to the player only if it could plausibly see them: a 
 The sentinel in the middle turns around slowly, and its light dots show the cone's two edges, stopping at the first crate. Walk the hero with the **D-pad**. Inside the cone with nothing in the way, a pink line joins them and a **!** appears.
 
 <Code code={sight} lang="cpp" title="snippets/sight/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/sight/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The sentinel's cone sweeps up and to the left. Its edge stops at the crates the hero hides behind, so the hero isn't seen. The hero steps down into the open while the cone is still there, and a pink line and an exclamation mark appear, until the cone moves on." />

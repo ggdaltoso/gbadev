@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import dialog from '../../../../../snippets/dialog/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const fontWidths = [
 	4, 2, 3, 8, 0, 0, 0, 2, 0, 0, 0, 0, 2, 4, 2, 0,
@@ -151,6 +152,13 @@ For a score or a timer that's always on screen, see [the HUD page](/basics/hud/)
 The **D-pad** walks the hero. Next to the villager, "A: talk" appears. **A** opens the box, and the villager's words appear letter by letter over three pages. **A** shows the rest of a page, goes to the next one, and closes the box after the last.
 
 <Code code={dialog} lang="cpp" title="snippets/dialog/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/dialog/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks up to the villager and A: talk appears. The box opens at the bottom of the screen and the text appears letter by letter: Hi there! Not many people walk this far from the village. A star blinks when the page is complete, and the next pages follow, until the box closes." />

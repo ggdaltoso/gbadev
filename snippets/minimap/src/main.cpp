@@ -12,6 +12,8 @@
 #include "bn_sprite_items_minimap.h"
 #include "bn_sprite_items_view.h"
 
+#include "hero_walk.h"
+
 // The minimap is the 1024x1024 world drawn at 64x64: one minimap pixel for every 16 world pixels.
 constexpr int minimap_scale = 16;
 
@@ -25,6 +27,7 @@ int main()
 
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(0, 0);
     hero.set_camera(camera);
+    hero_walk walk;
 
     // No camera: the minimap and its markers stay on the screen, in the top right corner.
     // The markers are created after the minimap, so they're drawn on top of it.
@@ -47,10 +50,7 @@ int main()
         hero.set_position(bn::clamp(hero.x() + step_x * speed, -half_width + 8, half_width - 8),
                           bn::clamp(hero.y() + step_y * speed, -half_height + 8, half_height - 16));
 
-        if(step_x != 0)
-        {
-            hero.set_horizontal_flip(step_x < 0);
-        }
+        walk.update(hero, step_x, step_y);
 
         camera.set_position(bn::clamp(hero.x(), -camera_x, camera_x), bn::clamp(hero.y(), -camera_y, camera_y));
 

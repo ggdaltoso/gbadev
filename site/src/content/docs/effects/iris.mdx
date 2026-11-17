@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import iris from '../../../../../snippets/iris/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const circle = { x: 150, y: 70, r: 52 };
 export const lineStep = 8;
@@ -57,6 +58,13 @@ When the hero goes from one place to another: through a door, down a hole, into 
 Walk the hero with the **D-pad** onto the hole in the grass. The circle closes on them, and opens again in a cave, next to the hole back up. Step on that one to come back.
 
 <Code code={iris} lang="cpp" title="snippets/iris/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/iris/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks onto the hole on the grass. A circle closes on them to black and opens on a cave. They walk a little, step back onto the cave's hole, and the circle closes and opens on the grass again." />

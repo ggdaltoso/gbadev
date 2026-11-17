@@ -8,6 +8,7 @@ sidebar:
 import { Code } from '@astrojs/starlight/components';
 import Rom from '../../../components/Rom.astro';
 import particles from '../../../../../snippets/particles/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
 
 export const easeOut = (t) => 1 - (1 - t) * (1 - t);
 export const seeded = (() => {
@@ -116,6 +117,13 @@ When the effect is one big animation, like an explosion drawn by an artist, play
 The **D-pad** walks the hero. Picking up a coin throws 12 sparks, and **A** throws 24 around the hero. Press it a few times quickly to fill the 48 slots: the count at the top stops at 48, and every burst still shows.
 
 <Code code={particles} lang="cpp" title="snippets/particles/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
 
 <figure style={{ textAlign: 'center' }}>
 	<img src="/images/particles/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero picks up a coin, which bursts into 12 sparks that fly out, slow down and shrink to dots. Then three quick bursts of 24 around the hero, with the count at the top going to 48. The hero walks to another coin, which bursts too." />

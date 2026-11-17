@@ -16,6 +16,8 @@
 #include "bn_sprite_items_hero.h"
 #include "bn_sprite_items_hole.h"
 
+#include "hero_walk.h"
+
 constexpr int iris_frames = 24;
 constexpr int hero_feet = 12;
 
@@ -75,6 +77,7 @@ int main()
 
     bn::sprite_ptr hole = bn::sprite_items::hole.create_sprite(outside_hole);
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(-60, 20);
+    hero_walk walk;
 
     // Outside the window, nothing: the black backdrop. Inside, everything.
     bn::window outside_window = bn::window::outside();
@@ -103,10 +106,7 @@ int main()
             hero.set_position(bn::clamp(hero.x() + step_x, bn::fixed(-100), bn::fixed(100)),
                               bn::clamp(hero.y() + step_y, bn::fixed(-70), bn::fixed(52)));
 
-            if(step_x != 0)
-            {
-                hero.set_horizontal_flip(step_x < 0);
-            }
+            walk.update(hero, step_x, step_y);
 
             bn::fixed_point to_hole = hole.position() - (hero.position() + bn::fixed_point(0, hero_feet));
 
@@ -118,6 +118,7 @@ int main()
         }
         else
         {
+            walk.update(hero, 0, 0);   // Input waits, so the hero stands still through the transition.
             ++frame;
             int full = covering_radius(hero.position());
             int radius = phase == iris_phase::closing ? full * (iris_frames - frame) / iris_frames :

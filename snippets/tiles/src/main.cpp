@@ -10,6 +10,8 @@
 #include "bn_regular_bg_tiles_items_wave_frames.h"
 #include "bn_sprite_items_hero.h"
 
+#include "hero_walk.h"
+
 // One copy of an animation in the map, and its frames: each frame is width x height tiles,
 // stacked top to bottom in a tiles item. Every other copy drawn the same way shares its tiles.
 struct tile_animation
@@ -80,6 +82,7 @@ int main()
     bn::regular_bg_ptr plaza = bn::regular_bg_items::plaza.create_bg(0, 0);
     bn::regular_bg_tiles_ptr tiles = plaza.tiles();
     bn::sprite_ptr hero = bn::sprite_items::hero.create_sprite(0, -12);
+    hero_walk walk;
     int counter = 0;
 
     while(true)
@@ -88,10 +91,7 @@ int main()
         int step_y = bn::keypad::down_held() - bn::keypad::up_held();
         hero.set_position(hero.position() + bn::fixed_point(step_x, step_y));
 
-        if(step_x != 0)
-        {
-            hero.set_horizontal_flip(step_x < 0);
-        }
+        walk.update(hero, step_x, step_y);
 
         // Tiles only get copied when a frame changes, not on every screen frame.
         for(const tile_animation& animation : animations)
