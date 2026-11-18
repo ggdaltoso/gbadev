@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first fifty-two pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first fifty-three pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -76,6 +76,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 49. **Parallax:** background layers that move a fraction of what the camera moves, how wide each one has to be, and the priorities that keep the ground in front of the sky and the player in front of the ground.
 51. **Endless run:** a hero that stays put while a repeating track scrolls under it, obstacles placed by distance along the track, and a lap that keeps every number small.
 52. **Jump seen from above:** height as a third axis that only changes where the hero is drawn, a shadow that stays on the ground and shrinks as the hero rises, and a bump that needs the hero low enough as well as in the way.
+53. **Difficulty curve:** how hard the game is, as a table of rows by distance, blended between rows and held after the last one, and the time between obstacles that the player actually feels.
 
 ### Effects
 

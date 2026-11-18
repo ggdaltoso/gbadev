@@ -88,7 +88,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 3. **Runner (seen from above):**
    - [x] Endless run: a vertical background that repeats, obstacles spawned by distance.
    - [x] Jump seen from above: height as a third axis, with the shadow on the ground (builds on Shadows and reflections).
-   - [ ] Difficulty curve: speed and obstacle density rising with distance, as data.
+   - [x] Difficulty curve: speed and obstacle density rising with distance, as data.
 4. **Puzzle and grid:**
    - [ ] Grid-locked movement: cell by cell, smooth between cells.
    - [ ] Cross-shaped explosion: spreads over the map and stops at walls.

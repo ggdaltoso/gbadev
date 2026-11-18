@@ -1,0 +1,167 @@
+---
+title: Difficulty curve
+description: How hard the game is, as a table of rows by distance, blended between rows and held after the last one, and the time between obstacles that the player actually feels.
+genres: [runner]
+sidebar:
+  order: 5.45
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import curve from '../../../../../snippets/curve/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const rows = [
+	{ from: 0, speed: 1.5, spacing: 104 },
+	{ from: 256, speed: 2.5, spacing: 80 },
+	{ from: 512, speed: 3, spacing: 64 },
+	{ from: 768, speed: 3.5, spacing: 56 },
+];
+export const end = 1024;
+export const chartX = (distance) => 150 + distance * 0.21;
+export const speedY = (speed) => 70 - speed * 14;
+export const gapY = (spacing) => 140 - (spacing - 40) * 0.8;
+export const line = (pick, toY) => [...rows, { ...rows[rows.length - 1], from: end }].map((row) => `${chartX(row.from)},${toY(pick(row))}`).join(' ');
+export const example = 384;
+export const blend = (total) => {
+	let i = 0;
+	while (i + 1 < rows.length && rows[i + 1].from <= total) { i++; }
+	if (i + 1 === rows.length) { return rows[i]; }
+	const now = rows[i], next = rows[i + 1];
+	const done = (total - now.from) / (next.from - now.from);
+	return { from: total, speed: now.speed + (next.speed - now.speed) * done, spacing: Math.trunc(now.spacing + (next.spacing - now.spacing) * done) };
+};
+export const blended = blend(example);
+export const crossing = 64 / 4;
+export const framesApart = rows.map((row) => row.spacing / row.speed);
+export const barX = (frames) => 80 + frames * 2.6;
+
+## When to use it
+
+When the game should get harder the longer the player lasts: a runner that speeds up, a shooter whose waves get denser, a puzzle game whose pieces fall faster. The start should be easy enough to learn on, and the hardest part should still be possible.
+
+This page grows the [Endless run](/basics/runner/) snippet. The obstacles there already come by distance, so changing the gap between them while running needs no new idea.
+
+## How to think about it
+
+**The difficulty is a table.** Every row says: from this total distance on, this speed and this gap between obstacles. The game looks up the row it's in and uses its numbers. Making the game easier at the start, or harder at the end, means changing numbers in the table, and the loop doesn't change. After the last row there's nothing to look up: the game stays at that row, and that's the hardest the game gets.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label={`The snippet's curve table, four rows: from 0, speed 1.5 and gap 104; from 256, speed 2.5 and gap 80; from 512, speed 3 and gap 64; from 768, speed 3.5 and gap 56. Next to it, two charts against distance up to ${end}: the speed climbs from row to row and stays flat after 768, and the gap shrinks the same way.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<text x="10" y="20" font-weight="bold">from</text>
+			<text x="50" y="20" font-weight="bold">speed</text>
+			<text x="94" y="20" font-weight="bold">gap</text>
+			{rows.map((row, i) => (
+				<g>
+					<text x="10" y={40 + i * 16}>{row.from}</text>
+					<text x="50" y={40 + i * 16} fill="#1e7cb8">{row.speed}</text>
+					<text x="94" y={40 + i * 16} fill="#ff4d8d">{row.spacing}</text>
+				</g>
+			))}
+			<line x1={chartX(0)} y1={speedY(0)} x2={chartX(end)} y2={speedY(0)} stroke="currentColor" stroke-opacity="0.4" />
+			<line x1={chartX(0)} y1="140" x2={chartX(end)} y2="140" stroke="currentColor" stroke-opacity="0.4" />
+			<polyline points={line((row) => row.speed, speedY)} fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<polyline points={line((row) => row.spacing, gapY)} fill="none" stroke="#ff4d8d" stroke-width="2" />
+			{rows.map((row) => (
+				<g>
+					<circle cx={chartX(row.from)} cy={speedY(row.speed)} r="3" fill="#1e7cb8" />
+					<circle cx={chartX(row.from)} cy={gapY(row.spacing)} r="3" fill="#ff4d8d" />
+					<text x={chartX(row.from)} y="154" text-anchor="middle" fill-opacity="0.7">{row.from}</text>
+				</g>
+			))}
+			<line x1={chartX(768)} y1="10" x2={chartX(768)} y2="142" stroke="currentColor" stroke-dasharray="3 3" stroke-opacity="0.5" />
+			<text x={chartX(768) + 4} y="10">last row, held</text>
+			<text x={chartX(0)} y={speedY(3.5) - 6} fill="#1e7cb8">speed</text>
+			<text x={chartX(0)} y={gapY(104) - 6} fill="#ff4d8d">gap</text>
+			<text x={chartX(end / 2)} y="168" text-anchor="middle">total distance</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's <code>curve</code>, and the values it gives along the run. The lines between rows are the blend of the next paragraph.</figcaption>
+</figure>
+
+**Between two rows, blend them.** Jumping from one row's speed to the next all at once would be a jolt the player feels. Instead, the snippet works out how far the run is between the two rows, from 0 to 1, and takes that much of the way from one row's numbers to the next's. At {example} pixels, halfway from 256 to 512, the speed is halfway from 2.5 to 3, {blended.speed}, and the gap halfway from 80 to 64, {blended.spacing}. The emulator's HUD showed that: at 386 pixels, speed 2.75 and gap 72.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 110" role="img" aria-label={`A worked example. The total distance ${example} is halfway between the rows at 256 and 512. The speed is 2.5 plus half of 3 minus 2.5: ${blended.speed}. The gap is 80 plus half of 64 minus 80: ${blended.spacing}.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1="40" y1="30" x2="340" y2="30" stroke="currentColor" stroke-opacity="0.5" />
+		<circle cx="40" cy="30" r="4" fill="currentColor" />
+		<circle cx="340" cy="30" r="4" fill="currentColor" />
+		<circle cx="190" cy="30" r="5" fill="#2f9e36" />
+		<g font-size="10" fill="currentColor">
+			<text x="40" y="16" text-anchor="middle">256</text>
+			<text x="340" y="16" text-anchor="middle">512</text>
+			<text x="190" y="16" text-anchor="middle" fill="#2f9e36">{example}: halfway, 0.5</text>
+			<text x="40" y="50" text-anchor="middle" fill="#1e7cb8">2.5</text>
+			<text x="340" y="50" text-anchor="middle" fill="#1e7cb8">3</text>
+			<text x="40" y="64" text-anchor="middle" fill="#ff4d8d">80</text>
+			<text x="340" y="64" text-anchor="middle" fill="#ff4d8d">64</text>
+			<text x="190" y="84" text-anchor="middle" fill="#1e7cb8">speed: 2.5 + (3 - 2.5) × 0.5 = {blended.speed}</text>
+			<text x="190" y="100" text-anchor="middle" fill="#ff4d8d">gap: 80 + (64 - 80) × 0.5 = {blended.spacing}</text>
+		</g>
+	</svg>
+	<figcaption>What <code>difficulty(384)</code> returns, worked out by hand.</figcaption>
+</figure>
+
+**What the player feels is the time between obstacles.** A gap in pixels means little on its own: 80 pixels at 2.5 pixels a frame is 32 frames to react, and the same 80 at 4 would be 20. Speed and gap work together, so the table should be checked in frames: the gap divided by the speed. The snippet's rows give {framesApart.map((frames) => Math.round(frames)).join(', ')} frames. The hero slides 4 pixels a frame, so crossing from one side lane to the other takes {crossing}. The last row stops exactly there: the hardest the game gets still leaves time for the longest dodge.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 120" role="img" aria-label={`Bars for the frames between two obstacles at each row: ${framesApart.map((frames) => Math.round(frames)).join(', ')}. A dashed line at ${crossing} frames, the time to cross from one side lane to the other. The last bar ends on the line.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{rows.map((row, i) => (
+			<g font-size="10" fill="currentColor">
+				<text x="10" y={22 + i * 22}>from {row.from}</text>
+				<rect x="80" y={12 + i * 22} width={barX(framesApart[i]) - 80} height="14" fill="#1e7cb8" />
+				<text x={barX(framesApart[i]) + 6} y={23 + i * 22}>{row.spacing} / {row.speed} = {Math.round(framesApart[i])}</text>
+			</g>
+		))}
+		<line x1={barX(crossing)} y1="6" x2={barX(crossing)} y2="100" stroke="#ff4d8d" stroke-width="2" stroke-dasharray="4 3" />
+		<text x={barX(crossing)} y="114" font-size="10" fill="#ff4d8d" text-anchor="middle">{crossing} frames: across two lanes</text>
+	</svg>
+	<figcaption>Frames between two obstacles at each row of <code>curve</code>, worked out from the table.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The run of [Endless run](/basics/runner/), getting harder. Change lanes with **←** and **→**. The top of the screen shows the total distance, and the speed and gap the curve gives there. The table reaches its last row at 768 pixels, about five seconds in.
+
+<Code code={curve} lang="cpp" title="snippets/curve/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/curve/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs down the dirt path, changing lanes. The HUD's speed climbs from 1.87 to 3.50 and its gap shrinks from 95 to 56, then both stop changing; the ground scrolls faster and the obstacles come closer together." />
+	<figcaption>From the start to past the last row. Captured from the emulator at 1x, shown at 2x.</figcaption>
+</figure>
+
+<Rom name="curve" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr stage curve[] = { { 0, 1.5, 104 }, ... };` | The table as an array of aggregates, built when compiling. `1.5` turns into a `bn::fixed` there too. |
+| `stage difficulty(int total)` | Returns a whole row by value: a small struct, so copying it is cheap and the caller gets both numbers at once. |
+| `(next.speed - now.speed) * done / length` | Multiply first, divide after. `done / length` alone would be integer division, 0 until the next row. And `bn::fixed * int` is exact, unlike `bn::fixed * bn::fixed`. |
+| `now.speed.round_integer()` | The legs' pace is an `int`. Rounding gives 3 at 2.5, where `integer()` would give 2. |
+| `stream.set_precision(3);` | Digits before and after the point together, so the speed prints as `2.75`. |
+
+Art: [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the track and the obstacles), the same as [Endless run](/basics/runner/), copied by [`snippets/tools/curve_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/curve_assets.py), and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. Both CC0.
+
+## Pitfalls
+
+**The game never gets past the start.**
+The snippet keeps its distance small with a lap: every 256 pixels it goes back to 0. A test ROM that looked the curve up with that distance, and not the total, showed its speed climbing from 1.50 to 2.44 and dropping back to 1.50 every 256 pixels, for the nine seconds it ran. It never reached the second row. Look up the curve with the total distance, `laps * lap + distance`.
+
+**Past the last row, the game keeps speeding up.**
+Blending reads the row after the current one. A test ROM without the snippet's check for the last row blended with whatever came after the table in memory. Past 768 pixels its speed kept going: 4.37 at 961, 12.5 at 2,758, with the gap growing from 56 to 201. Hold the last row: return it as it is, as `difficulty` does.
+
+## Read more
+
+- Headers: [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), for `round_integer` and the arithmetic with `int`.
+- cppreference: [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization), for the rows of the table.
+- Guide pages: [Endless run](/basics/runner/), for the track, the lap and obstacles by distance, [Interpolation and easing](/math/easing/), for blending and curves that aren't straight, [Hazards with a warning](/structure/hazards/), for another level written as a table, and [Fixed-point numbers](/math/fixed/).
