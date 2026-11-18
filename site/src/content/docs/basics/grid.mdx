@@ -1,0 +1,148 @@
+---
+title: Grid-locked movement
+description: A character whose place is a cell, with a sprite that slides to it, a step that starts only when the last one is over, and walls checked on the cell ahead before moving.
+genres: [puzzle, top-down]
+sidebar:
+  order: 5.48
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import grid from '../../../../../snippets/grid/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const zoom = 4;
+export const cellPx = 16 * zoom;
+export const speed = 2;
+export const framesPerCell = 16 / speed;
+export const steps = 3;
+export const frameX = (frame) => 30 + frame * 13;
+export const neighbors = [
+	{ dx: 0, dy: -1, open: true },
+	{ dx: 1, dy: 0, open: false },
+	{ dx: 0, dy: 1, open: true },
+	{ dx: -1, dy: 0, open: false },
+];
+
+## When to use it
+
+When the world is a grid and the player should always be on it: a block-pushing puzzle, a dungeon crawler, a tactics game, an old-school RPG town. Every position is a cell, so the rules stay simple: what's in the cell ahead decides whether the step can happen, and two things are in the same place only if they're in the same cell.
+
+For free movement, pixel by pixel, with collisions against walls, see [Map collision](/basics/collision/).
+
+## How to think about it
+
+**The cell is where the character is; the sprite only follows.** The snippet keeps two positions. The cell, two `int`s, is what every rule reads: walls, and in a real game doors, boxes and enemies. The sprite's position is only for drawing, and every frame it moves toward the cell's center. When a step starts, the cell changes at once, and the sprite takes {framesPerCell} frames to get there. In between, the rules already see the character in the new cell.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 240" role="img" aria-label="A corner of the garden, four times bigger, with its 16-pixel grid drawn over it. The hero's sprite is halfway between cell 1, 1 and cell 2, 1. The cell 2, 1 is outlined: for the rules the hero is already there. An arrow shows the sprite sliding toward it." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<image href="/images/grid/corner.png" x="10" y="10" width={80 * zoom} height={48 * zoom} style={{ imageRendering: 'pixelated' }} />
+		{Array.from({ length: 6 }, (_, i) => (
+			<line x1={10 + i * cellPx} y1="10" x2={10 + i * cellPx} y2={10 + 48 * zoom} stroke="#fff" stroke-opacity="0.5" />
+		))}
+		{Array.from({ length: 4 }, (_, i) => (
+			<line x1="10" y1={10 + i * cellPx} x2={10 + 80 * zoom} y2={10 + i * cellPx} stroke="#fff" stroke-opacity="0.5" />
+		))}
+		<rect x={10 + 2 * cellPx} y={10 + cellPx} width={cellPx} height={cellPx} fill="none" stroke="#1e7cb8" stroke-width="3" />
+		<image href="/images/runner/hero.png" x={10 + 16 * zoom} y={10 + 2 * zoom} width={32 * zoom} height={32 * zoom} style={{ imageRendering: 'pixelated' }} />
+		<path d={`M ${10 + 1.5 * cellPx + 20} ${10 + 1.5 * cellPx + 22} L ${10 + 2.5 * cellPx - 6} ${10 + 1.5 * cellPx + 22}`} stroke="#ff4d8d" stroke-width="2.5" />
+		<path d={`M ${10 + 2.5 * cellPx - 12} ${10 + 1.5 * cellPx + 16} L ${10 + 2.5 * cellPx - 6} ${10 + 1.5 * cellPx + 22} L ${10 + 2.5 * cellPx - 12} ${10 + 1.5 * cellPx + 28}`} fill="none" stroke="#ff4d8d" stroke-width="2.5" />
+		<g font-size="10" fill="currentColor">
+			<text x="10" y="218" fill="#ff4d8d">→ the sprite, on its way</text>
+			<text x="10" y="232" fill="#1e7cb8">□ cell_x = 2, cell_y = 1: where the rules see the hero</text>
+		</g>
+	</svg>
+	<figcaption>The top left of the snippet's garden with its cells. Cell (0, 0) is the corner bush.</figcaption>
+</figure>
+
+**A step starts only when the last one is over.** The buttons are only read on a frame when the sprite is exactly on its cell. On every other frame they're ignored, so a step can't be turned or stopped halfway, and a short tap still makes one whole step. Holding a direction starts the next step on the frame the sprite arrives, so the character walks without stopping: a new cell every {framesPerCell} frames.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 100" role="img" aria-label={`A timeline of ${steps * framesPerCell} frames with a direction held all the way: ${steps} steps of ${framesPerCell} frames each, end to end. The buttons are read only on frames 0, ${framesPerCell} and ${2 * framesPerCell}, marked in green; the frames in between, in blue, only slide the sprite.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{Array.from({ length: steps * framesPerCell }, (_, frame) => (
+			<rect x={frameX(frame) + 1} y="30" width="11" height="18" fill={frame % framesPerCell === 0 ? '#2f9e36' : '#1e7cb8'} fill-opacity={frame % framesPerCell === 0 ? 1 : 0.45} />
+		))}
+		<g font-size="10" fill="currentColor">
+			{Array.from({ length: steps }, (_, i) => (
+				<g>
+					<text x={frameX(i * framesPerCell + framesPerCell / 2)} y="22" text-anchor="middle">step {i + 1}: {16} px</text>
+					<text x={frameX(i * framesPerCell) + 6} y="64" text-anchor="middle" fill="#2f9e36">{i * framesPerCell}</text>
+				</g>
+			))}
+			<text x="190" y="88" text-anchor="middle"><tspan fill="#2f9e36">read the buttons</tspan>, or <tspan fill="#1e7cb8">slide {speed} px and ignore them</tspan></text>
+		</g>
+	</svg>
+	<figcaption>Three steps with a direction held, at the snippet's <code>speed</code> of {speed} pixels a frame.</figcaption>
+</figure>
+
+**Walls are checked on the cell ahead, before the step.** The level is an array of strings, one character per cell, and a wall is a `#`. When a step would start, the snippet looks at the cell it would go to: if it's a wall, the step never happens. The character never ends up inside a bush, so there's nothing to push it back out of, unlike collisions in free movement. The same array draws the background: the art script reads it out of `main.cpp`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 230" role="img" aria-label="Cell 5, 2 of the garden and its four neighbors, four times bigger. Up and down are grass: green arrows, the step can happen. Left and right are bushes: pink crosses, the step never starts." style={{ display: 'block', width: '100%', maxWidth: '400px', marginInline: 'auto' }}>
+		<image href="/images/grid/cross.png" x="94" y="19" width={48 * zoom} height={48 * zoom} style={{ imageRendering: 'pixelated' }} />
+		<rect x={94 + cellPx} y={19 + cellPx} width={cellPx} height={cellPx} fill="none" stroke="#1e7cb8" stroke-width="3" />
+		{neighbors.map((n) => {
+			const cx = 94 + 1.5 * cellPx + n.dx * cellPx;
+			const cy = 19 + 1.5 * cellPx + n.dy * cellPx;
+			return n.open
+				? <circle cx={cx} cy={cy} r="12" fill="none" stroke="#2f9e36" stroke-width="4" />
+				: <path d={`M ${cx - 12} ${cy - 12} L ${cx + 12} ${cy + 12} M ${cx + 12} ${cy - 12} L ${cx - 12} ${cy + 12}`} stroke="#ff4d8d" stroke-width="5" />;
+		})}
+		<g font-size="10" fill="currentColor">
+			<text x="10" y="120" fill="#ff4d8d">level[2][4]: #</text>
+			<text x="296" y="120" fill="#ff4d8d">level[2][6]: #</text>
+			<text x="190" y="12" text-anchor="middle" fill="#2f9e36">level[1][5]: .</text>
+			<text x="190" y="226" text-anchor="middle" fill="#2f9e36">level[3][5]: .</text>
+		</g>
+	</svg>
+	<figcaption>The four steps from cell (5, 2), and the characters of <code>level</code> that decide them: row first, then column.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad**: the hero goes one cell per press, or keeps walking while it's held, and stops in front of the bushes.
+
+<Code code={grid} lang="cpp" title="snippets/grid/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/grid/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks through a garden maze of bushes, always stopping exactly in the middle of a cell, turning corners on the grid and stopping when a bush is ahead." />
+	<figcaption>Walking the maze with directions held. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="grid" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr const char* level[] = { "###...", ... };` | An array of pointers to string literals: each row stays in ROM, and `level[y][x]` is the character at column x of row y. |
+| `int step_y = step_x == 0 ? ... : 0;` | Sideways wins, and up/down only counts when there's no sideways: diagonals can't happen. |
+| `if(hero.position() == target)` | Comparing `bn::fixed` with `==` works here because the sprite only ever moves by whole pixels and stops exactly on the target. |
+| `bn::clamp(delta.x(), bn::fixed(-speed), bn::fixed(speed))` | A step of at most `speed` toward the target, that lands exactly on it. See the pitfalls for what happens without it. |
+| `(step.x() > 0) - (step.x() < 0)` | The sign of a number, -1, 0 or 1, from two comparisons, since `bool` counts as 0 or 1. Butano has no sign function. |
+
+Art: [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the grass and the bushes), drawn from the level by [`snippets/tools/grid_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/grid_assets.py), and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. Both CC0.
+
+## Pitfalls
+
+**A tap walks several cells.**
+A test ROM that read the buttons on every frame, not only on arrival, moved the cell once per frame while the button was down. A 100 ms tap, six frames, took the cell four cells to the right, up to the bush, and the sprite slid all the way after it, long after the button was up. The snippet, with the same tap, walked one cell. Start a step only when the sprite is on its cell.
+
+**The character stops after one step and shakes.**
+16 pixels must be a whole number of moves. A test ROM that moved 3 pixels a frame, without limiting the last move, went 15 pixels, then 18, then back to 15, and so on: one second later its x was still going 37, 40, 37, 39... and it never sat exactly on the cell, so the buttons were never read again. Clamp the last move to what's left, as the snippet does, or pick a speed that divides 16.
+
+**The walk stutters at every cell.**
+A test ROM that started a step on one frame and only moved on the next stood still for one frame per cell. Holding right for four cells took 34 frames, against 30 for the snippet: the hero walked, stopped, walked. Start the step and make its first move on the same frame.
+
+## Read more
+
+- Headers: [`bn_fixed_point.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_point.h), for adding and comparing positions, and [`bn_algorithm.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_algorithm.h), for `bn::clamp`.
+- cppreference: [string literals](https://en.cppreference.com/w/cpp/language/string_literal), for what `level` holds.
+- Guide pages: [Map collision](/basics/collision/), for free movement against walls, [Pathfinding](/math/pathfinding/), for walking a grid on its own, [Interpolation and easing](/math/easing/), for a slide that isn't at a constant speed, and [Input](/basics/input/), for `held` and `pressed`.

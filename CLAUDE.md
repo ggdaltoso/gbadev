@@ -90,7 +90,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Jump seen from above: height as a third axis, with the shadow on the ground (builds on Shadows and reflections).
    - [x] Difficulty curve: speed and obstacle density rising with distance, as data.
 4. **Puzzle and grid:**
-   - [ ] Grid-locked movement: cell by cell, smooth between cells.
+   - [x] Grid-locked movement: cell by cell, smooth between cells.
    - [ ] Cross-shaped explosion: spreads over the map and stops at walls.
    - [ ] A map that changes while the game runs: tiles removed and added.
 5. **Any genre:**
