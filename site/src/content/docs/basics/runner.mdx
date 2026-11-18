@@ -1,0 +1,147 @@
+---
+title: Endless run
+description: A hero that stays put while a repeating track scrolls under it, obstacles placed by distance along the track, and a lap that keeps every number small.
+genres: [runner]
+sidebar:
+  order: 5.3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import runner from '../../../../../snippets/runner/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const example = { distance: 100, at: 172, heroY: -40 };
+export const screenY = example.heroY + example.at - example.distance;
+export const speeds = [2, 3];
+export const byTime = (speed) => Array.from({ length: 5 }, (_, i) => i * 36 * speed);
+export const byDistance = () => Array.from({ length: 5 }, (_, i) => i * 72);
+export const dotX = (pixels) => 120 + pixels * 0.55;
+
+## When to use it
+
+For a game where the player keeps going and the world comes at them: an endless runner, a car dodging traffic on a road, a vertical shoot 'em up over scrolling ground, a falling game. The level never ends because it isn't stored: the ground repeats, and the obstacles are made on the way.
+
+A level that's drawn once and has an end is a big map instead: see [Big maps](/basics/bigmap/). For layers moving at different speeds behind the action, see [Parallax](/basics/parallax/).
+
+## How to think about it
+
+**The hero stays still; the track moves.** The hero keeps the same spot near the top of the screen, and only its legs and its lane change. The track is one background, 256 pixels tall, moved up a little every frame. A background repeats on its own when it's moved past its edge, so the track never ends, as long as its bottom row meets its top row. Here everything is drawn on Tiny Town's 16-pixel tiles and 256 is 16 of them, so it does: unlike the 96-pixel clouds of the [Parallax](/basics/parallax/) page, which break where they repeat.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 300" role="img" aria-label="The track drawn twice, one copy under the other, 256 pixels each, and a screen-sized window over them. An arrow shows the track moving up as the distance grows. Where the two copies meet, the path and the grass continue without a seam." style={{ display: 'block', width: '100%', maxWidth: '400px', marginInline: 'auto' }}>
+		<image href="/images/runner/track.png" x="70" y="10" width="128" height="128" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/runner/track.png" x="70" y="138" width="128" height="128" style={{ imageRendering: 'pixelated' }} />
+		<line x1="62" y1="138" x2="206" y2="138" stroke="#ff4d8d" stroke-dasharray="4 3" />
+		<rect x="74" y="79" width="120" height="80" fill="none" stroke="#1e7cb8" stroke-width="2.5" />
+		<g font-size="10" fill="currentColor">
+			<text x="212" y="141" fill="#ff4d8d">256: the track starts again</text>
+			<text x="212" y="92" fill="#1e7cb8">the screen</text>
+			<text x="212" y="250">the track moves up</text>
+			<text x="212" y="262">as the distance grows</text>
+			<path d="M 230 236 L 230 206" stroke="currentColor" stroke-width="1.5" />
+			<path d="M 226 212 L 230 206 L 234 212" fill="none" stroke="currentColor" stroke-width="1.5" />
+			<text x="134" y="285" text-anchor="middle">track.bmp, twice, at half size</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's track. The window is the part the screen shows when the distance is 90.</figcaption>
+</figure>
+
+**Everything comes from one number: the distance.** The snippet counts how far the hero has run. The track's position is minus that distance. Each obstacle remembers the distance at which the hero reaches it, and its place on the screen is the hero's place plus how far ahead it still is. Because the track and the obstacles come from the same number, the obstacles stay glued to the ground. Every 256 pixels the snippet does a lap: it takes 256 off the distance and off every obstacle at once. Nothing on the screen moves, since the track repeats every 256 pixels, and the numbers never grow past one lap.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 150" role="img" aria-label={`A worked example. The distance is ${example.distance}. An obstacle sits at ${example.at} along the track, so it's ${example.at - example.distance} pixels ahead of the hero. The hero is at y ${example.heroY} on the screen, so the obstacle is drawn at y ${example.heroY} plus ${example.at - example.distance}: ${screenY}.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1="40" y1="20" x2="40" y2="130" stroke="currentColor" stroke-opacity="0.5" />
+		<text x="34" y="16" font-size="9" fill="currentColor" text-anchor="middle">the track</text>
+		<circle cx="40" cy="40" r="4" fill="#1e7cb8" />
+		<circle cx="40" cy="112" r="4" fill="#ff4d8d" />
+		<image href="/images/runner/hero.png" x="48" y="26" width="28" height="28" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/runner/hive.png" x="50" y="102" width="20" height="20" style={{ imageRendering: 'pixelated' }} />
+		<path d="M 84 40 L 84 112" stroke="currentColor" stroke-width="1.5" />
+		<g font-size="10" fill="currentColor">
+			<text x="92" y="44" fill="#1e7cb8">distance = {example.distance}</text>
+			<text x="92" y="116" fill="#ff4d8d">at = {example.at}</text>
+			<text x="92" y="80">ahead: {example.at} - {example.distance} = {example.at - example.distance}</text>
+			<text x="230" y="44">hero on screen: y = {example.heroY}</text>
+			<text x="230" y="80">obstacle on screen:</text>
+			<text x="230" y="94">{example.heroY} + {example.at - example.distance} = {screenY}</text>
+		</g>
+	</svg>
+	<figcaption>How the snippet turns an obstacle's place on the track into its place on the screen: <code>hero_y + ahead.at - distance</code>.</figcaption>
+</figure>
+
+**Obstacles come by distance, not by time.** The snippet makes the next obstacle when the track has moved 72 more pixels, and makes it 140 pixels ahead of the hero, below the bottom of the screen. Counting frames instead would work only at one speed: one obstacle every 36 frames is 72 pixels apart at 2 pixels a frame, and 108 pixels apart at 3. By distance, the gaps on the track stay 72 at any speed, so a faster run is harder only because there's less time to react, which is the next step: a speed that rises with the distance.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 130" role="img" aria-label="Obstacles along the track, as dots. Made every 36 frames, they're 72 pixels apart at speed 2 and 108 apart at speed 3. Made every 72 pixels of track, they're 72 apart at both speeds." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<text x="10" y="14" font-weight="bold">every 36 frames</text>
+			{speeds.map((speed, i) => (
+				<g>
+					<text x="10" y={34 + i * 18}>speed {speed}</text>
+					<line x1="120" y1={30 + i * 18} x2="370" y2={30 + i * 18} stroke="currentColor" stroke-opacity="0.25" />
+					{byTime(speed).filter((p) => dotX(p) <= 370).map((pixels) => (
+						<circle cx={dotX(pixels)} cy={30 + i * 18} r="4" fill="#ff4d8d" />
+					))}
+				</g>
+			))}
+			<text x="10" y="84" font-weight="bold">every 72 pixels of track</text>
+			{speeds.map((speed, i) => (
+				<g>
+					<text x="10" y={104 + i * 18}>speed {speed}</text>
+					<line x1="120" y1={100 + i * 18} x2="370" y2={100 + i * 18} stroke="currentColor" stroke-opacity="0.25" />
+					{byDistance().filter((p) => dotX(p) <= 370).map((pixels) => (
+						<circle cx={dotX(pixels)} cy={100 + i * 18} r="4" fill="#2f9e36" />
+					))}
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>Where the obstacles end up on the track, worked out for two speeds. Only the green rows keep the same gaps.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Change lanes with **←** and **→**: the hero slides to the next of three lanes. Bushes, logs and beehives come up the path, and running into one counts a bump and makes the hero blink for a moment. The top of the screen shows the distance in pixels and the bumps.
+
+<Code code={runner} lang="cpp" title="snippets/runner/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/runner/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs down a dirt path between grass and trees, staying near the top of the screen while the ground scrolls up. It slides between the three lanes; obstacles come up from the bottom, and the ones it runs into make it blink. The distance at the top climbs past 800." />
+	<figcaption>A few lane changes, some in time and some not. Captured from the emulator at 1x, shown at 2x.</figcaption>
+</figure>
+
+<Rom name="runner" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::clamp(lane + bn::keypad::right_pressed() - bn::keypad::left_pressed(), 0, 2)` | A `bool` counts as 0 or 1 in arithmetic, so one line moves the lane and keeps it between 0 and 2. `pressed` and not `held`: one lane per press. |
+| `hero.x() + bn::clamp(lane_x - hero.x(), bn::fixed(-4), bn::fixed(4))` | A step toward the lane, at most 4 pixels, that ends exactly on it. See [Interpolation and easing](/math/easing/) for curves. |
+| `walk.update(hero, 0, 1, run_speed.integer());` | Always walking down, with the legs at the track's pace. See the shared `hero_walk.h` above. |
+| `while(next_obstacle <= distance + spawn_ahead)` | A `while`, not an `if`: if the track moved more than one gap in a frame, every obstacle it owes gets made. |
+| `[distance](const obstacle& passed) { ... }` | A lambda that captures `distance` by value: the predicate needs it, and `erase_if` only passes the obstacle. |
+
+Art: [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the track and the obstacles), cut by [`snippets/tools/runner_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/runner_assets.py), and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. Both CC0.
+
+## Pitfalls
+
+**"Vector is full" after a long run.**
+A `bn::fixed` holds up to 524,287 and a bit. A test ROM without the lap started its distance at 524,000 to avoid running for over an hour, and less than two seconds after it started, the game stopped with "Vector is full". The next obstacle's place went past the limit first and turned negative, so every frame it looked overdue, and the `while` kept making obstacles until the vector had no room. Keep the numbers small with a lap, or count in a type that can't get there.
+
+**Obstacles appear out of nowhere.**
+In a test ROM that made obstacles 60 pixels ahead of the hero instead of 140, each one popped into the middle of the path, just below the hero, with no time to see it coming. Make them far enough ahead to start below the bottom of the screen: from the hero at y = -40 to the bottom edge at 80 is 120 pixels, plus half an obstacle.
+
+## Read more
+
+- Headers: [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h), for `set_y`, and [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), for the type and its range.
+- Tonc: [Regular tiled backgrounds](https://gbadev.net/tonc/regbg.html), for how a background wraps around.
+- Guide pages: [Parallax](/basics/parallax/), for layers that repeat and how their art must fit, [Fixed-point numbers](/math/fixed/), for where `bn::fixed` runs out, [Game objects](/structure/objects/), for making and erasing the obstacles, and [Big maps](/basics/bigmap/), for a level with an end.
