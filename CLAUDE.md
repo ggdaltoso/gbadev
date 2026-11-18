@@ -38,6 +38,8 @@ Pages live in `site/src/content/docs/<section>/<name>.mdx`. Each one has five se
 4. **Pitfalls:** each one measured in a probe ROM (`snippets/_t_*`), with the symptom actually seen. Delete the probes afterwards, and their copies in `site/public/roms/`.
 5. **Read more:** Butano examples and headers, Tonc, cppreference, other guide pages. Check every link with curl.
 
+**Genres:** a page that suits one kind of game best says so in its frontmatter, `genres: [shooter]` (at most two). A page that suits any genre has no `genres`. The list, with each one's icon and color, is `site/src/genres.ts`; the schema rejects anything else. The icons show next to the page in the sidebar (`site/src/routeData.ts`), under its title (`site/src/components/PageTitle.astro`) and in the legend on the home page.
+
 Writing rules:
 
 - **Claims:** say what was measured and what was only worked out. Don't state anything you didn't check.
@@ -74,27 +76,31 @@ Writing rules:
 
 ## Next lessons
 
-The plan agreed with the owner, for the minigames of their game ("Lucas vs Trabalho", described in `~/projects/gg-game/GAME.md`). One phase at a time, in this order; each lesson follows the usual process above. Tick each one here when it's committed.
+The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/projects/gg-game/GAME.md`), but the lessons are not those minigames. Each one teaches its topic with an example from the genre where it fits best, and gets that genre's tag. In this order; tick each one here when it's committed.
 
-1. **Bug Invaders** (Space Invaders):
+1. **Shooter:**
    - [ ] Formation that moves as one: sideways, down at the edge, faster as fewer are left.
    - [ ] Sprite budget: dozens of enemies and shots under the 128-sprite limit; when a background beats sprites, measured.
-2. **Sexta, 17h59** (Jetpack Joyride):
-   - [ ] Hold to fly: thrust and gravity in `bn::fixed`, with a top speed.
+2. **Platformer:**
+   - [ ] Gravity and jumping: falling in `bn::fixed`, a top speed, a jump that goes higher the longer A is held.
    - [ ] Parallax: layers at different speeds.
    - [ ] Warning before the danger: a scheduled event with a warning first (a sound, a blinking laser), its timing as data.
-3. **Segunda-feira** (Subway Surfers, seen from above):
+3. **Runner (seen from above):**
    - [ ] Endless run: a vertical background that repeats, obstacles spawned by distance.
    - [ ] Jump seen from above: height as a third axis, with the shadow on the ground (builds on Shadows and reflections).
    - [ ] Difficulty curve: speed and obstacle density rising with distance, as data.
-4. **Alt+Tab**:
-   - [ ] Bars and meters: a bar that fills smoothly, drawn with tiles.
-   - [ ] Instant screen swap: two screens alive at once, switched with a button, state kept.
-   - [ ] A character that follows a route: from a door to a desk.
-5. **Backlog infinito** (Bomberman-like):
+4. **Puzzle and grid:**
    - [ ] Grid-locked movement: cell by cell, smooth between cells.
    - [ ] Cross-shaped explosion: spreads over the map and stops at walls.
    - [ ] A map that changes while the game runs: tiles removed and added.
-6. **The compilation**:
+5. **Any genre:**
+   - [ ] Bars and meters: a bar that fills smoothly, drawn with tiles.
+   - [ ] Instant screen swap: two screens alive at once, switched with a button, state kept.
+   - [ ] A character that follows a route: from a door to a desk.
    - [ ] Level menu: cursor, locked levels, the goal still missing.
-   - [ ] Several minigames in one ROM: each one a scene that owns its resources, one shared save.
+   - [ ] Several games in one ROM: each one a scene that owns its resources, one shared save.
+
+6. **The site:**
+   - [ ] Study touch controls for the emulator: an on-screen D-pad and buttons, so a page's ROM can be played on a phone. Look at what mgba-wasm accepts for input first, and bring the owner a plan before building.
+
+Art for these: Kenney packs (CC0) the owner downloaded to `~/Downloads/kenney_*.zip`. Copy only the pack a lesson uses into `assets/kenney-<pack>/`, with a `CREDITS.md`.

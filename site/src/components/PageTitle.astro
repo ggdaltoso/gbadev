@@ -1,0 +1,42 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import { genre, genreSvg } from '../genres';
+
+const ids = Astro.locals.starlightRoute.entry.data.genres ?? [];
+---
+
+<Default />
+{
+	ids.length > 0 && (
+		<ul class="genres" aria-label="Suits best">
+			{ids.map((id) => (
+				<li>
+					<span class="genre-icon" set:html={genreSvg(id)} />
+					{genre(id).name}
+				</li>
+			))}
+		</ul>
+	)
+}
+
+<style>
+	.genres {
+		display: flex;
+		gap: 0.5rem;
+		list-style: none;
+		padding: 0;
+		margin: 0.5rem 0 0;
+		font-size: var(--sl-text-sm);
+	}
+	.genres li {
+		display: flex;
+		align-items: center;
+		gap: 0.35em;
+		margin: 0;
+	}
+	.genre-icon :global(svg) {
+		display: block;
+		width: 1.25em;
+		height: 1.25em;
+	}
+</style>

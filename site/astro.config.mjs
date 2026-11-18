@@ -8,6 +8,8 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'gbadev',
+			routeMiddleware: './src/routeData.ts',
+			components: { PageTitle: './src/components/PageTitle.astro' },
 			customCss: ['@fontsource-variable/jetbrains-mono', './src/styles/custom.css'],
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ggdaltoso/gbadev' }],
 			sidebar: [

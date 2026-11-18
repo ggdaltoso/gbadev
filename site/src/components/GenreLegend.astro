@@ -1,0 +1,29 @@
+---
+import { genres, genreSvg } from '../genres';
+---
+
+<table>
+	<thead>
+		<tr><th>Icon</th><th>Genre</th><th>The kind of game</th></tr>
+	</thead>
+	<tbody>
+		{genres.map((g) => (
+			<tr>
+				<td><span class="genre-icon" set:html={genreSvg(g.id)} /></td>
+				<td>{g.name}</td>
+				<td>{g.about}</td>
+			</tr>
+		))}
+	</tbody>
+</table>
+
+<style>
+	td {
+		vertical-align: middle;
+	}
+	.genre-icon :global(svg) {
+		display: block;
+		width: 1.5em;
+		height: 1.5em;
+	}
+</style>

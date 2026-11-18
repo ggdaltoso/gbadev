@@ -10,6 +10,23 @@ For signatures and the full API, the [official Butano docs](https://gvaliente.gi
 
 Butano's docs tell you *what* every class does. This guide starts from "I want to do X" and shows which Butano pieces you need, in what order, and where they bite.
 
-Every page has the same five parts: when to use it, how to think about it, the smallest thing that works, pitfalls, and where to read more. Every snippet is built by `make` in the guide's [`snippets/`](https://github.com/ggdaltoso/gbadev/tree/main/snippets) project.
+Every page has the same five parts: when to use it, how to think about it, the smallest thing that works, pitfalls, and where to read more. Every snippet is built by `make` in the guide's [`snippets/`](https://github.com/ggdaltoso/gbadev/tree/main/snippets) project, and every page runs its snippet in your browser: press its **Run** button and play it with the keyboard.
+
+The pages are in four sections:
+
+- **The basics:** what almost every game needs. The game loop, input, sprites, backgrounds, the camera, collision, text, saves and sound.
+- **Effects:** what the hardware can do to the picture. Blending, windows, mosaic, rotation, line-by-line effects, shake, particles.
+- **Structure:** how to organize a game as it grows. Scenes, game objects, state machines, files, performance, replays.
+- **Math:** the numbers behind the motion. Fixed point, vectors, hitboxes, velocity, easing, line of sight, pathfinding.
 
 Start with [the game loop](/basics/game-loop/).
+
+## Genres
+
+Most pages suit any kind of game. Some suit one kind best, and say so with an icon next to their name in the sidebar and under their title:
+
+import GenreLegend from '../../components/GenreLegend.astro';
+
+<GenreLegend />
+
+A page without an icon suits any genre.

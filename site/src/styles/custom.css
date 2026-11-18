@@ -2,3 +2,23 @@
 :root {
 	--sl-font-mono: 'JetBrains Mono Variable', monospace;
 }
+
+/* Genre icons on sidebar links, set by src/routeData.ts. */
+a[data-genres] {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+}
+a[data-genres] > span {
+	flex: 1;
+}
+a[data-genres]::after {
+	content: '';
+	flex: none;
+	width: calc(var(--genre-count) * 1.25em - 0.25em);
+	height: 1em;
+	background-image: var(--genre-icons);
+	background-position: var(--genre-positions);
+	background-size: 1em 1em;
+	background-repeat: no-repeat;
+}
