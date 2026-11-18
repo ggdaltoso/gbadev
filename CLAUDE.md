@@ -80,7 +80,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 
 1. **Shooter:**
    - [x] Formation that moves as one: sideways, down at the edge, faster as fewer are left.
-   - [ ] Sprite budget: dozens of enemies and shots under the 128-sprite limit; when a background beats sprites, measured.
+   - [x] Sprite budget: dozens of enemies and shots under the 128-sprite limit; when a background beats sprites, measured.
 2. **Platformer:**
    - [ ] Gravity and jumping: falling in `bn::fixed`, a top speed, a jump that goes higher the longer A is held.
    - [ ] Parallax: layers at different speeds.

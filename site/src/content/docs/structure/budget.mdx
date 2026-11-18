@@ -1,0 +1,133 @@
+---
+title: Sprite budget
+description: Butano's 128 sprites as a budget that enemies, shots and text share, shot capacity worked out from what's left, the per-line limit that drops the oldest sprites, and when a background is the better deal.
+genres: [shooter]
+sidebar:
+  order: 5.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import budget from '../../../../../snippets/budget/src/main.cpp?raw';
+
+export const shares = [
+	{ label: 'enemies', count: 21, color: '#1e7cb8' },
+	{ label: 'ship', count: 1, color: '#2f9e36' },
+	{ label: 'text', count: 4, color: '#ff4d8d' },
+	{ label: 'shots', count: 102, color: 'currentColor' },
+];
+export const slots = shares.flatMap((share) => Array.from({ length: share.count }, () => share));
+export const slotX = (i) => 10 + (i % 32) * 11.2;
+export const slotY = (i) => 14 + Math.floor(i / 32) * 13;
+export const legendX = [10, 110, 170, 240];
+export const cloudCells = Array.from({ length: 24 }, (_, i) => ({ x: (i % 8) * 32, y: 88 + Math.floor(i / 8) * 32 }));
+
+## When to use it
+
+When the screen gets crowded: a shoot 'em up's bullet curtain, a horde of enemies, sparks on every hit. Butano has room for 128 sprites, and everything that's a sprite takes one: enemies, shots, the player, and each 32-pixel piece of text. Work out the budget before the game runs out of it in the middle of a level.
+
+A game with a dozen things on screen never gets close to the limit and can skip this page. The [Object pools](/structure/pool/) page sizes one kind of object; this page splits the whole screen.
+
+## How to think about it
+
+**The 128 sprites are a budget, and every kind of thing gets its share.** The snippet adds up what it knows: 21 enemies, 1 ship and 4 sprites of text. The shots get what's left, 102, and that's the capacity of their vector. A shot that doesn't fit is never made, so the game can't ask Butano for a 129th sprite. Text counts too: in a test ROM, "Sprites: 128 of 128" took 4 sprites.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 92" role="img" aria-label="128 squares in four rows of 32. The first 21 are blue for the enemies, the next one green for the ship, the next 4 pink for the text, and the remaining 102 outlined for the shots." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{slots.map((share, i) => (
+			<rect x={slotX(i)} y={slotY(i)} width="9" height="10" rx="1.5" fill={share.color} fill-opacity={share.label === 'shots' ? 0.12 : 1} stroke={share.label === 'shots' ? 'currentColor' : 'none'} stroke-opacity="0.4" />
+		))}
+		<g font-size="10">
+			{shares.map((share, i) => (
+				<g>
+					<rect x={legendX[i]} y="72" width="9" height="10" rx="1.5" fill={share.color} fill-opacity={share.label === 'shots' ? 0.12 : 1} stroke={share.label === 'shots' ? 'currentColor' : 'none'} stroke-opacity="0.4" />
+					<text x={legendX[i] + 13} y="81" fill="currentColor">{share.label}: {share.count}</text>
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>The snippet's budget, one square per sprite. The shots get what the rest leaves.</figcaption>
+</figure>
+
+**Each line of the screen has a budget of its own, and the oldest sprites lose.** The hardware draws sprites one line at a time, with 1210 cycles per line, and a normal sprite costs one cycle per pixel of width ([GBATEK](https://problemkaputt.de/gbatek.htm#lcdobjoverview)). That's about 37 sprites 32 pixels wide on the same line. In a test ROM with 40 of them on the same 32 lines, mGBA drew 38: the 2 made first were missing, with no error. Thin sprites rarely get there: an 8-pixel shot costs 8 cycles, so 128 of them fit on one line.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 118" role="img" aria-label="A screenshot strip from the test ROM: 40 aliens, each 5 pixels right of the one before, overlapping in a long row. The row starts 16 pixels in from the left edge instead of at the edge: the first two aliens, the oldest, weren't drawn. Labels: 2 oldest missing at the left, 38 newest drawn." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<image href="/images/budget/line.png" x="10" y="20" width="360" height="72" style={{ imageRendering: 'pixelated' }} />
+		<rect x="10" y="20" width="360" height="72" fill="none" stroke="currentColor" stroke-opacity="0.4" />
+		<rect x="10" y="32" width="24" height="48" fill="#ff4d8d" fill-opacity="0.25" stroke="#ff4d8d" stroke-dasharray="3 2" />
+		<g font-size="10">
+			<text x="10" y="13" fill="#ff4d8d">2 oldest: not drawn</text>
+			<text x="370" y="13" text-anchor="end" fill="#2f9e36">38 newest: drawn, the last one on top</text>
+			<text x="190" y="110" text-anchor="middle" fill="currentColor">40 sprites of 32x32 on the same lines: 1280 cycles, more than 1210</text>
+		</g>
+	</svg>
+	<figcaption>The test ROM's screen, the 48 lines around the row, at 1.5x. Captured from mGBA, the site's emulator, not from a GBA.</figcaption>
+</figure>
+
+**Whatever doesn't move on its own belongs in a background.** The sky behind the snippet is a regular background: zero sprites and zero cycles on any line. Built from 32x32 sprites, the clouds and hills at the bottom would take 24 sprites, 8 across and 3 down, and 256 cycles on each of their lines. That's 24 shots fewer, and a fifth of the line budget gone before the first shot crosses it. These numbers are worked out from the sizes, not measured. Scenery, walls and a HUD frame are tiles; sprites are for things that move one by one.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label="The snippet's sky background, with the bottom part, clouds and hills, covered by a grid of 24 squares of 32 by 32 pixels: 8 across and 3 down. A label says: as a background, 0 sprites; as sprites, 24 sprites and 256 cycles per line." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<svg x="10" y="5" width="240" height="160" viewBox="0 0 240 160" overflow="hidden">
+			<image href="/images/budget/sky.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+			{cloudCells.map((cell) => (
+				<rect x={cell.x} y={cell.y} width="32" height="32" fill="#ff4d8d" fill-opacity="0.08" stroke="#ff4d8d" stroke-width="1" />
+			))}
+		</svg>
+		<rect x="10" y="5" width="240" height="160" fill="none" stroke="currentColor" stroke-opacity="0.4" />
+		<g font-size="10" fill="currentColor">
+			<text x="262" y="40" fill="#2f9e36">as a background:</text>
+			<text x="262" y="54">0 sprites</text>
+			<text x="262" y="68">0 cycles per line</text>
+			<text x="262" y="110" fill="#ff4d8d">as sprites:</text>
+			<text x="262" y="124">24 sprites</text>
+			<text x="262" y="138">256 cycles per line</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's background at 1x. The pink grid is what the bottom would cost as 32x32 sprites, worked out.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Move with **←** and **→**, hold **A** to fire and hold **B** to make the enemies rain shots. Nobody gets hurt: what matters is the count at the top, which climbs toward 128 and can't go past it.
+
+<Code code={budget} lang="cpp" title="snippets/budget/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/budget/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The ship fires a stream of shots up. Then the enemies rain shots down in long lines, and the count at the top climbs from 27 to the 120s and stays there. After the buttons are let go, the shots leave the screen and the count drops back to 28." />
+	<figcaption>A held, then A and B, then nothing. In the frames sampled during the rain, the count stayed between 115 and 127. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="budget" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `#include "bn_config_sprites.h"` | Where `BN_CFG_SPRITES_MAX_ITEMS` comes from. Using the macro instead of writing 128 keeps the budget right if the project raises it. |
+| `constexpr int max_shots = BN_CFG_SPRITES_MAX_ITEMS - ...;` | Worked out by the compiler, so it can be the vector's capacity. The macro is replaced by its value before compiling, like any `#define`. |
+| `if(... && ! shots.full())` | The budget in one check: no room, no shot. Without it, `push_back` on a full `bn::vector` stops the game too, with "Vector is full" (`bn_vector.h`). |
+| `sprite.set_vertical_flip(true);` | The same bullet art, pointing down. Flipping costs no extra tiles. |
+| `bn::erase_if(shots, [](const shot& flying) { ... });` | Destroys the shots that left the screen, and with them their sprites. See [Game objects](/structure/objects/). |
+| `bn::sprites::used_items_count()` | How many sprites Butano has made right now, hidden or not, the text included. |
+
+Art: [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) (the enemies and the sky) and [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) (the ship and the shot) by Kenney, CC0, cut by [`snippets/tools/formation_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/formation_assets.py), the same script as the [Formations](/structure/formation/) page.
+
+## Pitfalls
+
+**"No more sprite items available" in the middle of the game.**
+In a test ROM with room for 200 shots and no `full()` check, holding A and B stopped the game about a second later, right after the count read 125: the next shot was sprite 129. It doesn't happen in a quiet moment, it happens at the busiest one. Give every kind of thing a capacity that adds up to 128. Hidden sprites count too: see [Object pools](/structure/pool/).
+
+**"Too many on screen sprites" after raising the limit.**
+`BN_CFG_SPRITES_MAX_ITEMS` can go past 128, because Butano doesn't send hidden or off-screen sprites to the hardware. In a test ROM built with it at 256, 200 sprites with 100 on screen ran fine. With 130 on screen, the game stopped with "Too many on screen sprites" (`bn_sprites_manager.cpp`, line 210). Raising it lets you keep more sprites made than shown, never more shown than 128.
+
+**The enemies flicker out when the screen gets busy.**
+The sprites dropped on a crowded line are the oldest ones. In the 40-sprite test ROM, the 2 that went missing were the first 2 made. In a shooter, the oldest sprites are usually the enemies, made at the start of the wave, so a row of big sprites can make an enemy vanish on those lines while the newer shots stay. There's no error to catch: count the width on the busiest line, or keep big sprites off the same lines. Measured in mGBA, not on a GBA.
+
+## Read more
+
+- Headers: [`bn_sprites.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprites.h), for `used_items_count` and `available_items_count`, [`bn_config_sprites.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_sprites.h), for `BN_CFG_SPRITES_MAX_ITEMS`, and [`bn_sprites_manager.cpp`](https://github.com/GValiente/butano/blob/master/butano/src/bn_sprites_manager.cpp), for both errors.
+- GBATEK: [LCD OBJ overview](https://problemkaputt.de/gbatek.htm#lcdobjoverview), for the 1210 cycles per line and what each kind of sprite costs.
+- cppreference: [`#define`](https://en.cppreference.com/w/cpp/preprocessor/replace), for what a macro like `BN_CFG_SPRITES_MAX_ITEMS` is.
+- Guide pages: [Object pools](/structure/pool/), for making the shots once and reusing them, [Formations](/structure/formation/), for the enemies moving as one, [Performance](/structure/profiler/), for the CPU side of a crowded screen, and [Depth sorting](/basics/depth/), for the 16 sort layers, another limit of Butano's sprites.
