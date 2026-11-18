@@ -51,6 +51,7 @@ Writing rules:
 
 ## Checking a lesson
 
+- **Dev server:** the owner keeps their own `astro dev` running on port 4321 to watch changes. Use it; never start or stop anything on 4321. If it isn't running, start one on another port (`npm run dev -- --port 4322`) and stop only that process, by its PID.
 - `cd site && npm run build` must end with `Complete!`. Copy new ROMs to `site/public/roms/`, or run `npm run -s static`.
 - Open the page in the owner's Edge through the Chrome extension, in the light theme. Check every figure and the Run button, then close the tab.
 - Don't mention the dark theme in reports, not even as "not checked". The owner will say when it's a problem.
