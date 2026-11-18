@@ -1,0 +1,172 @@
+---
+title: Cross-shaped explosion
+description: A blast worked out once as a list of cells, arms that walk out from the bomb and stop at the first wall, and flames that hit whatever is on their cells, other bombs included.
+genres: [puzzle]
+sidebar:
+  order: 5.49
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import explosion from '../../../../../snippets/explosion/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const cross = [[5, 5], [6, 5], [7, 5], [8, 5], [5, 6], [5, 7], [5, 8]];
+export const crossWalls = [[4, 5], [5, 4]];
+export const blastA = [[3, 1], [4, 1], [5, 1], [2, 1], [1, 1]];
+export const blastB = [[5, 1], [4, 1], [3, 1], [2, 1], [5, 2], [5, 3]];
+export const x = (cells) => cells.map(([cx, cy]) => `M ${cx * 16 + 3} ${cy * 16 + 3} L ${cx * 16 + 13} ${cy * 16 + 13} M ${cx * 16 + 13} ${cy * 16 + 3} L ${cx * 16 + 3} ${cy * 16 + 13}`).join(' ');
+
+## When to use it
+
+When a blast should follow the corridors of a grid: the bombs of a maze game, a spell that fills the tiles in a line, a chain of crates that set each other off. The blast isn't a circle on the screen. It's a set of cells, so it can't go through walls, and whatever is on one of those cells is hit.
+
+It builds on [Grid-locked movement](/basics/grid/): same garden, same hero walking cell by cell. Here **A** drops a bomb.
+
+## How to think about it
+
+**The blast is a list of cells, worked out once.** When a bomb goes off, the snippet adds a flame on the bomb's cell, then walks out along the four arms of the cross, one cell at a time, up to `range` cells. Every flame is a sprite with the cell it's on. Nothing about the blast is worked out again later: from then on, the game only reads that list.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 380" role="img" aria-label="A bomb going off at cell 5, 5 of the garden, three times bigger. Seven flames, numbered in the order they're added: the bomb's cell, then three to the right and three down. The left and up arms are marked with pink crosses: a bush right next to the bomb ends them before they start." style={{ display: 'block', width: '100%', maxWidth: '420px', marginInline: 'auto' }}>
+		<svg x="22" y="10" width="336" height="336" viewBox="48 48 112 112">
+			<image href="/images/explosion/garden.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+			{cross.map(([cx, cy], i) => (
+				<g>
+					<image href="/images/explosion/flame0.png" x={cx * 16} y={cy * 16} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+					<text x={cx * 16 + 8} y={cy * 16 + 11} text-anchor="middle" font-size="8" font-weight="bold" fill="#1e7cb8" stroke="#fff" stroke-width="2" paint-order="stroke">{i + 1}</text>
+				</g>
+			))}
+			<path d={x(crossWalls)} stroke="#ff4d8d" stroke-width="2" />
+		</svg>
+		<text x="190" y="370" text-anchor="middle" font-size="10" fill="currentColor">range = 3: <tspan fill="#1e7cb8">the bomb's cell, right, left, down, up</tspan>, <tspan fill="#ff4d8d">a bush ends the arm</tspan></text>
+	</svg>
+	<figcaption>The list for a bomb at cell (5, 5), in the order <code>explode</code> adds it: seven flames.</figcaption>
+</figure>
+
+**Each arm stops at the first wall, checked before the flame is added.** For each step out, the snippet looks at the level first. Grass: a flame goes there and the arm goes on. A bush: no flame, and `break` ends that arm at once. The cells past the bush are never even looked at, even when they're grass that the range would reach. The other arms don't care: each one has its own loop.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 220" role="img" aria-label="The left arm of a bomb at cell 12, 5, three times bigger. Reach 1 is cell 11, 5: grass, so a flame goes there. Reach 2 is cell 10, 5: a bush, pink cross, and the arm ends. Reach 3, cell 9, 5, is grass, but it's never looked at." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<svg x="46" y="10" width="288" height="144" viewBox="128 64 96 48">
+			<image href="/images/explosion/garden.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/explosion/bomb.png" x="192" y="80" width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/explosion/flame0.png" x="176" y="80" width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+			<path d={x([[10, 5]])} stroke="#ff4d8d" stroke-width="2" />
+			<rect x="145" y="81" width="14" height="14" fill="none" stroke="currentColor" stroke-width="0.7" stroke-dasharray="2 2" />
+		</svg>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="94" y="172">reach 3: (9, 5)</text>
+			<text x="94" y="186">never looked at</text>
+			<text x="142" y="204" fill="#ff4d8d">reach 2: level[5][10] is #, break</text>
+			<text x="238" y="172" fill="#2f9e36">reach 1: level[5][11] is .</text>
+			<text x="238" y="186" fill="#2f9e36">a flame</text>
+			<text x="286" y="204">the bomb</text>
+		</g>
+	</svg>
+	<figcaption>One arm of a bomb at (12, 5), walking left.</figcaption>
+</figure>
+
+**Flames are cells, so whatever is on one is hit.** Is the hero in the blast? Is another bomb? The snippet answers both the same way: is there a flame whose cell is that cell? Two pairs of `int`s compared, no pixel overlap. A bomb on a burning cell has its fuse cut to one frame, so it goes off on the next frame, with its own cross: a chain. The hero is hit on the cell the rules see it on, which, as in [Grid-locked movement](/basics/grid/), is already the next cell as soon as a step starts.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 175" role="img" aria-label="Two frames of the top left of the garden. On the first, the bomb at cell 3, 1 has gone off: flames from cell 1 to cell 5 of the first row, and the last one is on the second bomb, at cell 5, 1. On the next frame, the second bomb goes off too: its cross adds flames down the column, over cell 5, 2, where the hero is standing, and the hero is hit." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<svg x="10" y="10" width="192" height="120" viewBox="0 0 128 80">
+			<image href="/images/explosion/garden.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/explosion/bomb.png" x="80" y="16" width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/runner/hero.png" x="72" y="18" width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+			{blastA.map(([cx, cy]) => <image href="/images/explosion/flame0.png" x={cx * 16} y={cy * 16} width="16" height="16" style={{ imageRendering: 'pixelated' }} />)}
+			<rect x="80.5" y="16.5" width="15" height="15" fill="none" stroke="#ff4d8d" stroke-width="1" />
+		</svg>
+		<svg x="218" y="10" width="192" height="120" viewBox="0 0 128 80">
+			<image href="/images/explosion/garden.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/runner/hero.png" x="72" y="18" width="32" height="32" opacity="0.4" style={{ imageRendering: 'pixelated' }} />
+			{blastA.map(([cx, cy]) => <image href="/images/explosion/flame0.png" x={cx * 16} y={cy * 16} width="16" height="16" style={{ imageRendering: 'pixelated' }} />)}
+			{blastB.map(([cx, cy]) => <image href="/images/explosion/flame0.png" x={cx * 16} y={cy * 16} width="16" height="16" style={{ imageRendering: 'pixelated' }} />)}
+		</svg>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="106" y="148">frame N: the flame on <tspan fill="#ff4d8d">(5, 1)</tspan>, over the</text>
+			<text x="106" y="162">second bomb, cuts its fuse to 1</text>
+			<text x="314" y="148">frame N + 1: it goes off, and the</text>
+			<text x="314" y="162" fill="#ff4d8d">hero's cell (5, 2) is burning</text>
+		</g>
+	</svg>
+	<figcaption>The chain in the demo below: the second bomb is just another thing on a burning cell.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad** and drop a bomb with **A**, up to three at a time. Each one goes off after a second and a half, in a cross three cells long that stops at the bushes. A blast that reaches another bomb sets it off, and a hero caught in one blinks.
+
+<Code code={explosion} lang="cpp" title="snippets/explosion/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/explosion/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero drops a bomb, walks two cells and drops another, then steps down. The first bomb goes off along the corridor, its flame reaches the second bomb, which goes off too, and its flames down the column catch the hero, who blinks. No flame goes into a bush." />
+	<figcaption>Two bombs, a chain, and a hero who didn't walk far enough. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="explosion" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr int arms[4][2] = { { 1, 0 }, ... };` | An array of four arrays of two `int`s: one step per arm. `for(const auto& arm : arms)` gives one row at a time, and `arm[0]` and `arm[1]` are its x and y. |
+| `bn::vector<flame, max_bombs * (1 + 4 * range)>` | The capacity is part of the type, so it must be known when compiling. Built from other `constexpr` values, it is, and it follows them if the range changes. |
+| `const bn::ivector<flame>& flames` | The same vector without its capacity in the type: a function that takes a `bn::ivector` works with a `bn::vector<flame, N>` of any `N`. |
+| `if(--waiting.fuse <= 0)` | `--` before the name lowers the fuse first, then compares the new value. |
+| `bn::erase_if(bombs, [](const bomb& gone) { ... });` | Removes every bomb the lambda says yes to. Each one's `sprite_ptr` goes with it, and so does the sprite on the screen. |
+| `(drawn.x().integer() + 112 + cell_size / 2) / cell_size` | Dividing two `int`s cuts the fraction off. Adding half a cell first turns that into rounding to the nearest cell. |
+
+Art: [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) by Kenney (the bomb and the flames), cut by [`snippets/tools/explosion_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/explosion_assets.py), [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the garden, from the [Grid-locked movement](/basics/grid/) page), and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. All CC0.
+
+## Pitfalls
+
+**Flames on the other side of a bush.**
+A test ROM with `continue` where the snippet has `break` skipped the bush and went on along the arm. Its bomb at (5, 5) burned eleven cells instead of seven: two above the bush over the bomb, at (5, 3) and (5, 2), and two past the bush on its left, at (3, 5) and (2, 5), in corridors the blast should never reach. `continue` skips one cell; `break` ends the arm. Not measured: in a level without bushes all around its edge, an arm that doesn't stop would also read past the ends of `level`.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/explosion/skip.png" width="288" height="256" style={{ imageRendering: 'pixelated' }} alt="The blast from cell 5, 5 with continue: besides the seven flames, two flames above the bush on top of the bomb and two to the left of the bush beside it." />
+		<figcaption>With <code>continue</code>: 11 cells.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/explosion/noskip.png" width="288" height="256" style={{ imageRendering: 'pixelated' }} alt="The snippet's blast from cell 5, 5: seven flames, to the right and down only." />
+		<figcaption>With <code>break</code>: 7 cells.</figcaption>
+	</figure>
+</div>
+
+**The bomb lands in front of the hero.**
+A test ROM that dropped the bomb on `cell_x` and `cell_y`, the hero's cell for the rules, made the drop happen on its own 2 pixels into a step to the right. The bomb showed up on the next cell, the one the hero was walking to, 14 pixels ahead of the sprite. The snippet, at the same moment, put it on the cell the hero was leaving, 2 pixels behind. The rules can see the hero in the next cell, but a bomb is drawn: drop it where the sprite is.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/explosion/ahead.png" width="240" height="144" style={{ imageRendering: 'pixelated' }} alt="The hero walking right, with the bomb already on the cell in front of it." />
+		<figcaption>On <code>cell_x</code>: in front.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/explosion/behind.png" width="240" height="144" style={{ imageRendering: 'pixelated' }} alt="The hero walking right, with the bomb on the cell behind it." />
+		<figcaption>On the nearest cell: behind.</figcaption>
+	</figure>
+</div>
+
+**"Vector is full" when two bombs go off together.**
+A test ROM with room for one blast, `1 + 4 * range` flames, ran fine with one bomb. With a bomb at (5, 5), seven flames, and a second at (7, 5) set off by the chain on the next frame, eight more, the fourteenth `push_back` stopped the game on Butano's error screen. Size the vector for every bomb going off at full size: here three bombs of 13 flames, 39.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/explosion/full.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Butano's error screen: ERROR in bn_vector.h, push_back, Vector is full." />
+	<figcaption>The frame after the chain, in the test ROM.</figcaption>
+</figure>
+
+## Read more
+
+- Headers: [`bn_vector.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_vector.h), for `bn::ivector`, `full()` and `bn::erase_if`.
+- cppreference: [arrays](https://en.cppreference.com/w/cpp/language/array), for arrays of arrays like `arms`, [range-based for](https://en.cppreference.com/w/cpp/language/range-for), and [`break` and `continue`](https://en.cppreference.com/w/cpp/language/break).
+- Guide pages: [Grid-locked movement](/basics/grid/), for the hero's cell and its sprite, [Sprite budget](/structure/budget/), for how many sprites a big chain can take, and [Map collision](/basics/collision/), for walls without a grid.
