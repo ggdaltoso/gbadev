@@ -1,0 +1,156 @@
+---
+title: Formations
+description: A wave of enemies that moves as one, from one point and each enemy's cell. It steps sideways, goes down and turns at the edge of the outermost living enemy, and steps more often as fewer are left.
+genres: [shooter]
+sidebar:
+  order: 2.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import formation from '../../../../../snippets/formation/src/main.cpp?raw';
+
+export const kinds = [2, 1, 0, 0];
+export const cells = kinds.flatMap((kind, row) => [0, 1, 2, 3, 4, 5, 6].map((column) => ({ column, row, kind })));
+export const grid = { x: 70, y: 46, dx: 33.8, dy: 28.6, size: 41.6 };
+export const cellX = (column) => grid.x + column * grid.dx;
+export const cellY = (row) => grid.y + row * grid.dy;
+export const panel = { scale: 0.7, size: 22.4, width: 168 };
+export const panelX = (left, x) => left + (x + 120) * panel.scale;
+export const panelRows = [1, 0];
+export const panels = [
+	{ left: 12, origin: -48, title: 'edges from the grid' },
+	{ left: 200, origin: 4, title: 'edges from the living' },
+];
+export const alive = Array.from({ length: 28 }, (_, i) => i + 1);
+export const framesPerStep = (count) => 1 + Math.floor(count / 2);
+export const barX = (count) => 44 + (count - 1) * 11.4;
+export const barHeight = (count) => framesPerStep(count) * 7;
+
+## When to use it
+
+When a group of enemies has to move like one thing: the rows of a Space Invaders wave, a squad marching in a shoot 'em up, a line of ducks in a shooting gallery. They all step together, turn together and go down together, and the group only changes when one of them dies.
+
+If every enemy moves on its own, with its own speed and its own path, you don't need a formation: see [Game objects](/structure/objects/) and [Velocity and acceleration](/math/velocity/).
+
+## How to think about it
+
+**A formation is one point, and each enemy is that point plus its cell.** The snippet keeps a single `origin`, the center of the top-left cell. An enemy only remembers its column and its row, and its place on screen is `origin + (column × 26, row × 22)`. Moving the formation is moving that one point: every enemy follows on the next step, and none of them can fall out of line.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 190" role="img" aria-label="Four rows of seven enemies: yellow aliens on top, bats under them, then two rows of blue bugs. A pink dot on the top-left alien is labeled origin. From it, a blue arrow goes right four cells, labeled 4 times 26, and a green arrow goes down two cells to a bug, labeled 2 times 22. That bug is highlighted: column 4, row 2." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{cells.map((cell) => (
+			<svg x={cellX(cell.column) - grid.size / 2} y={cellY(cell.row) - grid.size / 2} width={grid.size} height={grid.size} viewBox={`${cell.kind * 64} 0 32 32`} opacity={cell.column === 4 && cell.row === 2 ? 1 : 0.55}>
+				<image href="/images/formation/enemies.png" width="192" height="32" style={{ imageRendering: 'pixelated' }} />
+			</svg>
+		))}
+		<rect x={cellX(4) - 15} y={cellY(2) - 13} width="30" height="26" rx="3" fill="none" stroke="#2f9e36" stroke-width="1.5" />
+		<path d={`M ${cellX(0)} ${cellY(0)} L ${cellX(4) - 4} ${cellY(0)}`} stroke="#1e7cb8" stroke-width="2" />
+		<path d={`M ${cellX(4) - 9} ${cellY(0) - 4} L ${cellX(4) - 4} ${cellY(0)} L ${cellX(4) - 9} ${cellY(0) + 4}`} fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<path d={`M ${cellX(4)} ${cellY(0)} L ${cellX(4)} ${cellY(2) - 15}`} stroke="#2f9e36" stroke-width="2" />
+		<path d={`M ${cellX(4) - 4} ${cellY(2) - 20} L ${cellX(4)} ${cellY(2) - 15} L ${cellX(4) + 4} ${cellY(2) - 20}`} fill="none" stroke="#2f9e36" stroke-width="2" />
+		<circle cx={cellX(0)} cy={cellY(0)} r="4" fill="#ff4d8d" />
+		<g font-size="10" fill="currentColor">
+			<text x={cellX(0)} y={cellY(0) - 18} text-anchor="middle" fill="#ff4d8d">origin</text>
+			<text x={cellX(2)} y={cellY(0) - 18} text-anchor="middle" fill="#1e7cb8">4 × 26</text>
+			<text x={cellX(4) - 5} y={cellY(1) + 17} text-anchor="end" fill="#2f9e36">2 × 22</text>
+			<text x={cellX(4)} y={cellY(3) + 30} text-anchor="middle">column 4, row 2</text>
+		</g>
+	</svg>
+	<figcaption>Every enemy is the origin plus its cell. The art is the snippet's, at the snippet's spacing.</figcaption>
+</figure>
+
+**The edges are the outermost living enemies, not the grid.** Before each step, the snippet looks for the first and last column that still have someone in them, and checks whether the step would push one of those past the screen's edge. If it would, the formation goes down 8 pixels and turns instead of stepping. When the columns on the side die, the formation travels further before it turns, and the last enemies sweep the whole screen. The same goes for the bottom: the wave reaches the ship when its lowest living row does.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 120" role="img" aria-label="Two screens side by side, each with two rows of five enemies; the dead columns on the right are dashed empty cells. Left, edges from the grid: the empty cells touch the screen's right edge, and the last living enemy stops 52 pixels short of it. Right, edges from the living: the last living enemy touches the edge, and the dead columns are off the screen." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{panels.map((p) => (
+			<g>
+				<rect x={p.left} y="18" width={panel.width} height="72" fill="none" stroke="currentColor" stroke-opacity="0.5" />
+				<text x={p.left + panel.width / 2} y="12" font-size="10" fill="currentColor" text-anchor="middle">{p.title}</text>
+				{panelRows.map((kind, row) => [0, 1, 2, 3, 4, 5, 6].map((column) => (
+					column < 5 ? (
+						<svg x={panelX(p.left, p.origin + column * 26) - panel.size / 2} y={40 + row * 22 - panel.size / 2} width={panel.size} height={panel.size} viewBox={`${kind * 64} 0 32 32`}>
+							<image href="/images/formation/enemies.png" width="192" height="32" style={{ imageRendering: 'pixelated' }} />
+						</svg>
+					) : p.origin + column * 26 + 8 < 120 && (
+						<rect x={panelX(p.left, p.origin + column * 26) - 8} y={40 + row * 22 - 8} width="16" height="16" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-dasharray="2 2" />
+					)
+				)))}
+				<line x1={panelX(p.left, p.origin + 4 * 26 + 12)} y1="24" x2={panelX(p.left, p.origin + 4 * 26 + 12)} y2="84" stroke="#ff4d8d" stroke-dasharray="3 2" />
+			</g>
+		))}
+		<g font-size="10">
+			<path d={`M ${panelX(12, 68)} 100 L ${panelX(12, 120)} 100`} stroke="#ff4d8d" stroke-width="1.5" />
+			<text x={(panelX(12, 68) + panelX(12, 120)) / 2} y="114" text-anchor="middle" fill="#ff4d8d">52 px short</text>
+			<text x={panelX(200, 120)} y="114" text-anchor="end" fill="#2f9e36">reaches the edge</text>
+		</g>
+	</svg>
+	<figcaption>Columns 5 and 6 are dead. The pink line is the last living enemy's right edge; 52 px is what a test ROM measured.</figcaption>
+</figure>
+
+**The fewer are left, the more often the formation steps.** Each step is always 2 pixels; what changes is how many frames pass between two steps: `1 + alive / 2`. With all 28 it steps every 15 frames, 8 pixels a second. With one left it steps every frame, 120 pixels a second. Because it's a formula of the count, the curve is one line to tune.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label="A bar chart of frames per step against enemies alive, from 1 to 28. The bars climb in pairs from 1 frame with 1 alive to 15 frames with 28 alive. The tallest bar is labeled 15 frames, 8 pixels a second; the shortest is labeled 1 frame, 120 pixels a second." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{alive.map((count) => (
+			<rect x={barX(count)} y={140 - barHeight(count)} width="9" height={barHeight(count)} fill={count === 1 || count === 28 ? '#ff4d8d' : '#1e7cb8'} />
+		))}
+		<line x1="40" y1="140" x2="364" y2="140" stroke="currentColor" stroke-opacity="0.5" />
+		<g font-size="9" fill="currentColor">
+			{[1, 7, 14, 21, 28].map((count) => (
+				<text x={barX(count) + 4.5} y="152" text-anchor="middle" fill-opacity="0.7">{count}</text>
+			))}
+			<text x="204" y="166" text-anchor="middle">enemies alive</text>
+			<text x={barX(28) + 9} y={140 - barHeight(28) - 6} text-anchor="end">15 frames: 8 px/s</text>
+			<text x={barX(1)} y="60">1 frame: 120 px/s</text>
+			<line x1={barX(1) + 4.5} y1="64" x2={barX(1) + 4.5} y2={136 - barHeight(1)} stroke="currentColor" stroke-opacity="0.5" />
+			<text x="10" y="80" transform="rotate(-90 10 80)" text-anchor="middle">frames per step</text>
+		</g>
+	</svg>
+	<figcaption><code>frames_per_step</code> from the snippet, worked out for every count. The speeds are 2 px per step times 60 frames a second, divided by the frames per step.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Move with **←** and **→** and shoot with **A**, one shot at a time. The top of the screen shows how many enemies are left and how many frames pass between two steps. A new wave comes when they're all gone, or when the lowest one reaches the ship.
+
+<Code code={formation} lang="cpp" title="snippets/formation/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/formation/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Over a pale sky with clouds and hills, under a dark band with the count, the ship sweeps right and then left, shooting. The formation steps sideways, goes down a row at each edge and closes no gaps. The count drops from 28 to 11 and the frames per step from 15 to 6, and the formation visibly speeds up." />
+	<figcaption>A sweep right, then left, shooting all the way. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="formation" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr int row_kinds[rows] = { 2, 1, 0, 0 };` | A table indexed by row: which kind of enemy each row has. The frame is `kind * 2 + phase`, since every kind has two frames side by side. |
+| `enemy{ sprite, column, row }` | Aggregate initialization: the members in the order they're declared. See [Game objects](/structure/objects/). |
+| `return 1 + alive / 2;` | Integer division rounds down, so 28 and 29 both give 15. The `1 +` keeps it at one frame or more when one enemy is left. |
+| `enemies.erase(it); ... break;` | `erase` moves every enemy after `it` back one slot, so `it` and everything after it now point somewhere else. Stop right after. |
+| `first_column = bn::min(first_column, alive.column);` | Starts from an impossible value (`columns`, or `-1` for the max) so the first living enemy always replaces it. |
+| `phase = 1 - phase;` | Flips between 0 and 1 on every step: the two frames of the march. |
+
+Art: [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) (the enemies and the sky) and [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) (the ship and the shot) by Kenney, CC0. They're cut from the packs by [`snippets/tools/formation_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/formation_assets.py).
+
+## Pitfalls
+
+**The formation never turns, and its edge column falls off the screen.**
+The first idea is often to let each enemy move itself and flip the shared direction when it touches the edge. In a test ROM written that way, the 4 enemies of the right column touched the edge on the same step, and 4 flips are no flip: that column went down a row on every step and slid off the screen, and the rest kept going right after it. With 3 enemies in that column it did turn, but only those 3 went down, and the formation tore apart. Decide once per step, for the whole formation, as the snippet does.
+
+**The formation turns before the screen's edge.**
+With the edges taken from the whole grid instead of the living enemies, a test ROM with columns 5 and 6 dead turned when the last living enemy's right edge was at x = 68, 52 pixels from the screen's edge: the two dead columns, 26 pixels each. The empty columns still hit the wall. Take the edges from the enemies that are left.
+
+**Shooting one enemy moves the others.**
+In a test ROM that placed each enemy by its index in the vector (`i % columns`, `i / columns`) instead of its own cell, erasing enemy 3 moved every enemy after it back one cell: the gap closed at once, the first bat climbed into the end of the alien row, and the hole showed up at the end of the last row. `erase` moves the elements after it, so an index isn't a place. Keep the cell in the enemy.
+
+## Read more
+
+- Headers: [`bn_vector.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_vector.h), for `erase` moving the elements after it, [`bn_fixed_rect.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_rect.h), for `intersects`, and [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_tiles`.
+- Tonc: [Regular sprites](https://gbadev.net/tonc/regobj.html), for what a sprite is to the hardware.
+- cppreference: [`std::vector::erase`](https://en.cppreference.com/w/cpp/container/vector/erase), the same rule for the standard vector: iterators at and after the erased element are invalidated.
+- Guide pages: [Game objects](/structure/objects/), for a class per kind of enemy, [Hitboxes](/math/hitboxes/), for the boxes between the shot and the enemies, and [Object pools](/structure/pool/), for shots that come and go all the time.
