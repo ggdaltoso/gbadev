@@ -1,0 +1,146 @@
+---
+title: Hazards with a warning
+description: Dangers that start on a schedule written as data, each one warning before it hurts, with its phase worked out from its age, and a warning long enough to get out of the way.
+sidebar:
+  order: 4.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import hazards from '../../../../../snippets/hazards/src/main.cpp?raw';
+
+export const timing = { warning: 60, active: 20 };
+export const ageX = (age) => 40 + age * 3;
+export const schedule = [
+	{ start: 0, x: -60 }, { start: 50, x: 40 }, { start: 100, x: -10 }, { start: 130, x: 80 }, { start: 160, x: -90 },
+	{ start: 210, x: 0 }, { start: 230, x: 30 }, { start: 250, x: -30 }, { start: 300, x: 60 }, { start: 320, x: -60 },
+];
+export const frameX = (frame) => 112 + frame * 0.62;
+export const rowY = (i) => 22 + i * 12;
+export const escape = { half: 12, speed: 2 };
+export const escapeFrames = escape.half / escape.speed;
+export const fairX = (frame) => 20 + frame * 5.6;
+
+## When to use it
+
+When danger comes on a timetable: lasers that fire across a corridor, rocks that fall from the ceiling, a boss attack, a train in a runner, a wave of enemies in a shooter. The player should see it coming, so every hazard first warns, with a blink, a sound or a shadow, and only then hurts.
+
+One hazard on its own is a [state machine](/structure/states/), and a fixed sequence of things that happen one after the other is a [scripted cutscene](/structure/cutscene/). This page is for many hazards that overlap, each running its own warning, started by a schedule.
+
+## How to think about it
+
+**A hazard's phase comes from its age.** Each beam only counts the frames since it started. Under 60 it's warning: its target blinks on the ground and nothing hurts. From 60 to 79 it's active: the beam is shown and it hurts. At 80 it's over and goes away. No flag says "warning" or "active": the age decides, so the phases can never disagree with each other.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 100" role="img" aria-label={`A timeline of one beam's age. From 0 to ${timing.warning} frames it warns: a striped blue bar, the target blinking on and off every 6 frames. From ${timing.warning} to ${timing.warning + timing.active} it's active: a solid pink bar, the beam that hurts. At ${timing.warning + timing.active} it's removed.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{Array.from({ length: timing.warning / 6 }, (_, i) => (
+			<rect x={ageX(i * 6)} y="34" width="18" height="18" fill="#1e7cb8" fill-opacity={i % 2 === 0 ? 1 : 0.25} />
+		))}
+		<rect x={ageX(timing.warning)} y="34" width={timing.active * 3} height="18" fill="#ff4d8d" />
+		<g font-size="10" fill="currentColor">
+			{[0, timing.warning, timing.warning + timing.active].map((age) => (
+				<g>
+					<line x1={ageX(age)} y1="28" x2={ageX(age)} y2="58" stroke="currentColor" stroke-opacity="0.6" />
+					<text x={ageX(age)} y="72" text-anchor="middle">{age}</text>
+				</g>
+			))}
+			<text x={ageX(timing.warning / 2)} y="22" text-anchor="middle" fill="#1e7cb8">warning: blinks, harmless</text>
+			<text x={ageX(timing.warning + timing.active / 2)} y="22" text-anchor="middle" fill="#ff4d8d">active: hurts</text>
+			<text x={ageX(timing.warning + timing.active) + 8} y="47">removed</text>
+			<text x={ageX(40)} y="90" text-anchor="middle">age, in frames</text>
+		</g>
+	</svg>
+	<figcaption>One beam's life, with the snippet's <code>warning_frames</code> and <code>active_frames</code>. The target is shown for 6 frames, then hidden for 6.</figcaption>
+</figure>
+
+**The schedule is data, read in order.** The level's rhythm is a table: when each beam starts, in frames, and where. The game keeps a frame count and the index of the next row. Every frame, it starts each row whose time has come and moves the index past it, so the table must be sorted by time. Changing the level means changing numbers, and the loop doesn't change. When the frame count reaches the end of the loop, both go back to 0 and the table plays again.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 158" role="img" aria-label="The snippet's schedule as a table of ten rows, start frame and x, next to a timeline from frame 0 to 400. Each row has a bar: a blue part for its 60 frames of warning and a pink part for its 20 active frames. Many bars overlap: around frame 250, three beams warn at once." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="9" fill="currentColor">
+			<text x="14" y="12" font-weight="bold">start</text>
+			<text x="58" y="12" font-weight="bold">x</text>
+			{schedule.map((row, i) => (
+				<g>
+					<text x="14" y={rowY(i) + 8}>{row.start}</text>
+					<text x="58" y={rowY(i) + 8}>{row.x}</text>
+					<rect x={frameX(row.start)} y={rowY(i)} width={timing.warning * 0.62} height="9" fill="#1e7cb8" />
+					<rect x={frameX(row.start + timing.warning)} y={rowY(i)} width={timing.active * 0.62} height="9" fill="#ff4d8d" />
+				</g>
+			))}
+			{[0, 100, 200, 300, 400].map((frame) => (
+				<text x={frameX(frame)} y="152" text-anchor="middle" fill-opacity="0.7">{frame}</text>
+			))}
+			<line x1={frameX(400)} y1="16" x2={frameX(400)} y2="142" stroke="currentColor" stroke-dasharray="3 2" stroke-opacity="0.6" />
+			<text x={frameX(400) - 4} y="12" text-anchor="end">loop: 400</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's <code>schedule</code>, row by row, and when each beam warns and hurts.</figcaption>
+</figure>
+
+**A fair warning is longer than the way out.** A beam hurts the player when their centers are less than 12 pixels apart, and the player walks 2 pixels a frame. Standing right under a beam, getting out takes 12 / 2 = 6 frames. The warning lasts 60, so the other 54 are time to notice the target, hear the beep and decide which way to go. Shorten the warning toward 6 frames and the beams stop being dodgeable and become luck.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 82" role="img" aria-label={`A bar of ${timing.warning} frames of warning. The last ${escapeFrames} frames, in pink, are what walking out of the beam takes from its center. The first ${timing.warning - escapeFrames}, in blue, are left to notice the warning and decide.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<rect x={fairX(0)} y="24" width={(timing.warning - escapeFrames) * 5.6} height="18" fill="#1e7cb8" />
+		<rect x={fairX(timing.warning - escapeFrames)} y="24" width={escapeFrames * 5.6} height="18" fill="#ff4d8d" />
+		<g font-size="10" fill="currentColor">
+			<text x={fairX((timing.warning - escapeFrames) / 2)} y="16" text-anchor="middle" fill="#1e7cb8">{timing.warning - escapeFrames} frames to notice and decide</text>
+			<text x={fairX(timing.warning)} y="16" text-anchor="end" fill="#ff4d8d">{escapeFrames} to walk out</text>
+			<text x={fairX(0)} y="58">0</text>
+			<text x={fairX(timing.warning)} y="58" text-anchor="end">{timing.warning}: the beam hurts</text>
+			<text x="190" y="76" text-anchor="middle" fill-opacity="0.8">{escape.half} px from the center ÷ {escape.speed} px per frame = {escapeFrames} frames</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's warning, split into the time it takes to walk out and the time left over. Worked out from its constants.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with **←** and **→**. A target blinks on the ground and a beep plays: a beam lands there one second later. Being under a beam while it's active counts a hit, and the player blinks for a moment in which beams don't hurt. The schedule plays again every 400 frames.
+
+<Code code={hazards} lang="cpp" title="snippets/hazards/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/hazards/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Targets blink on the grass at different places, and a second later a yellow beam drops on each one for a moment. The player stands still at first and a beam lands on it: the count at the top goes to 1 and the player blinks. Then the player steps aside from the next targets." />
+	<figcaption>Standing still, then stepping out of the way. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<div style={{ textAlign: 'center' }}>
+	<figure style={{ margin: 0 }}>
+		<audio controls preload="metadata" src="/audio/beep.wav"><a href="/audio/beep.wav">beep.wav</a></audio>
+		<figcaption>The warning beep: 80 ms of a square wave, written by the asset script.</figcaption>
+	</figure>
+</div>
+
+<Rom name="hazards" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr scheduled_beam schedule[] = { { 0, -60 }, ... };` | The level as data: an array of aggregates, built when compiling, one row per beam. |
+| `sizeof(schedule) / sizeof(schedule[0])` | The number of rows of a plain array: its size in bytes over one row's. It updates itself when rows are added. |
+| `beams.push_back(beam{ x, 0, bn::sprite_items::target.create_sprite(...), ... });` | Aggregate initialization with sprites inside: they're made right there, in member order. `bn::sprite_ptr` has no default constructor, so they can't be left out. |
+| `bool active = ! warning && falling.age < warning_frames + active_frames;` | The phase, worked out again every frame from the age. |
+| `bn::sound_items::beep.play();` | Played where the beam starts, which happens once per beam. Inside the per-frame loop it would play again every frame. |
+| `bn::erase_if(beams, [](const beam& done) { ... });` | Removes the beams that are over, and their sprites with them. See [Game objects](/structure/objects/). |
+
+Art: [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) (the player, the sky and the ground) and [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) (the beam and the target) by Kenney, CC0, put together by [`snippets/tools/hazards_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/hazards_assets.py), which also writes the beep.
+
+## Pitfalls
+
+**A beam comes late.**
+The next-row index only looks at the row it points to. In a test ROM whose table had the beam planned for frame 100 written after the one at 130, the one at 100 waited behind it and started at 130, together with the other: 30 frames late and on top of another hazard. Keep the table sorted by time, or check every row each frame if it's short.
+
+**The player gets hurt by the warning.**
+In a test ROM that checked the hit in every phase, standing where the first beam would fall counted a hit at age 0: the frame the target appeared, a second before the beam. Hurt only in the active phase, as the snippet's `active &&` does.
+
+**Some beams never start.**
+Starting a row when the frame count is exactly its time works only if the count passes through every number. In a test ROM whose clock went up by 1.5 per frame, a fast mode, comparing with `==` started 7 of the 10 beams in each loop. The clock read 49.5 and then 51, so 50 was never its value; by the same arithmetic 230 and 320 were skipped too. Start a row when its time is less than or equal to the clock, as the snippet's `<=` does, and move past it.
+
+## Read more
+
+- Headers: [`bn_sound_item.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sound_item.h), for `play`, and [`bn_vector.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_vector.h), for `bn::erase_if`.
+- cppreference: [`sizeof`](https://en.cppreference.com/w/cpp/language/sizeof), for counting the rows of an array.
+- Guide pages: [Timers and random numbers](/basics/timers/), for frame counters, [State machines](/structure/states/), for one thing with many states, [Scripted cutscenes](/structure/cutscene/), for steps that run one after the other, [Music and sound](/basics/audio/), for sound effects, and [Input replays](/structure/replay/), for a game where the same schedule and the same buttons give the same run.
