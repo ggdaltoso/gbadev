@@ -87,7 +87,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Warning before the danger: a scheduled event with a warning first (a sound, a blinking laser), its timing as data.
 3. **Runner (seen from above):**
    - [x] Endless run: a vertical background that repeats, obstacles spawned by distance.
-   - [ ] Jump seen from above: height as a third axis, with the shadow on the ground (builds on Shadows and reflections).
+   - [x] Jump seen from above: height as a third axis, with the shadow on the ground (builds on Shadows and reflections).
    - [ ] Difficulty curve: speed and obstacle density rising with distance, as data.
 4. **Puzzle and grid:**
    - [ ] Grid-locked movement: cell by cell, smooth between cells.

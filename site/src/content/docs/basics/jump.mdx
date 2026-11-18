@@ -1,0 +1,191 @@
+---
+title: Jump seen from above
+description: Height as a third axis that only changes where the hero is drawn, a shadow that stays on the ground and shrinks as the hero rises, and a bump that needs the hero low enough as well as in the way.
+genres: [runner, top-down]
+sidebar:
+  order: 5.4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import jump from '../../../../../snippets/jump/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const heightAt = (frame) => Math.max(0, 4 * frame - 0.125 * frame * (frame - 1));
+export const airFrames = 32;
+export const peak = Math.max(...Array.from({ length: airFrames + 1 }, (_, n) => heightAt(n)));
+export const arc = Array.from({ length: airFrames + 2 }, (_, n) => n);
+export const sideX = (frame) => 30 + frame * 4.2;
+export const sideY = (z) => 110 - z * 2.2;
+export const topFrames = [0, 6, 16, 26, 33];
+export const shadowFrame = (z) => (z < 10 ? 0 : z < 22 ? 1 : 2);
+export const shadowBands = [
+	{ from: 0, to: 9, frame: 0 },
+	{ from: 10, to: 21, frame: 1 },
+	{ from: 22, to: peak, frame: 2 },
+];
+export const bush = 12;
+export const bumps = (ahead) => {
+	let z = 0, speed = 4, distance = 0, bump = false;
+	for (let frame = 0; frame < 60; frame++) {
+		z += speed;
+		if (z > 0) { speed -= 0.25; } else { z = 0; speed = 0; }
+		distance += 2;
+		if (Math.abs(ahead - distance) < 12 && z < bush) { bump = true; }
+	}
+	return bump;
+};
+export const clears = Array.from({ length: 60 }, (_, i) => 12 + i * 2).filter((ahead) => !bumps(ahead));
+export const above = arc.filter((n) => heightAt(n) >= bush);
+export const overlapFrames = Array.from({ length: 12 }, (_, i) => -10 + i * 2).filter((ahead) => Math.abs(ahead) < 12).length;
+
+## When to use it
+
+When the camera looks down on the ground, and something has to leave it: a runner that jumps over logs, a top-down hero hopping a gap, a ball bounced in a sports game, a grenade thrown in an arc. Seen from above, up and forward are the same direction on the screen, so a jump needs its own number, and a shadow to show where on the ground the jumper is.
+
+A side view doesn't need any of this: there, the screen's y is the height. See [Gravity and jumping](/math/gravity/).
+
+## How to think about it
+
+**Height is a third axis.** The hero has a place on the ground, x and y, and a height above it, z. Gravity, as on the [Gravity and jumping](/math/gravity/) page, only changes z: A gives it a speed of 4 pixels a frame upward, and every frame 0.25 is taken off that speed. The place on the ground keeps running as before. Only the drawing mixes them: the hero is drawn at `hero_y - z`, z pixels up the screen from its place on the ground. The jump lasts {airFrames} frames and goes {peak} pixels high.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label={`Left: the jump seen from the side, height against frames, an arc from 0 up to ${peak} pixels and back to 0 after ${airFrames} frames. Right: the same jump seen from above, five moments of it: the hero drawn higher up the screen as its height grows, while its shadow stays on the same line, its place on the ground.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1={sideX(0)} y1={sideY(0)} x2={sideX(airFrames + 1)} y2={sideY(0)} stroke="currentColor" stroke-opacity="0.5" />
+		<line x1={sideX(0)} y1={sideY(0)} x2={sideX(0)} y2={sideY(peak) - 6} stroke="currentColor" stroke-opacity="0.5" />
+		<polyline points={arc.map((n) => `${sideX(n)},${sideY(heightAt(n))}`).join(' ')} fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<line x1={sideX(0)} y1={sideY(peak)} x2={sideX(16)} y2={sideY(peak)} stroke="#1e7cb8" stroke-dasharray="3 3" stroke-opacity="0.6" />
+		<g font-size="10" fill="currentColor">
+			<text x={sideX(0) - 4} y={sideY(peak) + 4} text-anchor="end">{peak}</text>
+			<text x={sideX(0) - 4} y={sideY(0) + 4} text-anchor="end">0</text>
+			<text x={sideX(airFrames + 1)} y={sideY(0) + 14} text-anchor="end">{airFrames} frames in the air</text>
+			<text x={sideX(16)} y="150" text-anchor="middle">from the side: z</text>
+			<text x="296" y="150" text-anchor="middle">from above: drawn at y - z</text>
+		</g>
+		{topFrames.map((n, i) => (
+			<g>
+				<image href={`/images/jump/shadow${shadowFrame(heightAt(n))}.png`} x={234 + i * 26} y="104" width="16" height="8" opacity="0.6" style={{ imageRendering: 'pixelated' }} />
+				<image href="/images/jump/hero.png" x={226 + i * 26} y={80 - heightAt(n) * 1.4} width="32" height="32" style={{ imageRendering: 'pixelated' }} />
+			</g>
+		))}
+		<line x1="226" y1="108" x2="370" y2="108" stroke="#2f9e36" stroke-dasharray="4 3" />
+	</svg>
+	<figcaption>The snippet's jump, worked out from <code>jump_speed</code> and <code>gravity</code>. On the right, frames {topFrames.join(', ')} of it side by side, each with its shadow frame; in the game they're all in the same spot.</figcaption>
+</figure>
+
+**The shadow stays on the ground, smaller the higher the hero is.** The shadow is drawn at the hero's place on the ground, so while the hero rises, the shadow doesn't move, and the gap between them is the height. That gap alone could also be the hero walking up the screen; the shadow's size settles it. It's three frames of the same oval, 14, 10 and 6 pixels wide, picked from z. Scaling one oval with an affine sprite would also work, but would spend one of the 32 affine matrices on it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 90" role="img" aria-label={`The three shadow frames, four times bigger: 14 pixels wide while the height is 0 to 9, 10 wide from 10 to 21, and 6 wide from 22 up to the top of the jump, ${peak}.`} style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		{shadowBands.map((band, i) => (
+			<g>
+				<image href={`/images/jump/shadow${band.frame}.png`} x={40 + i * 120} y="14" width="64" height="32" style={{ imageRendering: 'pixelated' }} />
+				<text x={72 + i * 120} y="66" font-size="10" fill="currentColor" text-anchor="middle">frame {band.frame}</text>
+				<text x={72 + i * 120} y="80" font-size="10" fill="#1e7cb8" text-anchor="middle">z from {band.from} to {band.to}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>shadow.bmp's three frames, at full color: in the game they're half see-through. When the snippet shows each: <code>z &lt; 10 ? 0 : z &lt; 22 ? 1 : 2</code>.</figcaption>
+</figure>
+
+**A bump needs the hero in the way and low enough.** On the ground, the test is the one from [Endless run](/basics/runner/): the obstacle and the hero's place on the ground less than 12 pixels apart, in the same lane. The jump adds one more condition: z under the obstacle's height. A bush is {bush} pixels tall. The jump is over {bush} pixels for {above.length} of its {airFrames} frames, and the bush overlaps the hero's place for {overlapFrames} of them, so A can come early or late. Played out frame by frame, pressing A when the bush is anywhere from {clears[0]} to {clears[clears.length - 1]} pixels ahead clears it: {clears.length} frames to choose from.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 150" role="img" aria-label={`The jump's arc again, height against frames, with a line at ${bush} pixels, the bush's height. The arc is above the line for ${above.length} frames, shaded green. A pink bar of ${overlapFrames} frames, the time the bush overlaps the hero on the ground, fits inside the green part with room on both sides.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<rect x={sideX(above[0])} y={sideY(peak) - 4} width={sideX(above[above.length - 1]) - sideX(above[0])} height={sideY(0) - sideY(peak) + 4} fill="#2f9e36" fill-opacity="0.15" />
+		<line x1={sideX(0)} y1={sideY(0)} x2={sideX(airFrames + 1)} y2={sideY(0)} stroke="currentColor" stroke-opacity="0.5" />
+		<polyline points={arc.map((n) => `${sideX(n)},${sideY(heightAt(n))}`).join(' ')} fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<line x1={sideX(0)} y1={sideY(bush)} x2={sideX(airFrames)} y2={sideY(bush)} stroke="currentColor" stroke-dasharray="4 3" />
+		<image href="/images/jump/bush.png" x={sideX(airFrames) + 6} y={sideY(bush) - 8} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+		<rect x={sideX(10)} y={sideY(0) + 8} width={sideX(10 + overlapFrames) - sideX(10)} height="8" fill="#ff4d8d" />
+		<g font-size="10" fill="currentColor">
+			<text x={sideX(airFrames) + 26} y={sideY(bush) + 4}>{bush} px</text>
+			<text x={(sideX(above[0]) + sideX(above[above.length - 1])) / 2} y={sideY(peak) - 8} text-anchor="middle" fill="#2f9e36">over {bush} px: {above.length} frames</text>
+			<text x={sideX(10 + overlapFrames) + 6} y={sideY(0) + 16} fill="#ff4d8d">bush under the hero: {overlapFrames} frames</text>
+			<text x={sideX(0)} y="146">it can sit anywhere in the green part: {clears.length} frames to press A</text>
+		</g>
+	</svg>
+	<figcaption>Worked out from the snippet's numbers, and checked by playing the snippet's loop over in the page's code for every distance.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The track of [Endless run](/basics/runner/), with a jump. Change lanes with **←** and **→** and jump with **A**. Every obstacle can be jumped: a bush is 12 pixels tall, a log 8 and a beehive 14, and the jump reaches {peak}. The top of the screen shows the distance and the bumps.
+
+<Code code={jump} lang="cpp" title="snippets/jump/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/jump/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs down the dirt path and jumps again and again: it rises up the screen while a small shadow stays on the ground below it, shrinking at the top of the jump. Bushes, logs and beehives pass under it; one jump comes too late and the bump count goes to 1." />
+	<figcaption>Jumps and lane changes, one of them late. Captured from the emulator at 1x, shown at 2x.</figcaption>
+</figure>
+
+<Rom name="jump" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr int heights[] = { 12, 8, 14 };` | Data indexed by the obstacle's frame in `obstacles.bmp`: the same `kind` picks the picture and the height. |
+| `obstacle{ sprite, random.get_int(3), next_obstacle, heights[kind] }` | Aggregate initialization, in member order. The height is copied in, so the obstacle doesn't need to remember its kind. |
+| `if(z == 0 && bn::keypad::a_pressed())` | Only from the ground. `z` is set back to exactly 0 on landing, so comparing a `bn::fixed` with `==` is safe here. |
+| `z < 10 ? 0 : z < 22 ? 1 : 2` | Two conditional operators chained: they read top to bottom like an `if` / `else if` / `else`, and give a value. |
+| `hero.set_z_order(-1);` | A lower `z_order` is drawn in front. Without it the obstacles, made later, would be drawn over the hero. See the pitfalls. |
+
+Art: [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the track and the obstacles) and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, both CC0. The snippet reuses the art of [Endless run](/basics/runner/) and [Shadows and reflections](/effects/shadows/); [`snippets/tools/jump_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/jump_assets.py) copies it and draws the three shadows.
+
+## Pitfalls
+
+The test ROMs for these put every obstacle in the middle lane and pressed A on their own when the next one was 30 pixels ahead, so each run was the same.
+
+**The shadow rises with the hero.**
+The guide's shared hero has a shadow drawn into its art, under the boots. A test ROM that jumped with it and hid the snippet's shadow showed that patch going up the screen with the hero, and nothing left on the ground to say where it was. Draw the shadow as its own sprite, and use art without one: here, the `bare_hero` of [Shadows and reflections](/effects/shadows/).
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/jump/baked.png" width="144" height="180" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The shared hero in the air over a bush, with a green shadow patch under its boots, high above the ground. There's no shadow on the ground." />
+	<figcaption>The shared hero mid-jump, from the test ROM (3x).</figcaption>
+</figure>
+
+**The hero bumps into an obstacle it has already jumped over.**
+A test ROM tested the bump with where the hero is drawn, `hero.y()`, and without the height. Every jump in it counted a bump, and the HUD showed when: with the obstacle already 18 pixels behind the hero's place on the ground, and the hero 27 pixels up, on the way down. Drawn 27 pixels up the screen, it met an obstacle that had passed under it. The snippet, pressing A at the same moment, counted none in 7 seconds. Test with the place on the ground, `hero_y`, and the height on its own.
+
+**The obstacle is drawn over the hero jumping it.**
+On a tie, the newest sprite is drawn on top, and the obstacles are made after the hero. A test ROM without `hero.set_z_order(-1)` drew the bush over the hero's legs while the hero was over it. With it, the hero is in front: a hero in the air is closer to the camera than anything on the ground. On the ground, a bush below the hero should cover it instead; [Depth sorting](/basics/depth/) does that by y.
+
+<figure style={{ textAlign: 'center', display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<div style={{ margin: 0 }}>
+		<img src="/images/jump/order.png" width="144" height="180" style={{ imageRendering: 'pixelated' }} alt="The hero in the air over a bush, with the bush drawn in front of its legs." />
+		<figcaption>Without the z order</figcaption>
+	</div>
+	<div style={{ margin: 0 }}>
+		<img src="/images/jump/right.png" width="144" height="180" style={{ imageRendering: 'pixelated' }} alt="The hero in the air over a bush, drawn in front of it." />
+		<figcaption>The snippet</figcaption>
+	</div>
+</figure>
+
+**The shadow cuts a hole in an obstacle.**
+Blending mixes a sprite with the layer behind it, and for a sprite that's a background: two sprites don't mix. A test ROM with the shadow in front of the obstacles showed it, as the bush passed the shadow, as a patch of darkened dirt in the middle of the bush, not a darker bush. The snippet keeps the shadow behind the obstacles with `shadow.set_z_order(1)`, so an obstacle hides it.
+
+<figure style={{ textAlign: 'center', display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<div style={{ margin: 0 }}>
+		<img src="/images/jump/hole.png" width="128" height="136" style={{ imageRendering: 'pixelated' }} alt="A bush with a small brown oval in the middle of it, the color of darkened dirt." />
+		<figcaption>Shadow in front</figcaption>
+	</div>
+	<div style={{ margin: 0 }}>
+		<img src="/images/jump/nohole.png" width="128" height="136" style={{ imageRendering: 'pixelated' }} alt="The same bush, whole, with the shadow hidden behind it." />
+		<figcaption>The snippet</figcaption>
+	</div>
+</figure>
+
+## Read more
+
+- Headers: [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_z_order` and `set_tiles`, and [`bn_blending.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_blending.h), for `set_transparency_alpha`.
+- Tonc: [Color special effects](https://gbadev.net/tonc/gfx.html#sec-blend), for what blending mixes with what.
+- cppreference: [the conditional operator](https://en.cppreference.com/w/cpp/language/operator_other#Conditional_operator).
+- Guide pages: [Endless run](/basics/runner/), for the track and the obstacles, [Gravity and jumping](/math/gravity/), for the same arc seen from the side, [Shadows and reflections](/effects/shadows/), for the shadow and `bare_hero`, [Blending](/effects/blending/), and [Depth sorting](/basics/depth/).
