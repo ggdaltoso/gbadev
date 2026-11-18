@@ -83,7 +83,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Sprite budget: dozens of enemies and shots under the 128-sprite limit; when a background beats sprites, measured.
 2. **Platformer:**
    - [x] Gravity and jumping: falling in `bn::fixed`, a top speed, a jump that goes higher the longer A is held.
-   - [ ] Parallax: layers at different speeds.
+   - [x] Parallax: layers at different speeds.
    - [ ] Warning before the danger: a scheduled event with a warning first (a sound, a blinking laser), its timing as data.
 3. **Runner (seen from above):**
    - [ ] Endless run: a vertical background that repeats, obstacles spawned by distance.

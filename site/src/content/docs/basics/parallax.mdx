@@ -1,0 +1,136 @@
+---
+title: Parallax
+description: Background layers that move a fraction of what the camera moves, how wide each one has to be, and the priorities that keep the ground in front of the sky and the player in front of the ground.
+sidebar:
+  order: 5.2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import parallax from '../../../../../snippets/parallax/src/main.cpp?raw';
+
+export const layers = [
+	{ name: 'ground', speed: 1, label: '1', color: '#2f9e36' },
+	{ name: 'hills', speed: 0.5, label: '1/2', color: '#1e7cb8' },
+	{ name: 'sky', speed: 0.125, label: '1/8', color: '#ff4d8d' },
+];
+export const cameraMove = 96;
+export const travel = 272;
+export const widthScale = 0.54;
+export const stack = [
+	{ name: 'sky', priority: 3, x: 6 },
+	{ name: 'hills', priority: 2, x: 134 },
+	{ name: 'ground', priority: 1, x: 262 },
+];
+
+## When to use it
+
+When the camera moves and the world should look deep: hills that drift slowly behind a platformer's hero, clouds behind a shoot 'em up, a city skyline behind a runner, a layer of mist over a map seen from above. Each layer is a background of its own, so the GBA's four backgrounds give you up to four depths.
+
+When a single picture needs bands at different speeds, for example a sky whose clouds move slower the higher they are, one background is enough with an [H-Blank effect](/effects/hblank/) that changes its position line by line. This page uses one background per layer.
+
+## How to think about it
+
+**Each layer moves a fraction of what the camera moves.** The snippet has one camera position, and each layer is moved left by the camera times its speed: the ground by 1, the hills by 1/2, the sky by 1/8. The smaller the fraction, the farther away the layer looks, the way a mountain seems to follow you from a moving car while the fence rushes past. A fraction of 1 is a layer stuck to the world; 0 is one stuck to the screen.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 130" role="img" aria-label={`The camera moves ${cameraMove} pixels to the right. Three arrows show how far each layer moves to the left: the ground ${cameraMove} pixels, the hills ${cameraMove / 2}, the sky ${cameraMove / 8}.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<text x="10" y="16">camera: {cameraMove} px right</text>
+			<path d={`M 130 12 L ${130 + cameraMove * 2} 12`} stroke="currentColor" stroke-width="2" />
+			<path d={`M ${124 + cameraMove * 2} 8 L ${130 + cameraMove * 2} 12 L ${124 + cameraMove * 2} 16`} fill="none" stroke="currentColor" stroke-width="2" />
+			{layers.map((layer, i) => (
+				<g>
+					<text x="10" y={52 + i * 30} fill={layer.color}>{layer.name} × {layer.label}: {cameraMove * layer.speed} px</text>
+					<path d={`M ${130 + cameraMove * 2} ${48 + i * 30} L ${130 + cameraMove * 2 - cameraMove * layer.speed * 2} ${48 + i * 30}`} stroke={layer.color} stroke-width="3" />
+					<path d={`M ${136 + cameraMove * 2 - cameraMove * layer.speed * 2} ${44 + i * 30} L ${130 + cameraMove * 2 - cameraMove * layer.speed * 2} ${48 + i * 30} L ${136 + cameraMove * 2 - cameraMove * layer.speed * 2} ${52 + i * 30}`} fill="none" stroke={layer.color} stroke-width="3" />
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>How far each layer moves when the camera moves {cameraMove} pixels, with the snippet's speeds.</figcaption>
+</figure>
+
+**A slower layer needs less width.** The snippet's camera goes from -136 to 136: 272 pixels. The ground moves all of it, so it has to cover the screen's 240 pixels plus 272: 512. The hills move half, 136, and need 376; the sky moves 34 and needs 274. A regular background is 256 or 512 pixels wide, so here all three are 512, but the sky only just misses fitting in 256. A wider level or a slower sky changes that. Past its width, a background repeats from the other side: the art has to be drawn so that its end meets its start.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 120" role="img" aria-label="Three bars, one per layer. Each has a 240-pixel part for the screen and a part for how far the layer moves: ground 272 more, 512 in all; hills 136 more, 376; sky 34 more, 274. Dashed lines mark 256 and 512 pixels, the widths a regular background can have. Only the ground reaches 512; the sky passes 256 by 18 pixels." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{layers.map((layer, i) => (
+			<g>
+				<rect x="60" y={14 + i * 28} width={240 * widthScale} height="16" fill="currentColor" fill-opacity="0.15" />
+				<rect x={60 + 240 * widthScale} y={14 + i * 28} width={travel * layer.speed * widthScale} height="16" fill={layer.color} />
+				<text x="54" y={26 + i * 28} font-size="10" fill="currentColor" text-anchor="end">{layer.name}</text>
+				<text x={64 + (240 + travel * layer.speed) * widthScale} y={26 + i * 28} font-size="10" fill="currentColor">{240 + travel * layer.speed}</text>
+			</g>
+		))}
+		{[256, 512].map((width) => (
+			<g>
+				<line x1={60 + width * widthScale} y1="8" x2={60 + width * widthScale} y2="96" stroke="currentColor" stroke-opacity="0.6" stroke-dasharray="3 2" />
+				<text x={60 + width * widthScale} y="110" font-size="10" fill="currentColor" text-anchor="middle">{width}</text>
+			</g>
+		))}
+		<text x={60 + 120 * widthScale} y="110" font-size="10" fill="currentColor" text-anchor="middle" fill-opacity="0.7">the screen: 240</text>
+	</svg>
+	<figcaption>The width each layer needs: the screen plus how far it moves, worked out from the snippet's camera limits and speeds.</figcaption>
+</figure>
+
+**Priorities decide what's in front, and the player has one too.** The snippet gives the sky priority 3, the hills 2 and the ground 1: a lower number is drawn in front. A sprite has a background priority as well, 3 by default, and it's drawn in front of backgrounds with the same number or higher, behind the rest. With the ground at 1, a player left at 3 would be behind the ground, so the snippet puts it at 1 too. When two backgrounds share a priority, the one created last is in front.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 120" role="img" aria-label="The snippet's three layers side by side, from the back to the front: the sky with priority 3, the hills with priority 2, see-through above them, and the ground with priority 1, see-through above it, with the player standing on it at background priority 1." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<text x="190" y="12" font-size="10" fill="currentColor" text-anchor="middle">back → front</text>
+		{stack.map((layer) => (
+			<g>
+				<rect x={layer.x} y="20" width="112" height="65" fill="currentColor" fill-opacity="0.06" />
+				<image href={`/images/parallax/${layer.name}.png`} x={layer.x} y="20" width="112" height="65" preserveAspectRatio="none" style={{ imageRendering: 'pixelated' }} />
+				<rect x={layer.x} y="20" width="112" height="65" fill="none" stroke="currentColor" stroke-opacity="0.5" />
+				<text x={layer.x + 56} y="100" font-size="10" fill="currentColor" text-anchor="middle">{layer.name}: priority {layer.priority}</text>
+			</g>
+		))}
+		<image href="/images/parallax/player.png" x="334" y="54" width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+		<text x={stack[2].x + 56} y="114" font-size="10" fill="#ff4d8d" text-anchor="middle">player: bg_priority 1</text>
+	</svg>
+	<figcaption>The snippet's layers, each on its own. The gray behind the hills and the ground is where they're see-through.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with **←** and **→**. The camera follows the player until the edge of the ground comes into view. The top of the screen shows where each layer is: the ground's position, then the hills' at half of it, then the sky's at an eighth, in whole pixels.
+
+<Code code={parallax} lang="cpp" title="snippets/parallax/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/parallax/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The player walks right across the level and back. The ground and its platforms move at the player's pace, the green hills at half of it, and the clouds behind barely move. The numbers at the top go from 136, 68 and 17 to -136, -68 and -17." />
+	<figcaption>All the way right, then part of the way back. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="parallax" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr bn::fixed sky_speed = 0.125;` | An eighth is exact in `bn::fixed`. The layer's position keeps the fraction, and Butano draws it at the pixel below. |
+| `sky.set_x(-camera_x * sky_speed);` | The minus sign: moving the camera right moves the world left. Here both values have few decimals, so `fixed * fixed` loses nothing; see [Fixed-point numbers](/math/fixed/) for when it does. |
+| `bn::fixed player_x = -200;` | The player's place in the world, kept apart from the sprite's place on the screen, which is `player_x - camera_x`. |
+| `player.set_bg_priority(1);` | The sprite's priority against backgrounds, not against other sprites. That one is `set_z_order`. |
+| `ground.x().integer()` | The whole pixels, for the text. `integer()` cuts toward zero, which is fine for a label. |
+
+Art: [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0. The three layers and the player are made by [`snippets/tools/parallax_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/parallax_assets.py).
+
+## Pitfalls
+
+**The player disappears.**
+In the first build of the snippet, the layers had their priorities and the player didn't: the player was nowhere on the screen, hidden behind the ground at priority 1 while it stayed at the default 3. Whenever you give the backgrounds priorities, give the sprites in front of them one too.
+
+**Only the sky shows.**
+In a test ROM with every layer left at the default priority, the layers came out right when created from the back to the front: the sky, then the hills, then the ground. Created from the front to the back, the sky was in front of everything: no hills, no ground, just the player over the sky. On a tie, the last background created wins. Set the priorities and the order stops mattering.
+
+**The pattern breaks where the layer repeats.**
+A test ROM used a sky only 256 pixels wide and scrolled it past its edge. The art repeats every 96 pixels, and 256 isn't a multiple of 96: where the background started over, two pairs of trees were 64 pixels apart instead of 96. Make a repeating layer's art repeat a whole number of times in the background's width, or make the layer wide enough that it never repeats, as the snippet does.
+
+## Read more
+
+- Headers: [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h), for `set_x` and `set_priority`, and [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_bg_priority`.
+- Tonc: [Regular tiled backgrounds](https://gbadev.net/tonc/regbg.html), for the four layers, their priorities and how a map wraps.
+- Guide pages: [Backgrounds](/basics/backgrounds/), for the layers and their priorities, [Camera](/basics/camera/), for a camera that follows the player, [H-Blank effects](/effects/hblank/), for bands at different speeds in one background, and [Depth sorting](/basics/depth/), for sprites in front of each other.

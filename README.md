@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first forty-eight pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty-nine pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -73,6 +73,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 38. **Minimap:** the world shrunk to a 64x64 sprite by the art script, markers placed by dividing world positions by the scale, and the screen's box from the camera.
 39. **Save slots:** several saves at offsets worked out from the struct's size, a checksum that tells a good slot from a damaged one, and a save cut in half.
 40. **Music by region:** rectangles of the world with a song each, one song at a time with a fade out and a fade in, and a walk back that doesn't restart the song.
+49. **Parallax:** background layers that move a fraction of what the camera moves, how wide each one has to be, and the priorities that keep the ground in front of the sky and the player in front of the ground.
 
 ### Effects
 
