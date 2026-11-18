@@ -1,0 +1,136 @@
+---
+title: Gravity and jumping
+description: Gravity as a constant pull on the vertical velocity, a top speed for falling, a jump that's higher the longer A is held, and landing on platforms by crossing their top.
+genres: [platformer]
+sidebar:
+  order: 4.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import gravity from '../../../../../snippets/gravity/src/main.cpp?raw';
+
+export const physics = { gravity: 0.25, jump: -5, cut: -1.5, maxFall: 4 };
+export const simulate = (holdFrames) => { const points = [{ frame: 0, height: 0, speed: 0 }]; let speed = physics.jump; let height = 0; for (let frame = 1; frame < 80; frame++) { if (frame > holdFrames && speed < physics.cut) speed = physics.cut; speed = Math.min(speed + physics.gravity, physics.maxFall); height -= speed; if (height <= 0) { points.push({ frame, height: 0, speed }); break; } points.push({ frame, height, speed }); } return points; };
+export const held = simulate(99);
+export const tapped = simulate(4);
+export const apex = Math.max(...held.map((p) => p.height));
+export const tapApex = Math.max(...tapped.map((p) => p.height));
+export const arcX = (frame) => 30 + frame * 8;
+export const arcY = (height) => 140 - height * 2.4;
+export const fall = Array.from({ length: 28 }, (_, i) => ({ frame: i + 1, capped: Math.min((i + 1) * physics.gravity, physics.maxFall), free: (i + 1) * physics.gravity }));
+export const fallX = (frame) => 40 + frame * 11;
+export const fallY = (speed) => 140 - speed * 15;
+
+## When to use it
+
+For anything seen from the side that falls and jumps: the hero of a platformer, a ball, an enemy that hops, coins that pop out of a block. Gravity is what makes a jump an arc instead of a lift going up and down.
+
+It builds on [Velocity and acceleration](/math/velocity/): there the velocity is horizontal and changes when you press the D-pad; here the vertical velocity changes every frame on its own. A game seen from above has no gravity pulling things down the screen.
+
+## How to think about it
+
+**Gravity changes the velocity, and the velocity changes the position.** The character keeps a vertical velocity between frames. Every frame, gravity adds 0.25 to it, and the velocity is added to the position. A jump is nothing but a negative velocity: -5 sends the character up, gravity slows the rise by 0.25 each frame, and after 20 frames it's going down. Nothing in the code says "arc": the arc comes out of those two additions.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label={`A jump drawn one dot per frame. The dots rise fast, bunch up near the top at ${apex} pixels after 20 frames, and come down the same way, landing 40 frames after the jump. The dots are close together at the top, where the velocity is near 0.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1="20" y1="140" x2="370" y2="140" stroke="currentColor" stroke-opacity="0.5" />
+		{held.map((p) => (
+			<circle cx={arcX(p.frame)} cy={arcY(p.height)} r="2.5" fill={p.frame === 20 ? '#ff4d8d' : '#1e7cb8'} />
+		))}
+		<line x1={arcX(20)} y1={arcY(apex)} x2={arcX(20)} y2="140" stroke="#ff4d8d" stroke-dasharray="3 2" />
+		<g font-size="10" fill="currentColor">
+			<text x={arcX(20) + 6} y={arcY(apex) - 6} fill="#ff4d8d">{apex} px, frame 20</text>
+			<text x={arcX(0)} y="156">frame 0: velocity -5</text>
+			<text x={arcX(40)} y="156" text-anchor="end">frame 40: lands</text>
+		</g>
+	</svg>
+	<figcaption>One dot per frame, worked out from the snippet's constants. They bunch up at the top, where the velocity is near 0, and stay evenly spaced sideways because the horizontal speed doesn't change.</figcaption>
+</figure>
+
+**A fall has a top speed.** Left alone, gravity would make a fall faster and faster: after a long drop the character would cross a whole platform in one frame, and the player couldn't follow it. The snippet stops the velocity at 4 pixels per frame. Falling from rest, it gets there after 16 frames, and from then on the fall is a steady 4 pixels per frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label="Fall speed against frames since the fall began. The blue line climbs 0.25 per frame and stops at 4 pixels per frame after 16 frames, flat from then on. A dashed pink line keeps climbing past it: the speed without a top speed, 7 pixels per frame at frame 28." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1="40" y1="140" x2="360" y2="140" stroke="currentColor" stroke-opacity="0.5" />
+		<polyline points={fall.map((p) => `${fallX(p.frame)},${fallY(p.free)}`).join(' ')} fill="none" stroke="#ff4d8d" stroke-width="1.5" stroke-dasharray="4 3" />
+		<polyline points={fall.map((p) => `${fallX(p.frame)},${fallY(p.capped)}`).join(' ')} fill="none" stroke="#1e7cb8" stroke-width="2.5" />
+		<line x1="40" y1={fallY(4)} x2="360" y2={fallY(4)} stroke="currentColor" stroke-opacity="0.25" stroke-dasharray="2 2" />
+		<g font-size="10" fill="currentColor">
+			<text x="34" y={fallY(4) + 3} text-anchor="end">4</text>
+			<text x="34" y="143" text-anchor="end">0</text>
+			<text x={fallX(22)} y={fallY(4) + 16} text-anchor="middle" fill="#1e7cb8">top speed from frame 16</text>
+			<text x={fallX(26)} y={fallY(7) - 4} text-anchor="end" fill="#ff4d8d">without it</text>
+			<text x="200" y="158" text-anchor="middle">frames since the fall began</text>
+			<text x="12" y="80" transform="rotate(-90 12 80)" text-anchor="middle">pixels per frame</text>
+		</g>
+	</svg>
+	<figcaption>The fall speed per frame, worked out from <code>gravity</code> and <code>max_fall_speed</code>.</figcaption>
+</figure>
+
+**Letting go of A cuts the jump short.** Every jump starts at the same speed. While A is held, gravity alone slows the rise. Once A is up, the snippet won't let the character rise faster than 1.5 pixels per frame, so it stops climbing a few frames later. A tap gives a hop, a long press the whole jump, and the player controls the height without thinking about it. The cut only lowers a rising speed, so letting go on the way down changes nothing.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 170" role="img" aria-label={`Two jumps from the same spot, one dot per frame. Holding A, the jump peaks at ${apex} pixels. Letting go after 4 frames, it peaks at ${tapApex} pixels and lands much sooner.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<line x1="20" y1="140" x2="370" y2="140" stroke="currentColor" stroke-opacity="0.5" />
+		{held.map((p) => (
+			<circle cx={arcX(p.frame)} cy={arcY(p.height)} r="2.2" fill="#1e7cb8" />
+		))}
+		{tapped.map((p) => (
+			<circle cx={arcX(p.frame)} cy={arcY(p.height)} r="2.2" fill={p.frame === 5 ? '#ff4d8d' : '#2f9e36'} />
+		))}
+		<g font-size="10">
+			<text x={arcX(20)} y={arcY(apex) - 8} text-anchor="middle" fill="#1e7cb8">A held: {apex} px</text>
+			<text x={arcX(11.5)} y="156" text-anchor="middle" fill="#2f9e36">A let go after 4 frames: {tapApex} px</text>
+			<text x={arcX(5) + 6} y={arcY(tapped[5].height) + 14} fill="#ff4d8d">cut</text>
+		</g>
+	</svg>
+	<figcaption>Both jumps worked out from the snippet's constants. The pink dot is the first frame after A goes up.</figcaption>
+</figure>
+
+**Landing is crossing a platform's top.** Each frame, the snippet takes where the feet were and where they'd be after moving. If they were above a platform's top and would be on it or below, they land: the feet go exactly on the top, and the velocity goes to 0. The test only runs while falling, so the character jumps up through a platform from below and lands on it on the way down, like the one-way platforms of many platformers. Whether it's standing is worked out again every frame: walking off the edge, nothing is under it any more, and it falls.
+
+## The smallest thing that works
+
+Walk with **←** and **→** and jump with **A**: hold it for a full jump, tap it for a hop. The platforms only stop you from above. The top of the screen shows how high the last jump went, from the feet at takeoff to the highest point: compare a tap with a long press.
+
+<Code code={gravity} lang="cpp" title="snippets/gravity/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/gravity/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The character jumps up through the lowest platform and lands on it, walks right and jumps through the next one, and again to the top one. There it taps A for a small hop, then walks off the right edge and falls to the ground. The top of the screen reads 47.50 px after each full jump and 21.25 px after the hop." />
+	<figcaption>Up the three platforms with full jumps, a tap on the top one, and a walk off its edge. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="gravity" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr bn::fixed gravity = 0.25;` | The conversion from `0.25` happens when compiling. A quarter is exact in `bn::fixed`, which keeps 12 bits after the point; see [Fixed-point numbers](/math/fixed/). |
+| `bn::min(velocity_y + gravity, max_fall_speed)` | Speeds up and caps in one line. Both sides are `bn::fixed`, so `bn::min` knows which type to return. |
+| `constexpr platform platforms[] = { { -120, 120, 44 }, ... };` | An array of aggregates, filled when compiling. The size comes from the number of entries. |
+| `for(const platform& under : platforms)` | A range-for works on a plain array too: the compiler knows its size. |
+| `stream.set_precision(4);` | `bn::ostringstream` writes a `bn::fixed` with this many digits in total, before and after the point. The default prints `21.25000`; 3 would cut it to `21.2`. |
+| `player.set_horizontal_flip(direction > 0);` | The character faces left in the pack, so walking right is the flipped one. Check which way your art faces before choosing the sign. |
+| `walk_frames / 8 % 2` | Integer division first, then the remainder: a frame number that flips between 0 and 1 every 8 frames. |
+
+Art: [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0. The character, the tiles and the sky are put together by [`snippets/tools/platformer_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/platformer_assets.py), which draws the 18-pixel tiles anywhere on a picture and lets Butano's importer cut it into 8x8 tiles.
+
+## Pitfalls
+
+**The character walks off a ledge and stays in the air.**
+A common first version sets "on the ground" when landing and clears it when jumping, and only applies gravity in the air. In a test ROM written that way, the character walked off the right edge of the top platform and kept walking at the same height, with nothing under it. Walking off an edge never clears the flag. Work out whether it's standing every frame, from what's under its feet, as the snippet does.
+
+**Pressing A in the air jumps again.**
+Without the `on_ground` check, every press sets the velocity back to -5. In a test ROM, each press in the air raised the character about 12 pixels, and after 9 presses in a row its head was at the top of the play area. A double jump is a design choice: if you want one, count the jumps in the air and reset the count on landing.
+
+**The character sinks into the ground and falls through it.**
+A test ROM landed the character whenever its feet were inside a platform's 18 pixels, setting the velocity to 0 but leaving the feet where they were. Gravity then added 0.25 every frame and the velocity was zeroed again, so the feet went a quarter of a pixel deeper each frame: the top of the screen read 15.5 pixels into the grass, then 17.7, and then the character dropped out of the screen. Put the feet on the top when landing.
+
+## Read more
+
+- Headers: [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), for the type every value here uses, and [`bn_sstream.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sstream.h), for `set_precision`.
+- Tonc: [Fixed-point numbers](https://gbadev.net/tonc/fixed.html), for why the GBA counts in fractions of pixels.
+- cppreference: [range-based for](https://en.cppreference.com/w/cpp/language/range-for), on arrays and containers.
+- Guide pages: [Velocity and acceleration](/math/velocity/), for the horizontal side with acceleration and friction, [Map collision](/basics/collision/), for walls and ceilings from a tile map, [Hitboxes](/math/hitboxes/), for fast things that skip over thin ones, and [Fixed-point numbers](/math/fixed/), for where `bn::fixed` runs out of precision.

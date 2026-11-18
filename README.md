@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first forty-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first forty-eight pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -112,6 +112,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 32. **Line of sight:** a view cone from a dot product, a ray that walks the map cell by cell, and the cheap checks first.
 34. **Cave generation:** noise from a seed, cellular automaton passes with two grids, a background map written by the code, and seeds that don't overlap.
 41. **Pathfinding:** a breadth-first search out from the goal, one distance map that answers every start, and a trail that walks downhill to the goal.
+48. **Gravity and jumping:** gravity as a constant pull on the vertical velocity, a top speed for falling, a jump that's higher the longer A is held, and landing on platforms by crossing their top.
 
 ## Ideas to study
 
