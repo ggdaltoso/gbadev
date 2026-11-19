@@ -108,4 +108,23 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Combos and sequences: buttons held together (soft reset), a cheat code and a fighting-game motion inside a window of frames.
    - [x] Press timing: a jump buffered before landing, a double tap to run, a cursor that repeats while held.
 
+8. **Platformer:**
+   - [x] Forgiving jumps: coyote time after leaving a ledge, and corner correction when the head clips a block's edge.
+   - [ ] Moving and one-way platforms: carried along by a platform, jumping up through one and landing on top.
+   - [ ] Slopes: walking on sloped tiles, the height worked out from the pixel column.
+9. **Combat (any genre):**
+   - [ ] Damage, knockback and invincibility: invincibility frames, blinking, a white flash through the palette, a push back.
+   - [ ] Bullet patterns (shooter): rings, spirals and shots aimed at the player, as data.
+   - [ ] A boss in phases: health picks the phase, each phase a list of attacks.
+   - [ ] Homing missiles: turning toward a target a little each frame, with a top turn rate.
+10. **Game systems:**
+   - [ ] Pause: freezing the game but not the pause menu; what keeps running and what stops, and timers that stay right.
+   - [ ] Inventory as data: an item table, stacks, a menu to use them, kept in the save.
+   - [ ] Random without streaks: a shuffle bag, so the same thing doesn't come up three times in a row.
+   - [ ] Camera dead zone and look-ahead: the camera moves only when the hero leaves a box, and shows more ahead.
+11. **Technique:**
+   - [ ] Debugging: `BN_LOG` in mGBA's log, `BN_ASSERT`, and reading Butano's error screen.
+   - [ ] Where memory lives: IWRAM, EWRAM and ROM, `constexpr` vs globals, big arrays and stack overflow, measured.
+   - [ ] A floor in perspective (Mode 7): a tilted floor like a racing game, with H-Blank and affine backgrounds.
+
 Art for these: Kenney packs (CC0) the owner downloaded to `~/Downloads/kenney_*.zip`. Copy only the pack a lesson uses into `assets/kenney-<pack>/`, with a `CREDITS.md`.

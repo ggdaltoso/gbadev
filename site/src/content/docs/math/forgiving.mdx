@@ -1,0 +1,142 @@
+---
+title: Forgiving jumps
+description: Coyote time, a jump still allowed a few frames after walking off a ledge, and corner correction, a head that slides past a block's corner instead of bumping it, both small enough that the player never notices them.
+genres: [platformer]
+sidebar:
+  order: 4.6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import forgiving from '../../../../../snippets/forgiving/src/main.cpp?raw';
+import font from '../../../../../snippets/forgiving/include/font.h?raw';
+
+## When to use it
+
+In any platformer with jumps the player has to time. The rules of [Gravity and jumping](/math/gravity/) are exact: you can jump while standing on something, and a head that touches a block stops. Exact rules feel unfair. A player who presses A a moment after the ledge ended sees a jump that didn't happen. A head that clips a block's corner by two pixels sees a jump cut short for no visible reason. Two small lies fix both, and nobody notices them, which is the point.
+
+[Press timing](/basics/timing/) has the other half: the jump buffer, for an A pressed a little *before* landing.
+
+## How to think about it
+
+**Coyote time: the ground lasts a few frames longer than the ground.** Every frame on the ground sets `coyote` to 6, and every frame off it takes one away. A jump is allowed while `coyote` is above 0, so for 6 frames after walking off a ledge the player can still jump, as if they were still on it. (The name is from the cartoon coyote who runs off a cliff and only falls once he looks down.) Jumping sets `coyote` to 0, or those same frames would allow a second jump in the air.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 180" role="img" aria-label="A ledge and the player's path walking off it. Over the first frames past the edge, coyote counts 6, 5, 4 and so on; a press of A there still jumps. Next to it, the snippet with the player just past the edge and Coyote 2 on screen." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="10" y="80" width="80" height="16" fill="#2f9e36" fill-opacity="0.25" stroke="#2f9e36" />
+			<path d="M 40 74 L 90 74 Q 120 74 150 118" fill="none" stroke="currentColor" stroke-dasharray="3 3" />
+			{[6, 5, 4, 3, 2, 1].map((n, i) => (
+				<text x={96 + i * 9} y={70 + i * i * 1.2} font-family="monospace" fill="#1e7cb8" text-anchor="middle">{n}</text>
+			))}
+			<text x="100" y="140" text-anchor="middle">past the edge: 6 frames</text>
+			<text x="100" y="154" text-anchor="middle">in which A still jumps</text>
+		</g>
+		<image href="/images/forgiving/coyote.png" x="200" y="16" width="198" height="132" style={{ imageRendering: 'pixelated' }} />
+		<text x="299" y="166" text-anchor="middle" font-size="10" fill="currentColor">off the ledge: Coyote 2</text>
+	</svg>
+	<figcaption>The counter runs out while the player falls. A jump on any of those frames still counts.</figcaption>
+</figure>
+
+**Corner correction: a head that only just touches a corner slides past it.** When a rising player would move into a block, the snippet tries the same move 1, 2, 3 and 4 pixels to the left and to the right. If one of them is free, the player takes that small step sideways and keeps rising. Only when none is free does the head stop. Four pixels is small next to a 14-pixel-wide box, so a head right under a block still bumps it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 180" role="img" aria-label="A block, and the player's box below it overlapping the block's left corner by 3 pixels. An arrow moves the box 3 pixels left, where it rises past the corner. Next to it, the snippet with the player beside the block and Corner nudge 4 on screen." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="80" y="20" width="72" height="36" fill="#2f9e36" fill-opacity="0.25" stroke="#2f9e36" />
+			<rect x="30" y="66" width="56" height="70" fill="none" stroke="#ff4d8d" stroke-dasharray="3 3" />
+			<rect x="18" y="66" width="56" height="70" fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<path d="M 58 101 L 46 101" stroke="currentColor" /><path d="M 50 97 L 46 101 L 50 105" fill="none" stroke="currentColor" />
+			<path d="M 46 62 L 46 14" stroke="#1e7cb8" /><path d="M 42 18 L 46 14 L 50 18" fill="none" stroke="#1e7cb8" />
+			<text x="100" y="152" text-anchor="middle" fill="#ff4d8d">3 pixels into the corner</text>
+			<text x="100" y="166" text-anchor="middle" fill="#1e7cb8">3 pixels aside, and up</text>
+		</g>
+		<image href="/images/forgiving/corner.png" x="200" y="16" width="198" height="132" style={{ imageRendering: 'pixelated' }} />
+		<text x="299" y="166" text-anchor="middle" font-size="10" fill="currentColor">beside the block: Corner nudge 4</text>
+	</svg>
+	<figcaption>The box tries a few pixels to each side before the head is allowed to stop.</figcaption>
+</figure>
+
+**Forgiveness is a few frames and a few pixels, as named numbers.** `coyote_frames` and `corner_nudge` sit at the top of the file with the gravity. They are part of how the game feels, like the jump speed: too small and they don't help, too big and the player can jump from thin air or slide through walls. Tune them by playing, and keep them where they can be found.
+
+## The smallest thing that works
+
+**←** and **→** walk, and **A** jumps. Walk off the left ledge and press A a moment late: the jump still happens. Stand under the left corner of the floating block and jump: the player slides past it and can land on top. The top line shows the coyote frames left and the last corner nudge.
+
+<Code code={forgiving} lang="cpp" title="snippets/forgiving/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/forgiving/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/forgiving/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The player walks off the left ledge and jumps a moment late, while Coyote counts down, and lands on the right ledge. Then it jumps under the left corner of the floating block, is nudged 4 pixels aside, and lands on top of the block." />
+	<figcaption>A late jump across the gap, then a jump past the block's corner. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="forgiving" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `(x - 7).floor_integer()` | The pixel column of the box's left edge. `floor_integer` rounds down, also for negative numbers, where `integer()` would round toward 0. |
+| `if(x < origin_x \|\| column >= columns) return true;` | Outside the level at the sides counts as a wall. The division would give column 0 for a few pixels left of the level, so the test is on `x`, before dividing. |
+| `for(int side : { -1, 1 })` | A range-based `for` over a list written in place: left first, then right. |
+| `new_y = origin_y + row * cell - 12;` | Puts the feet exactly on the top of the block that was hit, instead of somewhere inside it. |
+| `hits(x, new_y + 1)` | On the ground means the pixel right under the feet is solid. |
+
+Art: the blocks, the hills and the character are from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0, laid out by [`snippets/tools/forgiving_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/forgiving_assets.py), which reads the level from `main.cpp`. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**A jump pressed just past the edge falls.**
+The snippet and a test ROM that only allows jumps on the ground got the same keys: → held from the left ledge, and A pressed a moment after the player left it. The snippet jumped and landed on the right ledge. The test ROM, at "Coyote 1", ignored A and dropped into the gap.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/forgiving/coyote_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player on the right ledge." />
+		<figcaption>6 coyote frames: across.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/forgiving/coyote_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player at the bottom of the gap." />
+		<figcaption>Ground only: in the gap.</figcaption>
+	</figure>
+</div>
+
+**Coyote time gives a second jump.**
+A test ROM that didn't set `coyote` to 0 on the jump jumped again when A was pressed twice quickly from the ledge: the first jump left frames on the counter, and the second press spent them in the air. Its jump went 24 pixels higher than the snippet's with the same two presses.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/forgiving/double_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player at the top of a normal jump." />
+		<figcaption>Spent on the jump: one jump.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/forgiving/double_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player much higher, up against the top of the screen." />
+		<figcaption>Not spent: a second jump.</figcaption>
+	</figure>
+</div>
+
+**A head bumps a corner it barely touched.**
+A test ROM with no corner correction, started 3 pixels under the floating block's corner and jumping with → held soon after, hit its head, fell back and walked on along the ledge. The snippet, with the same start and keys, slid 3 pixels aside and landed on top of the block.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/forgiving/nudge_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player above the block, Corner nudge 3." />
+		<figcaption>4-pixel nudge: over it.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/forgiving/nudge_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player back on the ledge, to the right of the block." />
+		<figcaption>No nudge: bumped and fell.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Header: [`bn_fixed.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed.h), for `floor_integer`.
+- cppreference: [range-based for](https://en.cppreference.com/w/cpp/language/range-for), over an initializer list.
+- Guide pages: [Gravity and jumping](/math/gravity/), [Press timing](/basics/timing/), for the jump buffer, [Map collision](/basics/collision/), for boxes against a grid of cells, and [Fixed-point numbers](/math/fixed/).
