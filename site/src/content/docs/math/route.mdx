@@ -1,0 +1,161 @@
+---
+title: A character that follows a route
+description: A villager walking from a door to a notice board and back along a route written as a list of stops, each leg walked by distance so it's a straight line at one speed and ends exactly on the stop, and waits as part of the route.
+sidebar:
+  order: 5.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import route from '../../../../../snippets/route/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const stops = [[2, 3], [2, 6], [7, 8], [12, 8], [12, 5], [12, 8], [7, 8], [2, 6]];
+export const labels = [
+	{ cell: [2, 3], text: '0: wait 60', dx: 14, dy: -6 },
+	{ cell: [2, 6], text: '1, 7', dx: -14, dy: -12 },
+	{ cell: [7, 8], text: '2, 6', dx: 0, dy: 18 },
+	{ cell: [12, 8], text: '3, 5', dx: 0, dy: 18 },
+	{ cell: [12, 5], text: '4: wait 90', dx: -40, dy: 4 },
+];
+export const center = (cell) => [cell[0] * 16 + 8, cell[1] * 16 + 8];
+export const slant = Array.from({ length: 10 }, (_, i) => i * 6).map((frame) => ({ frame, walked: frame * 1.5 }));
+export const legs = [
+	{ label: 'wait', frames: 60, wait: true }, { label: '48 px', frames: 32 }, { label: '86 px', frames: 58 },
+	{ label: '80 px', frames: 54 }, { label: '48 px', frames: 32 }, { label: 'wait', frames: 90, wait: true },
+	{ label: '48', frames: 32 }, { label: '80 px', frames: 54 }, { label: '86 px', frames: 58 }, { label: '48', frames: 32 },
+];
+export const loopFrames = legs.reduce((sum, leg) => sum + leg.frames, 0);
+export const legX = (index) => 10 + legs.slice(0, index).reduce((sum, leg) => sum + leg.frames, 0) * 360 / loopFrames;
+
+## When to use it
+
+When a character should walk somewhere on its own, along a way you chose: a villager going about their day, a guard on patrol, a worker from the door to their desk, a cutscene walk, a moving platform. The way is known when you make the level, so there's nothing to search: you write it down as a list of points.
+
+When the way has to be found in play, around walls that change or to a goal that moves, see [Pathfinding](/math/pathfinding/). For one move from A to B in a set time, with easing, see [Interpolation and easing](/math/easing/).
+
+## How to think about it
+
+**A route is a list of stops, and a stop can be a wait.** Each stop is a cell of the village and how many frames to stay there. The villager walks from one stop to the next, in order, and after the last one comes the first again, so the route loops. Waiting at the door and at the board isn't separate code: it's a number in the list. The art script reads the same list and lays the dirt path under it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 480 320" role="img" aria-label="The village, twice as big, with the route drawn over it: stop 0 at the house's door, waiting 60 frames, down to stop 1, on a slant across the square to stop 2, right to stop 3, up to stop 4 in front of the board, waiting 90 frames, then back the same way through stops 5, 6 and 7 to the door." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<image href="/images/route/village.png" width="480" height="320" style={{ imageRendering: 'pixelated' }} />
+		<polyline points={[...stops, stops[0]].map((cell) => center(cell).map((v) => v * 2).join(',')).join(' ')} fill="none" stroke="#1e7cb8" stroke-width="3" />
+		{stops.map((cell) => (
+			<circle cx={center(cell)[0] * 2} cy={center(cell)[1] * 2} r="7" fill="#fff" stroke="#1e7cb8" stroke-width="3" />
+		))}
+		{labels.map((label) => (
+			<text x={center(label.cell)[0] * 2 + label.dx} y={center(label.cell)[1] * 2 + label.dy} text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7cb8" stroke="#fff" stroke-width="3" paint-order="stroke">{label.text}</text>
+		))}
+	</svg>
+	<figcaption>The snippet's eight stops. The way back is listed stop by stop, so a route can go anywhere, even over itself.</figcaption>
+</figure>
+
+**A leg is walked by distance, not by steps toward a point.** When a leg starts, the snippet knows its length: the square root of `dx² + dy²`, once. Every frame it adds the speed to `walked`, and puts the villager `walked / length` of the way from one stop to the next, on both axes at once. The same fraction on both axes is a straight line, even on a slant, and the same pixels per frame on every leg, whatever its length.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 190" role="img" aria-label="The slanted leg from stop 1 to stop 2, 86 pixels long, twice as big. Dots every 6 frames sit evenly along a straight line. Under it: walked is 1.5 times the frames, and both axes go walked divided by 86 of the way: 80 pixels across and 32 down." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<svg x="10" y="10" width="380" height="120" viewBox="21 85 190 60">
+			<image href="/images/route/village.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} />
+			<line x1="40" y1="104" x2="120" y2="136" stroke="#1e7cb8" stroke-width="1" stroke-dasharray="2 2" />
+			{slant.map((dot) => (
+				<circle cx={40 + 80 * dot.walked / 86} cy={104 + 32 * dot.walked / 86} r="2" fill="#2f9e36" stroke="#fff" stroke-width="0.6" />
+			))}
+			<circle cx="120" cy="136" r="2.5" fill="#fff" stroke="#1e7cb8" stroke-width="1.2" />
+			<circle cx="40" cy="104" r="2.5" fill="#fff" stroke="#1e7cb8" stroke-width="1.2" />
+		</svg>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="200" y="150"><tspan fill="#2f9e36">a dot every 6 frames</tspan>: walked = 1.5 × frames</text>
+			<text x="200" y="166">position = stop 1 + (80, 32) × walked / 86</text>
+			<text x="200" y="182">86 = the int square root of 80² + 32² = 7424</text>
+		</g>
+	</svg>
+	<figcaption>Stop 1 to stop 2: evenly spaced dots on a straight line.</figcaption>
+</figure>
+
+**A leg ends when the distance is covered, and the stop is put exactly in place.** When `walked` reaches the length, the snippet doesn't move the villager by one more step: it puts it on the stop, starts the next leg from 0 and starts the stop's wait. No position is ever compared with a point, so there's nothing to overshoot or fall short of, whatever the speed. Each leg takes its length divided by the speed, rounded up, in frames: one loop of the route is {loopFrames} frames.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 80" role="img" aria-label={`One loop of the route, ${loopFrames} frames, as a bar split into legs and waits: wait 60, then legs of 32, 58, 54 and 32 frames, wait 90, then 32, 54, 58 and 32 frames back to the door.`} style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{legs.map((leg, i) => (
+			<g>
+				<rect x={legX(i) + 0.5} y="20" width={legX(i + 1) - legX(i) - 1} height="20" fill={leg.wait ? '#2f9e36' : '#1e7cb8'} fill-opacity={leg.wait ? 0.8 : 0.5} />
+				<text x={(legX(i) + legX(i + 1)) / 2} y="54" text-anchor="middle" font-size="9" fill="currentColor">{leg.frames}</text>
+				<text x={(legX(i) + legX(i + 1)) / 2} y="14" text-anchor="middle" font-size="8" fill="currentColor">{leg.label}</text>
+			</g>
+		))}
+		<text x="190" y="74" text-anchor="middle" font-size="10" fill="currentColor"><tspan fill="#2f9e36">waits</tspan> and <tspan fill="#1e7cb8">legs</tspan>, in frames: {loopFrames} in all</text>
+	</svg>
+	<figcaption>The frame count of each part, worked out from the code: a leg of 86 pixels at 1.5 a frame takes 58.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+No buttons: the villager comes out of the house, walks to the board, reads it for a second and a half, and walks back in, over and over.
+
+<Code code={route} lang="cpp" title="snippets/route/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/route/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The villager leaves the house's door, walks down the path, crosses the square on a slant, goes along the bottom and up to the notice board, waits there facing it, then walks the same way back to the door." />
+	<figcaption>One loop of the route. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="route" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr waypoint route[] = { { 2, 3, 60 }, ... };` | An array of structs, each written as `{ x, y, wait }` in the order of its members. `constexpr` keeps it in ROM. |
+| `constexpr int stops = sizeof(route) / sizeof(route[0]);` | The size of the whole array over the size of one element: the number of stops, which follows the list if it grows. |
+| `route[(leg + 1) % stops]` | The stop after `leg`; after the last one, `%` brings it back to 0. See the pitfalls for what happens without it. |
+| `int length = bn::sqrt(dx * dx + dy * dy);` | The square root of an `int`. `bn::sqrt` of a `bn::fixed` keeps only 6 bits of fraction, as the [Vectors](/math/vectors/) page measured. |
+| `bn::fixed_point(dx, dy) * walked / length` | Multiplies before dividing, so `walked / length`, a fraction under 1, never gets rounded on its own. |
+
+Art: [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the village), laid out from the route by [`snippets/tools/route_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/route_assets.py), and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. Both CC0.
+
+## Pitfalls
+
+**The villager stops just short of a stop, forever.**
+A test ROM that moved the villager toward the next stop by the speed, in the direction worked out from where it was, and only went on when its position was equal to the stop, never left the first corner. It ended up less than a pixel from the stop and stayed there. Worked out from its code: that close, the square root of what was left rounds to 0, so it stopped moving without ever being equal. It stood there for the rest of the test. Measure the leg by distance and end it when the distance is covered.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/route/stuck.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The villager standing at the first corner of the path, below the house, six seconds in." />
+	<figcaption>Six seconds in, still at the first corner.</figcaption>
+</figure>
+
+**A slanted leg turns into a bend.**
+A test ROM that stepped each axis on its own, at most 1.5 pixels each, like the slide in [Grid-locked movement](/basics/grid/), went across the square at 45 degrees until the 32 pixels down were used up, then straight along for the rest: a bend, not the straight line. It was also faster while both axes moved, 1.5 pixels on each. Moving by the same fraction on both axes keeps the line straight.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/route/trail-axis.png" width="400" height="120" style={{ imageRendering: 'pixelated' }} alt="The villager's feet every 3 frames in the test ROM: a 45-degree line down the left, then a flat line along the bottom." />
+		<figcaption>Each axis on its own: 45 degrees, then flat.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/route/trail-snippet.png" width="400" height="120" style={{ imageRendering: 'pixelated' }} alt="The villager's feet every 3 frames in the snippet: one straight slanted line across the square, then the bottom." />
+		<figcaption>The snippet: one straight line.</figcaption>
+	</figure>
+</div>
+
+**After the last stop, the villager loses its way.**
+A test ROM that went to `route[leg + 1]` without `% stops` walked the route once. After the last stop it read past the end of the array, and never went back to the door: it walked a few pixels near the corner, jumped back, and did it again, over and over. After the art was redrawn and the ROM built again, the code unchanged, the short walks went another way. What it reads there isn't part of the route, and can be anything.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/route/wrap.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The villager near the corner below the house, at the edge of the path, instead of at the door." />
+	<figcaption>Past the end of the route: near the corner, never back at the door.</figcaption>
+</figure>
+
+## Read more
+
+- Headers: [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h), for `bn::sqrt`, and [`bn_fixed_point.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_fixed_point.h).
+- cppreference: [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization), for `{ 2, 3, 60 }`, and [`sizeof`](https://en.cppreference.com/w/cpp/language/sizeof).
+- Guide pages: [Interpolation and easing](/math/easing/), for a fraction of the way, [Vectors](/math/vectors/), for lengths and directions, [Pathfinding](/math/pathfinding/), for a way found in play, and [Scripted cutscenes](/structure/cutscene/), for a walk as one step of a scene.

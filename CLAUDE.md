@@ -96,7 +96,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 5. **Any genre:**
    - [x] Bars and meters: a bar that fills smoothly, drawn with tiles.
    - [x] Instant screen swap: two screens alive at once, switched with a button, state kept.
-   - [ ] A character that follows a route: from a door to a desk.
+   - [x] A character that follows a route: from a door to a desk.
    - [ ] Level menu: cursor, locked levels, the goal still missing.
    - [ ] Several games in one ROM: each one a scene that owns its resources, one shared save.
 
