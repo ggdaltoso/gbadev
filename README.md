@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first fifty-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first fifty-eight pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -100,6 +100,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 ### Structure
 
 18. **Scenes:** a title, a game and a result as functions, what each one owns, and fading between them.
+58. **Instant screen swap:** two screens that both stay alive, swapped by hiding one and showing the other, each one deciding what keeps running while hidden, and what that costs next to remaking a screen.
 19. **Game objects:** a class per kind of thing, a `bn::vector` of them, and removing them with `erase_if`.
 43. **Object pools:** every stone made at the start and kept hidden, a throw that wakes one up and resets it, a size worked out from one stone's life and the time between throws, and what it saves, measured.
 20. **Files and headers:** a class in its own `.h` and `.cpp`, include guards, and the compiler and linker errors.

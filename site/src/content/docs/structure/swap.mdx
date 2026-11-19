@@ -1,0 +1,182 @@
+---
+title: Instant screen swap
+description: Two screens that both stay alive, a field and a bag, swapped with a button by hiding one and showing the other, each one deciding what keeps running while it's hidden, and what that costs next to remaking a screen.
+sidebar:
+  order: 1.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import swap from '../../../../../snippets/swap/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+import font from '../../../../../snippets/swap/include/font.h?raw';
+
+export const owned = [
+	{ screen: 'field_screen', x: 20, items: ['world: background', 'hero: sprite', 'clock: text sprites'] },
+	{ screen: 'bag_screen', x: 200, items: ['panel: background', 'icons: 3 sprites', 'text: text sprites', 'cursor: sprite'] },
+];
+export const ticksPerFrame = 4389;
+export const swapTicks = [
+	{ label: 'snippet, into the bag', ticks: 258, color: '#2f9e36' },
+	{ label: 'snippet, back to the field', ticks: 573, color: '#2f9e36' },
+	{ label: 'remade, into the bag', ticks: 1409, color: '#ff4d8d' },
+	{ label: 'remade, back to the field', ticks: 1418, color: '#ff4d8d' },
+];
+export const barX = (ticks) => 150 + ticks / ticksPerFrame * 210;
+export const timelineX = (frame) => 110 + frame * 9;
+
+## When to use it
+
+When the player flips between two screens many times and each one should be exactly as it was left: a game and its inventory, a world and its map, a desk and a phone, two rooms of a puzzle. Nothing to load on the way, so the swap happens on the frame the button is pressed, and nothing to save and restore, because nothing was destroyed.
+
+For screens that come one after the other and don't come back the same, a title, a level, a game over, use [Scenes](/structure/scenes/): each one owns its resources only while it runs.
+
+## How to think about it
+
+**Both screens are alive all the time; swapping only changes what's visible.** The field and the bag are two structs, each owning its background and its sprites, and `main` makes both before the loop. Pressing **SELECT** calls `set_visible(false)` on one and `set_visible(true)` on the other: every background and sprite it owns, hidden or shown. Nothing is created, nothing destroyed, so the hero's position, the cursor and the clock are simply still there.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 210" role="img" aria-label="Two columns. Left, field_screen: a picture of the field, and what it owns: the world background, the hero sprite and the clock's text sprites, all shown. Right, bag_screen: a picture of the bag, and what it owns: the panel background, three icon sprites, the text sprites and the cursor sprite, all hidden, drawn dashed. An arrow between them says SELECT: hide one, show the other." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<image href="/images/swap/field.png" x="20" y="22" width="160" height="106.7" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/swap/bag.png" x="200" y="22" width="160" height="106.7" opacity="0.35" style={{ imageRendering: 'pixelated' }} />
+		<rect x="20" y="22" width="160" height="106.7" fill="none" stroke="#2f9e36" stroke-width="2.5" />
+		<rect x="200" y="22" width="160" height="106.7" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="4 3" />
+		{owned.map((group, g) => (
+			<g font-size="10" fill="currentColor">
+				<text x={group.x + 80} y="14" text-anchor="middle" font-family="monospace" fill={g === 0 ? '#2f9e36' : 'currentColor'}>{group.screen}{g === 0 ? ': shown' : ': hidden'}</text>
+				{group.items.map((item, i) => (
+					<text x={group.x + 4} y={146 + i * 14} opacity={g === 0 ? 1 : 0.6}>{item}</text>
+				))}
+			</g>
+		))}
+		<text x="190" y="204" text-anchor="middle" font-size="10" fill="#ff4d8d">SELECT: set_visible(false) on one, set_visible(true) on the other</text>
+	</svg>
+	<figcaption>While the field is shown. Everything on the right still exists, with the cursor where it was left.</figcaption>
+</figure>
+
+**Hidden isn't paused: each screen decides what keeps going.** A hidden sprite still exists, and the code that moves it still runs if it's called. So the snippet decides, screen by screen. The field's `update` runs on every frame and counts the clock even while the bag is open, but it only reads the D-pad and redraws the clock when the field is shown. The bag's `update` only runs while the bag is shown, so the cursor can't move behind the player's back.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 130" role="img" aria-label="A timeline of 30 frames: the field is shown for 10, the bag for 10, then the field again. Three rows. The field's clock counts on every frame. The hero reads the D-pad only on the frames the field is shown. The bag's cursor reads the D-pad only on the frames the bag is shown." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{Array.from({ length: 30 }, (_, frame) => {
+			const inBag = frame >= 10 && frame < 20;
+			return (
+				<g>
+					<rect x={timelineX(frame) + 1} y="34" width="7" height="14" fill="#2f9e36" />
+					<rect x={timelineX(frame) + 1} y="56" width="7" height="14" fill="#1e7cb8" fill-opacity={inBag ? 0.12 : 0.8} />
+					<rect x={timelineX(frame) + 1} y="78" width="7" height="14" fill="#ff4d8d" fill-opacity={inBag ? 0.8 : 0.12} />
+				</g>
+			);
+		})}
+		<g font-size="10" fill="currentColor">
+			<text x={timelineX(5)} y="22" text-anchor="middle">field shown</text>
+			<text x={timelineX(15)} y="22" text-anchor="middle">bag shown</text>
+			<text x={timelineX(25)} y="22" text-anchor="middle">field shown</text>
+			<text x="102" y="45" text-anchor="end" fill="#2f9e36">field clock</text>
+			<text x="102" y="67" text-anchor="end" fill="#1e7cb8">hero, D-pad</text>
+			<text x="102" y="89" text-anchor="end" fill="#ff4d8d">bag cursor</text>
+			<text x="200" y="118" text-anchor="middle">a full square: it runs on that frame</text>
+		</g>
+	</svg>
+	<figcaption>What runs on which frames, in the snippet. The choice is the game's: a field where time stops would skip the clock too.</figcaption>
+</figure>
+
+**Both screens share the hardware all the time.** Nothing is loaded when swapping because everything already is: both backgrounds, every sprite and their tiles and palettes sit in video memory together. That's the price. Here it's 2 of the 4 backgrounds and a handful of the 128 sprites, an easy fit; two big screens might not fit together, and then [Scenes](/structure/scenes/) is the way. The gain was measured: a test ROM showed the CPU time of the swap frame, next to a version that destroys one screen and makes the other on each swap.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 130" role="img" aria-label="CPU ticks of the frame with the swap, out of 4389 in a frame. The snippet: 258 going into the bag and 573 going back to the field. Remaking the screens: 1409 into the bag and 1418 back." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{swapTicks.map((row, i) => (
+			<g font-size="10" fill="currentColor">
+				<text x="144" y={30 + i * 22} text-anchor="end">{row.label}</text>
+				<rect x="150" y={20 + i * 22} width={barX(row.ticks) - 150} height="14" fill={row.color} />
+				<text x={barX(row.ticks) + 4} y={30 + i * 22}>{row.ticks}</text>
+			</g>
+		))}
+		<line x1={barX(ticksPerFrame)} y1="14" x2={barX(ticksPerFrame)} y2="108" stroke="currentColor" stroke-dasharray="3 3" />
+		<text x={barX(ticksPerFrame)} y="122" text-anchor="end" font-size="10" fill="currentColor">one frame: 4389 ticks</text>
+	</svg>
+	<figcaption>CPU ticks of the swap frame, measured in test ROMs. Going back to the field also redraws the clock.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad** and press **SELECT** to open the bag; there, **Up** and **Down** move the cursor, and **SELECT** goes back. The hero, the cursor and the clock are where they were left, and the clock counted the time spent in the bag.
+
+<Code code={swap} lang="cpp" title="snippets/swap/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/swap/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/swap/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks, the screen switches at once to a bag with a key, an axe and a bucket, the cursor moves to the bucket, and back on the field the hero is where it was and the clock has gone on. Swapping again shows the cursor still on the bucket." />
+	<figcaption>Swapping back and forth. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="swap" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::regular_bg_ptr world = bn::regular_bg_items::world.create_bg(0, 0);` | A default member initializer: every `field_screen` starts with these values, without writing a constructor. |
+| `::set_visible(clock, visible);` | Inside the struct, `set_visible` alone would mean the struct's own function. `::` asks for the one outside every struct. |
+| `field_screen field;` and `bag_screen bag(text_generator);` | Made once, before the loop, so they live as long as `main`: that's what keeps their state. |
+| `explicit bag_screen(bn::sprite_text_generator& text_generator)` | `explicit` stops a text generator from turning into a bag by accident where a bag is expected. |
+| `(selected + 3 + down - up) % 3` | Wraps around: up from the first item goes to the last. The `+ 3` keeps the number positive, since `%` of a negative number is negative in C++. |
+
+Art: the field and the hero come from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, as on [Dialog boxes](/basics/dialog/), with the guide's HUD font; the items are from [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney. Both CC0. The panel and the cursor are drawn by [`snippets/tools/swap_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/swap_assets.py).
+
+## Pitfalls
+
+**Coming back to a screen that starts over.**
+A test ROM that destroyed the field when opening the bag, and made a new one when closing it, as scenes do, brought the hero back to the middle of the screen and the clock back to 0:00. The swap still fit in its frame, at 1409 ticks of 4389 against 258 for the snippet, so the cost wasn't what showed: the lost state was. A screen meant to be the same when the player comes back has to stay alive.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/swap/remake.png" width="240" height="128" style={{ imageRendering: 'pixelated' }} alt="The field after coming back from the bag in the test ROM: the hero in the middle again and the clock at 0:00." />
+		<figcaption>Remade: back to the start.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/swap/kept.png" width="240" height="128" style={{ imageRendering: 'pixelated' }} alt="The field after coming back from the bag with the snippet's approach: the hero where it was left and the clock at 0:04." />
+		<figcaption>Kept alive: as it was left.</figcaption>
+	</figure>
+</div>
+
+**The hero walks while the bag is open.**
+A test ROM whose field read the D-pad whether shown or not moved the hero while the player was in the bag. Holding **Down** for 42 frames to move the cursor, the hero, hidden, walked 42 pixels down; back on the field, it wasn't where it had been left. A hidden screen must not read the buttons.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/swap/walked.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The field after the bag in the test ROM: the hero well below the yellow patch." />
+		<figcaption>Reading the D-pad while hidden.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/swap/stayed.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The field after the bag in the snippet: the hero in the yellow patch, where it was." />
+		<figcaption>The snippet.</figcaption>
+	</figure>
+</div>
+
+**The clock shows up on the bag.**
+A test ROM whose field redrew its clock every second, shown or not, put "Time 0:03" over the top of the bag. `set_visible(false)` had hidden the clock's sprites, but every redraw makes new ones, and new sprites are visible. The snippet only redraws the clock while the field is shown; coming back, the time changed, so it's redrawn on the first frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/swap/clock.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The bag screen with the field's clock, Time 0:03, drawn over its top edge." />
+	<figcaption>New sprites made while hidden are shown.</figcaption>
+</figure>
+
+## Read more
+
+- Headers: [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h) and [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_visible`, and [`bn_core.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_core.h), for `last_cpu_ticks`, used to measure the swap.
+- cppreference: [default member initializers](https://en.cppreference.com/w/cpp/language/data_members#Member_initialization), and [`explicit`](https://en.cppreference.com/w/cpp/language/explicit).
+- Guide pages: [Scenes](/structure/scenes/), for screens that own their resources only while they run, [Sprite budget](/structure/budget/), for what has to fit when both screens are alive, and [Text and HUD](/basics/hud/), for the text.
