@@ -1,0 +1,185 @@
+---
+title: Bars and meters
+description: A health bar drawn with tiles on its own background, cells that each pick one of nine tiles so it moves a pixel at a time, a shown value that walks toward the real one, and HP turned into pixels without losing it to integer division.
+sidebar:
+  order: 8.2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import bars from '../../../../../snippets/bars/src/main.cpp?raw';
+import font from '../../../../../snippets/bars/include/font.h?raw';
+
+export const zoom = 4;
+export const fills = [8, 8, 8, 8, 8, 8, 6, 0, 0, 0];
+export const targetAt = (frame) => (frame < 24 ? 64 : 49);
+export const shownSeries = (() => {
+	let shown = 80;
+	const out = [];
+	for (let frame = 0; frame <= 40; frame++) {
+		const target = targetAt(frame);
+		shown += (target > shown) - (target < shown);
+		out.push(shown);
+	}
+	return out;
+})();
+export const chartX = (frame) => 40 + frame * 8;
+export const chartY = (px) => 16 + (80 - px) * 2.4;
+
+## When to use it
+
+For any number with a top that the player should read at a glance: health, stamina, a boss's life, a charge shot, an oxygen meter, a loading bar. A number in text is exact but has to be read; a bar is read in a blink, and a bar that slides toward its new value shows *how much* just changed.
+
+A bar can also be a few sprites. Drawn with tiles on its own background, as here, it costs no sprites at all, however long it is.
+
+## How to think about it
+
+**A bar is a row of cells, and each cell picks one of nine tiles.** The tileset has a tile for every way an 8x8 cell can be filled: 0 columns, 1, 2... up to 8. To show a fill of some number of pixels, the snippet gives the first cells the full tile, the next one the tile with what's left, and the rest the empty tile. `bn::clamp(filled_pixels - cell * 8, 0, 8)` works that out for every cell at once. With nine tiles, the bar moves one pixel at a time; with only full and empty, it would jump 8 at a time.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 200" role="img" aria-label="Top, the nine inside tiles of the bar, four times bigger, with 0 to 8 columns filled. Bottom, the bar at 54 pixels: a left end, six full cells, one cell with 6 columns, three empty cells and a right end. Each cell is labeled with how many columns it fills." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<image href="/images/bars/tiles.png" x="56" y="20" width={72 * zoom} height={8 * zoom} style={{ imageRendering: 'pixelated' }} />
+		{Array.from({ length: 9 }, (_, n) => (
+			<g>
+				<rect x={56 + n * 32} y="20" width="32" height="32" fill="none" stroke="#1e7cb8" stroke-opacity="0.6" />
+				<text x={56 + n * 32 + 16} y="66" text-anchor="middle" font-size="10" fill="currentColor">{n}</text>
+			</g>
+		))}
+		<text x="200" y="12" text-anchor="middle" font-size="10" fill="#1e7cb8">tiles 1 to 9: 0 to 8 columns filled</text>
+		<image href="/images/bars/bar54.png" x="8" y="110" width={96 * zoom} height={8 * zoom} style={{ imageRendering: 'pixelated' }} />
+		{fills.map((fill, cell) => (
+			<g>
+				<rect x={40 + cell * 32} y="110" width="32" height="32" fill="none" stroke={fill === 8 ? '#2f9e36' : fill === 0 ? '#1e7cb8' : '#ff4d8d'} stroke-width="2" />
+				<text x={40 + cell * 32 + 16} y="158" text-anchor="middle" font-size="10" fill={fill === 8 ? '#2f9e36' : fill === 0 ? '#1e7cb8' : '#ff4d8d'}>{fill}</text>
+			</g>
+		))}
+		<text x="200" y="184" text-anchor="middle" font-size="10" fill="currentColor">54 pixels: <tspan fill="#2f9e36">6 full cells</tspan>, <tspan fill="#ff4d8d">one with 6</tspan>, <tspan fill="#1e7cb8">3 empty</tspan></text>
+	</svg>
+	<figcaption>The tileset, and the bar at 25 HP of 37: 54 pixels.</figcaption>
+</figure>
+
+**The value and the bar are two numbers, and the bar walks toward the value.** `hp` changes at once when the hero is hit. `shown`, the pixels the bar shows, moves one pixel a frame toward the pixels that `hp` is worth, and stops there. A hit of 7 HP takes 16 frames to drain, so the player sees it go. The rules always read `hp`, never `shown`: the bar is only a picture of it, a little late.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 150" role="img" aria-label="A chart of 40 frames. The pink line is the pixels hp is worth: 80, then 64 from frame 0, then 49 from frame 24. The blue line is shown: it goes down one pixel a frame from 80 to 64, reaching it at frame 15, stays there, then goes down again to 49 from frame 24." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{[80, 64, 49].map((px) => (
+			<g>
+				<line x1={chartX(0)} y1={chartY(px)} x2={chartX(40)} y2={chartY(px)} stroke="currentColor" stroke-opacity="0.15" />
+				<text x="34" y={chartY(px) + 3} text-anchor="end" font-size="10" fill="currentColor">{px}</text>
+			</g>
+		))}
+		<polyline points={`${chartX(0)},${chartY(80)} ${chartX(0)},${chartY(64)} ${chartX(24)},${chartY(64)} ${chartX(24)},${chartY(49)} ${chartX(40)},${chartY(49)}`} fill="none" stroke="#ff4d8d" stroke-width="2" />
+		<polyline points={[`${chartX(0)},${chartY(80)}`, ...shownSeries.map((px, frame) => `${chartX(frame)},${chartY(px)}`)].join(' ')} fill="none" stroke="#1e7cb8" stroke-width="2.5" />
+		<g font-size="10" fill="currentColor">
+			<text x={chartX(0)} y="136">frame 0: A, 30 HP</text>
+			<text x={chartX(24)} y="136">frame 24: A, 23 HP</text>
+			<text x={chartX(40)} y="148" text-anchor="end"><tspan fill="#ff4d8d">hp * 80 / 37</tspan>, <tspan fill="#1e7cb8">shown</tspan></text>
+		</g>
+	</svg>
+	<figcaption>Two hits 24 frames apart. The bar's pixels, frame by frame, as the snippet works them out.</figcaption>
+</figure>
+
+**HP and pixels are different units: scale, multiplying first.** The game counts 37 HP; the bar has 80 pixels. The pixels for some HP are `hp * 80 / 37`, and the order matters: with `int`s, a division throws the fraction away, so dividing first, `hp / 37`, gives 0 for anything less than full, and 0 times 80 is still 0. Multiplying first keeps the big number until the very end, and only the last fraction of a pixel is lost.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 120" role="img" aria-label="30 HP worked out both ways. Multiplying first: 30 times 80 is 2400, divided by 37 is 64 pixels. Dividing first: 30 divided by 37 is 0 with ints, times 80 is 0 pixels." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<g font-size="12" font-family="monospace" fill="currentColor">
+			<text x="20" y="34">30 * 80 / 37</text>
+			<text x="140" y="34">= 2400 / 37</text>
+			<text x="260" y="34" fill="#2f9e36">= 64 pixels</text>
+			<text x="20" y="84">30 / 37 * 80</text>
+			<text x="140" y="84">= 0 * 80</text>
+			<text x="260" y="84" fill="#ff4d8d">= 0 pixels</text>
+		</g>
+		<g font-size="10" fill="currentColor">
+			<text x="20" y="52" fill="#2f9e36">multiply first: what the snippet does</text>
+			<text x="20" y="102" fill="#ff4d8d">divide first: 30 / 37 is 0 in int</text>
+		</g>
+	</svg>
+	<figcaption>30 HP of 37, both ways.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+**A** takes 7 HP, **B** heals 10. The number changes at once, and the bar slides to it.
+
+<Code code={bars} lang="cpp" title="snippets/bars/src/main.cpp" />
+
+<details>
+<summary>The font for the HP text: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/bars/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bars/demo.gif" width="480" height="64" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The top of the screen: a red health bar and the text HP 37 of 37. Hits make the number drop at once and the bar drain smoothly after it, nearly to empty; heals make it fill smoothly back up." />
+	<figcaption>Hits and heals. The top of the screen, captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="bars" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::clamp(filled_pixels - cell * 8, 0, 8)` | What's left for this cell after the cells before it took 8 each, kept between 0 and 8. Negative means the fill ended before this cell: empty. |
+| `shown += (target > shown) - (target < shown);` | Each comparison is a `bool`, 0 or 1, so the difference is 1, -1 or 0: one pixel toward the target, or none when it's there. |
+| `hp = bn::max(hp - 7, 0);` | `bn::max` and `bn::min` keep the HP between 0 and the top. |
+| `bar.set_priority(0);` | Priority 0 is drawn in front of everything else: backgrounds and sprites with priority 1 to 3. See the pitfalls for what happens without it. |
+| `struct bar_map { ... };` | The map in RAM, as in [A map that changes](/basics/mapedit/): its constructor clears it, draws the ends and fills the bar. |
+
+Art: the bar is drawn pixel by pixel by [`snippets/tools/bars_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/bars_assets.py). The garden, from the [Grid-locked movement](/basics/grid/) page, is [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney, and the font, from the [Text and HUD](/basics/hud/) page, is built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. Both CC0.
+
+## Pitfalls
+
+**The bar jumps 8 pixels at a time.**
+A test ROM that only had full and empty cells, no partial ones, went from 80 pixels to 72, held there, then went to 64, after a hit of 7 HP. Sampled every 3 frames, the snippet showed 80, 77, 74, 71, 68, 65, 64 over the same frames. One tile per filled width, nine in all, is what makes the bar smooth.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bars/whole.png" width="224" height="288" style={{ imageRendering: 'pixelated' }} alt="Six frames of the bar draining in the test ROM: 80, 72, 72, 72, 64, 64 pixels." />
+		<figcaption>Full cells only.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bars/smooth.png" width="224" height="288" style={{ imageRendering: 'pixelated' }} alt="Six frames of the bar draining in the snippet, a little shorter each time." />
+		<figcaption>Nine tiles.</figcaption>
+	</figure>
+</div>
+
+**One hit empties the bar.**
+A test ROM that wrote `hp / max_hp * bar_width` drained the bar to nothing after the first hit, at 30 HP of 37. `30 / 37` is 0 with `int`s, so the target was 0 pixels until the HP was full again.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bars/divide.png" width="480" height="48" style={{ imageRendering: 'pixelated' }} alt="An empty bar next to the text HP 30 of 37." />
+		<figcaption>Dividing first: empty at 30 HP.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bars/multiply.png" width="480" height="48" style={{ imageRendering: 'pixelated' }} alt="A bar four fifths full next to the text HP 30 of 37." />
+		<figcaption>Multiplying first: 64 pixels.</figcaption>
+	</figure>
+</div>
+
+**The bar isn't there.**
+A test ROM without `set_priority(0)`, with the bar's background created before the garden's, showed no bar at all: both had the default priority, 3, and the garden, made later, was drawn over it. Created in the other order, it showed, but only by luck. Give the HUD a priority of its own.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bars/hidden.png" width="480" height="48" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The top of the garden and the text HP 30 of 37, with no bar." />
+	<figcaption>Same priority, bar created first: hidden.</figcaption>
+</figure>
+
+**An empty bar on a hero who's still alive.**
+A test ROM with 200 HP at the top, and the hero down to 1, showed an empty bar: `1 * 80 / 200` is 0 pixels. With 37 HP, the least the snippet can show is 2 pixels, so it doesn't happen there. With a big top, keep at least one pixel while the HP isn't 0, for example `if(hp > 0) target = bn::max(target, 1);`.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bars/big.png" width="480" height="48" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="An empty bar next to the text HP 1 of 200." />
+	<figcaption>1 HP of 200: 0 pixels.</figcaption>
+</figure>
+
+## Read more
+
+- Headers: [`bn_regular_bg_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_ptr.h), for `set_priority`, and [`bn_algorithm.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_algorithm.h), for `bn::max`, `bn::min` and `bn::clamp`.
+- Tonc: [regular backgrounds](https://gbadev.net/tonc/regbg.html), for priorities and the order of layers.
+- cppreference: [arithmetic operators](https://en.cppreference.com/w/cpp/language/operator_arithmetic), for integer division.
+- Guide pages: [Text and HUD](/basics/hud/), for the text, [A map that changes](/basics/mapedit/), for writing a map while the game runs, and [Interpolation and easing](/math/easing/), for a bar that slows down as it gets there.

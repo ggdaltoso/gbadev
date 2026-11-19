@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first fifty-six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first fifty-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -67,6 +67,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 9. **Timers and random numbers:** frame counters, seeding from the player, and replaying a seed.
 10. **SRAM saves:** a save struct, recognizing it with a format value, and restarting the game.
 11. **Music and sound:** modules and recordings, sound effects, volume, and what a recording can't do.
+57. **Bars and meters:** a health bar drawn with tiles on its own background, cells that each pick one of nine tiles, a shown value that walks toward the real one, and HP turned into pixels by multiplying first.
 29. **Dialog boxes:** a box over the game, text wrapped by measuring it, letters one by one, pages, and one button that does what fits the moment.
 33. **Depth sorting:** a z order from each sprite's feet, a big thing made of several sprites that sorts as one, and the limit of 16 sort layers.
 37. **Big maps:** a world bigger than 512x512 kept in video memory as a ring of 32x32 cells, a new column copied in every 8 pixels, and the 1024 different tiles a map can use.

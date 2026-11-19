@@ -94,7 +94,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Cross-shaped explosion: spreads over the map and stops at walls.
    - [x] A map that changes while the game runs: tiles removed and added.
 5. **Any genre:**
-   - [ ] Bars and meters: a bar that fills smoothly, drawn with tiles.
+   - [x] Bars and meters: a bar that fills smoothly, drawn with tiles.
    - [ ] Instant screen swap: two screens alive at once, switched with a button, state kept.
    - [ ] A character that follows a route: from a door to a desk.
    - [ ] Level menu: cursor, locked levels, the goal still missing.
