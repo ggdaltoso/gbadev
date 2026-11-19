@@ -103,4 +103,9 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 6. **The site:**
    - [x] Study touch controls for the emulator: an on-screen D-pad and buttons, so a page's ROM can be played on a phone. Look at what mgba-wasm accepts for input first, and bring the owner a plan before building.
 
+7. **Input over time (any genre):**
+   - [x] Keys as data: `key_type` values in arrays, a screen that shows what's held, actions remapped to other keys.
+   - [ ] Combos and sequences: buttons held together (soft reset), a cheat code and a fighting-game motion inside a window of frames.
+   - [ ] Press timing: a jump buffered before landing, a double tap to run, a cursor that repeats while held.
+
 Art for these: Kenney packs (CC0) the owner downloaded to `~/Downloads/kenney_*.zip`. Copy only the pack a lesson uses into `assets/kenney-<pack>/`, with a `CREDITS.md`.

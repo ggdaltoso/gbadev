@@ -1,0 +1,144 @@
+---
+title: Keys as data
+description: Keys as values kept in tables, a screen that lights every key held, a set of keys held as one number, and actions the player remaps to other keys without two of them ending on the same key.
+sidebar:
+  order: 2.3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import keys from '../../../../../snippets/keys/src/main.cpp?raw';
+import font from '../../../../../snippets/keys/include/font.h?raw';
+
+## When to use it
+
+When the code has to talk about keys in general instead of one at a time: a controls screen where the player picks which key jumps, a button test in an options menu, a tutorial that shows the key to press, a list of keys a combo is made of. [Input](/basics/input/) asks about one key with a function per key, like `a_pressed()`. Here the key itself is a value that goes in variables, arrays and tables.
+
+## How to think about it
+
+**A key is a value.** `bn::keypad::pressed(key)`, `held(key)` and `released(key)` take a `bn::keypad::key_type`, so the key can come from a variable. With every key in one table, `keys`, each with its name and where it goes on the screen, one loop asks about all of them, lights the ones held, and finds the name of any key. Ten `if`s become one `for`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 182" role="img" aria-label="The keys table: rows of key, name and line, such as key::LEFT, Left, 0, and key::A, A, 1. An arrow goes from the table to the screen, where A is lit in yellow in the line of keys and the Jump row, bound to A, is lit too." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor" font-family="monospace">
+			<text x="4" y="14" font-family="sans-serif" font-size="11">keys[]</text>
+			<text x="4" y="34">{'{ key::LEFT, "Left", 0 }'}</text>
+			<text x="4" y="50">{'{ key::RIGHT, "Right", 0 }'}</text>
+			<text x="4" y="66">…</text>
+			<text x="4" y="82" fill="#1e7cb8">{'{ key::A, "A", 1 }'}</text>
+			<text x="4" y="98">{'{ key::B, "B", 1 }'}</text>
+			<text x="4" y="114">…</text>
+			<text x="4" y="146" font-family="sans-serif">for each: held(info.value)?</text>
+			<text x="4" y="162" font-family="sans-serif">lit, or not</text>
+		</g>
+		<path d="M 166 100 L 196 100" stroke="currentColor" fill="none" /><path d="M 192 96 L 196 100 L 192 104" stroke="currentColor" fill="none" />
+		<image href="/images/keys/lit.png" x="200" y="20" width="198" height="132" style={{ imageRendering: 'pixelated' }} />
+		<text x="299" y="172" text-anchor="middle" font-size="10" fill="currentColor">A held: A lit, and Jump, which is on A</text>
+	</svg>
+	<figcaption>One table and one loop for every key.</figcaption>
+</figure>
+
+**A set of keys is one number.** Each `key_type` is one bit: A is `0x0001`, B is `0x0002`, up to L, `0x0200`. So the keys held right now fit in one `unsigned`, each key OR-ed in with `|=`, and `held & unsigned(key)` asks whether one of them is in it. Comparing that number with the one drawn last is how the snippet knows the screen has to change. The other side: a key's value is a bit, not a position, so it can't be used as an index into an array (see the pitfalls).
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 120" role="img" aria-label="Ten bits, from L on the left to A on the right. With A and L held, the bits of A and L are 1 and the rest 0, so held is 0x0201." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			{['L', 'R', 'Down', 'Up', 'Left', 'Right', 'Start', 'Sel.', 'B', 'A'].map((name, i) => (
+				<g>
+					<rect x={20 + i * 36} y="30" width="34" height="26" fill="none" stroke={i === 0 || i === 9 ? '#1e7cb8' : 'currentColor'} stroke-width={i === 0 || i === 9 ? 2 : 1} />
+					<text x={37 + i * 36} y="48" font-family="monospace" fill={i === 0 || i === 9 ? '#1e7cb8' : 'currentColor'}>{i === 0 || i === 9 ? 1 : 0}</text>
+					<text x={37 + i * 36} y="22">{name}</text>
+				</g>
+			))}
+			<text x="200" y="80" font-family="monospace">held = 0x0201</text>
+			<text x="200" y="100">A and L held. held &amp; unsigned(key::A) is not 0: A is in the set.</text>
+		</g>
+	</svg>
+	<figcaption>The bits of the ten keys, as <code>bn_keypad.h</code> defines them.</figcaption>
+</figure>
+
+**The game asks for actions, and a table turns them into keys.** Game code never says "A": it asks for the key in `bindings` of the action it wants. Remapping is writing another key into that table, and nothing else in the game changes. To remap, the snippet waits for the next key pressed, checking every key in `keys`, and puts it in the table. When that key already belonged to another action, the two swap, so no key does two things and no action is left without a key.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/keys/waiting.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Jump on L, Shoot on B, Dash waiting for a key." />
+		<figcaption>Dash waits. Jump is on L.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/keys/swapped.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="After L is pressed: Jump on R, Shoot on B, Dash on L." />
+		<figcaption>L pressed: Dash takes L, Jump gets Dash's R.</figcaption>
+	</figure>
+</div>
+
+## The smallest thing that works
+
+**SELECT** moves to the next action and **START** changes its key: press any other key to give it. Hold keys to see them light up, along with the actions they're bound to. START and SELECT run the screen, so they can't be given to an action.
+
+<Code code={keys} lang="cpp" title="snippets/keys/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/keys/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/keys/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The controls screen. A held lights A and Jump. Left and B held light them and Shoot. Jump is changed to L, and holding L lights Jump. Dash is changed to L, and Jump gets R. Holding R lights Jump, and holding L lights Dash." />
+	<figcaption>Keys held, then Jump moved to L, then Dash moved to L. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="keys" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `using key = bn::keypad::key_type;` | A short name for a long type, for this file. |
+| `enum class key_type : uint16_t` | In `bn_keypad.h`. An `enum class` doesn't turn into a number by itself, so `unsigned(info.value)` asks for it. |
+| `held \|= unsigned(info.value);` | Turns that key's bit on in `held`, leaving the others as they are. |
+| `held & unsigned(bindings[action])` | Not 0 when that key's bit is on. As a `bool`, any number but 0 is `true`. |
+| `for(key& binding : bindings)` | A reference, so writing `binding` writes into the table. Without `&` it would change a copy. |
+| `int x[2] = { -100, -100 };` | Where the next name goes on each line, moved on by `text_generator.width(info.name)`. |
+
+Art: the coin is the one from [Scenes](/structure/scenes/), copied by [`snippets/tools/keys_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/keys_assets.py), which also draws the rows and makes a yellow copy of the font's palette for keys held. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**A key used as an index.**
+A test ROM that looked names up in a `bn::array` of ten names with `names[int(value)]` stopped on its first frame, on Butano's error screen: "Invalid index: 256". That's R, Dash's key: R's value is the bit `0x0100`, not a position from 0 to 9. A plain C array would have no check, and would read past its end instead. Keep the name next to the key, as in `keys`, and look it up with a loop.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/keys/index.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Butano's error screen: ERROR in bn_array.h, operator[], index >= 0 && index < Size, Invalid index: 256." />
+	<figcaption>The first frame of the test ROM.</figcaption>
+</figure>
+
+**One key, two actions.**
+A test ROM that wrote the new key without the swap let Dash take L while Jump was already on L. Both rows said L, and holding L lit both: one press would jump and dash at once. Give the old key to the action that loses the new one.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/keys/noswap.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Jump on L and Dash on L, both lit while L is held." />
+	<figcaption>L held, in the test ROM.</figcaption>
+</figure>
+
+**The press that opens the wait is taken as the answer.**
+A test ROM where **A** opened the wait, and the wait was checked in that same frame, never showed "Press a key". The A that opened it was still `pressed`, so it was the key given: Shoot went straight from B to A, and Jump got B. In the snippet, the wait is checked before START, in an `if` whose `else` reads START, so it starts on the next frame, and START can't be given anyway.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/keys/same_before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Shoot selected, on B." />
+		<figcaption>Shoot selected.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/keys/same_after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="One A press later: Jump on B, Shoot on A." />
+		<figcaption>One A press later.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Butano examples: [`examples/keypad`](https://github.com/GValiente/butano/tree/master/examples/keypad), and [`examples/keypad_commands`](https://github.com/GValiente/butano/tree/master/examples/keypad_commands), a screen that lights each key, fed by recorded input.
+- Header: [`bn_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_keypad.h), for `key_type`.
+- cppreference: [enumerations](https://en.cppreference.com/w/cpp/language/enum), for `enum class`, and [bitwise operators](https://en.cppreference.com/w/cpp/language/operator_arithmetic#Bitwise_logic_operators).
+- Tonc: [the GBA keypad](https://gbadev.net/tonc/keys.html), where the bits come from.
+- Guide pages: [Input](/basics/input/), [Input replays](/structure/replay/), which keeps the keys of each frame, and [Save slots](/basics/slots/), to keep the bindings after the GBA is off.
