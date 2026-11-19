@@ -106,6 +106,6 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 7. **Input over time (any genre):**
    - [x] Keys as data: `key_type` values in arrays, a screen that shows what's held, actions remapped to other keys.
    - [x] Combos and sequences: buttons held together (soft reset), a cheat code and a fighting-game motion inside a window of frames.
-   - [ ] Press timing: a jump buffered before landing, a double tap to run, a cursor that repeats while held.
+   - [x] Press timing: a jump buffered before landing, a double tap to run, a cursor that repeats while held.
 
 Art for these: Kenney packs (CC0) the owner downloaded to `~/Downloads/kenney_*.zip`. Copy only the pack a lesson uses into `assets/kenney-<pack>/`, with a `CREDITS.md`.

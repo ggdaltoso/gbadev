@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first sixty-three pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first sixty-four pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -105,6 +105,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 61. **Several games in one ROM:** a menu that runs several games, each one a scene in its own file that creates everything it shows and gives back only a score, one save for the whole ROM kept by the menu, and global settings set by every scene that needs them.
 62. **Keys as data:** keys as values kept in tables, a screen that lights every key held, a set of keys held as one number, and actions the player remaps to other keys without two of them ending on the same key.
 63. **Combos and sequences:** a short history of what was pressed and when, moves matched against its end inside a window of frames, a fighting-game motion and a cheat code read the same way, and a soft reset held as a chord that doesn't fire again on its own.
+64. **Press timing:** a press remembered for a few frames instead of only the one it happened on, a jump buffered before landing, a double tap that runs only when the taps are close, and a cursor that waits before it repeats while held.
 19. **Game objects:** a class per kind of thing, a `bn::vector` of them, and removing them with `erase_if`.
 43. **Object pools:** every stone made at the start and kept hidden, a throw that wakes one up and resets it, a size worked out from one stone's life and the time between throws, and what it saves, measured.
 20. **Files and headers:** a class in its own `.h` and `.cpp`, include guards, and the compiler and linker errors.

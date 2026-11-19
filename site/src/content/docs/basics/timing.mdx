@@ -1,0 +1,173 @@
+---
+title: Press timing
+description: A press remembered for a few frames instead of only the one it happened on, a jump buffered before landing, a double tap that runs only when the taps are close, and a cursor that waits before it repeats while held.
+sidebar:
+  order: 2.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import timing from '../../../../../snippets/timing/src/main.cpp?raw';
+import font from '../../../../../snippets/timing/include/font.h?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const x = (frame) => 30 + frame * 8;
+export const repeats = [0, 20, 24, 28, 32, 36, 40];
+
+## When to use it
+
+Whenever the frame a key goes down isn't exactly the frame the game wants it. A jump pressed a little before landing should still jump. Two taps on a direction should run, but only when they're close together. A cursor held on a list should step once, then wait, then move by itself. In each case the game keeps a press, or the time of one, for a few frames. Those few frames are a big part of whether controls feel good.
+
+[Input](/basics/input/) is about `pressed`, `held` and `released`. [Combos and sequences](/basics/combos/) keeps a whole history. Here, one counter or one frame number per action is enough.
+
+## How to think about it
+
+**A press can be remembered for a few frames.** `a_pressed()` is true on one frame only. The jump buffer keeps it longer: A sets `jump_buffer` to 8, and every frame in the air takes one off. On the first frame on the ground, if any are left, the hero jumps. A press up to 8 frames early still counts, and a press in the air that's too early is forgotten, as the player would expect.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 180" role="img" aria-label="A timeline of frames before and after landing. A is pressed 5 frames before landing. The buffer, 8 frames long, is still open when the hero lands, so the hero jumps on landing. Next to it, the snippet in the air with Buffer 6 on screen." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<line x1="10" y1="70" x2="190" y2="70" stroke="currentColor" />
+			<rect x="60" y="54" width="64" height="16" fill="#1e7cb8" fill-opacity="0.15" stroke="#1e7cb8" />
+			<text x="92" y="48" text-anchor="middle" fill="#1e7cb8">jump_buffer: 8 frames</text>
+			<line x1="60" y1="70" x2="60" y2="84" stroke="currentColor" /><text x="60" y="96" text-anchor="middle">A</text>
+			<line x1="100" y1="64" x2="100" y2="84" stroke="#2f9e36" stroke-width="2" /><text x="100" y="96" text-anchor="middle" fill="#2f9e36">lands: jump</text>
+			<text x="80" y="122" text-anchor="middle">for example 5 frames early,</text><text x="80" y="136" text-anchor="middle">inside the 8</text>
+		</g>
+		<image href="/images/timing/buffer.png" x="200" y="16" width="198" height="132" style={{ imageRendering: 'pixelated' }} />
+		<text x="299" y="166" text-anchor="middle" font-size="10" fill="currentColor">A pressed in the air: Buffer 6</text>
+	</svg>
+	<figcaption>The press waits for the ground.</figcaption>
+</figure>
+
+**The time of a press can be kept, and the next one compared with it.** For the double tap, the snippet keeps the direction last tapped and the frame it was tapped on. When the same direction is tapped again within 15 frames, the hero runs, and it walks again as soon as the direction is let go. A second tap later than that is just a new first tap.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 180" role="img" aria-label="Two timelines. On top, two taps on right 7 frames apart, inside the 15-frame window: run. Below, two taps 30 frames apart: walk. Next to them, the snippet with Run on screen." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="30" y="16" width="60" height="22" fill="#1e7cb8" fill-opacity="0.15" stroke="#1e7cb8" />
+			<rect x="30" y="76" width="60" height="22" fill="#1e7cb8" fill-opacity="0.15" stroke="#1e7cb8" />
+			<text x="60" y="12" text-anchor="middle" fill="#1e7cb8">15 frames</text>
+			<line x1="10" y1="38" x2="190" y2="38" stroke="currentColor" />
+			<line x1="10" y1="98" x2="190" y2="98" stroke="currentColor" />
+			<g font-size="13" text-anchor="middle">
+				<text x="30" y="34">→</text><text x="58" y="34">→</text>
+				<text x="30" y="94">→</text><text x="150" y="94">→</text>
+			</g>
+			<text x="10" y="56" fill="#2f9e36">7 frames apart: run</text>
+			<text x="10" y="116" fill="#ff4d8d">30 frames apart: walk</text>
+		</g>
+		<image href="/images/timing/run.png" x="200" y="16" width="198" height="132" style={{ imageRendering: 'pixelated' }} />
+		<text x="299" y="166" text-anchor="middle" font-size="10" fill="currentColor">after a quick double tap: Run</text>
+	</svg>
+	<figcaption>The second tap is compared with the frame of the first one. The gaps are examples.</figcaption>
+</figure>
+
+**A held key can repeat, after a pause.** The cursor moves once on the press. Then it counts the frames R or L stays held, and moves again at 20 frames and every 4 after that. The pause is what lets a short tap move one item: without it, a tap a few frames long already repeats. Those two numbers are the same ones a computer keyboard has in its settings.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 100" role="img" aria-label="A timeline of 44 frames that R is held. The cursor steps at frame 0, the press, then waits until frame 20, and steps at 20, 24, 28, 32, 36 and 40." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<line x1="30" y1="50" x2="384" y2="50" stroke="currentColor" />
+			<rect x={x(0)} y="40" width={x(20) - x(0)} height="10" fill="#ff4d8d" fill-opacity="0.15" stroke="#ff4d8d" />
+			<text x={(x(0) + x(20)) / 2} y="34" text-anchor="middle" fill="#ff4d8d">repeat_delay: 20</text>
+			{repeats.map((frame) => (
+				<g>
+					<line x1={x(frame)} y1="44" x2={x(frame)} y2="62" stroke="#1e7cb8" stroke-width="2" />
+					<text x={x(frame)} y="76" text-anchor="middle" font-family="monospace">{frame}</text>
+				</g>
+			))}
+			<text x="30" y="94">held frames, and the steps of the cursor</text>
+			<text x={x(32)} y="34" text-anchor="middle" fill="#1e7cb8">every 4</text>
+		</g>
+	</svg>
+	<figcaption>A step on the press, then a pause, then steady steps.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+**←** and **→** walk, and a quick double tap runs. **A** jumps: press it just before landing and it jumps again as it lands. **L** and **R** move the marker on the ruler: tap for one step, hold to slide. The line under the ruler shows the item, what's left of the jump buffer, and whether the hero walks or runs.
+
+<Code code={timing} lang="cpp" title="snippets/timing/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/timing/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/timing/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks right, then runs after a double tap. It jumps, and jumps again as it lands, from a press in the air. Then R is tapped once, held so the marker slides along the ruler, and L is held to bring it back." />
+	<figcaption>A walk, a run, a buffered jump, then the cursor tapped and held. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="timing" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `int last_tap_frame = -1000;` | Far in the past, so the very first tap can't be taken as the second half of a double tap. |
+| `running = running && step_x != 0;` | Stays `true` only while it was already running and a direction is still held. |
+| `bn::min(hero.y() + velocity_y, ground_y)` | The hero never goes below the ground: a fall that would pass it stops on it. |
+| `(held_frames - repeat_delay) % repeat_every == 0` | True at 20, 24, 28... `%` is the remainder of the division. |
+| `bn::format<48>("Item {}   Buffer {}   {}", ...)` | The whole line is built, compared with the one on screen, and only drawn again when it changed. |
+
+Art: the ground is from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0, laid out by [`snippets/tools/timing_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/timing_assets.py), which also draws the ruler. The marker is an icon from [Combos and sequences](/basics/combos/). The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**A jump pressed just before landing is lost.**
+The same keys went to the snippet and to a test ROM where the buffer lasts one frame, so A only works on the frame it's pressed: a jump, then A again about half a second later, a few frames before landing. The snippet jumped again as it landed. The test ROM landed and stayed on the ground. To the player, that's a jump the game ignored.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/timing/buffer_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The hero in the air again, right after landing." />
+		<figcaption>8 frames: up again.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/timing/buffer_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The hero standing on the ground." />
+		<figcaption>1 frame: on the ground.</figcaption>
+	</figure>
+</div>
+
+**Any two taps run.**
+A test ROM with no limit between the taps ran when → was tapped, and then held 1.5 seconds later. A player who walks, stops, and walks the same way again would start running without meaning to. The snippet, with the same keys, walked.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/timing/tap_window.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Walk on screen." />
+		<figcaption>15 frames: Walk.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/timing/tap_nowindow.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Run on screen." />
+		<figcaption>No limit: Run.</figcaption>
+	</figure>
+</div>
+
+**One tap moves several items.**
+A test ROM that repeated with no pause, every 4 frames from the press, moved the marker to item 3 on a single tap of R that lasted 150 milliseconds, about 9 frames. The snippet, with the same tap, stopped on item 1. Picking one item in a long list becomes a fight.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/timing/repeat_delay.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Item 1 after one tap." />
+		<figcaption>A 20-frame pause: item 1.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/timing/repeat_nodelay.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Item 3 after the same tap." />
+		<figcaption>No pause: item 3.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Header: [`bn_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_keypad.h).
+- Guide pages: [Input](/basics/input/), [Combos and sequences](/basics/combos/), [Keys as data](/basics/keys/), [Gravity and jumping](/math/gravity/), for the jump itself, and [Level menu](/structure/levels/), a menu where the repeat would help.
