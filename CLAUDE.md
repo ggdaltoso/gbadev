@@ -98,7 +98,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Instant screen swap: two screens alive at once, switched with a button, state kept.
    - [x] A character that follows a route: from a door to a desk.
    - [x] Level menu: cursor, locked levels, the goal still missing.
-   - [ ] Several games in one ROM: each one a scene that owns its resources, one shared save.
+   - [x] Several games in one ROM: each one a scene that owns its resources, one shared save.
 
 6. **The site:**
    - [ ] Study touch controls for the emulator: an on-screen D-pad and buttons, so a page's ROM can be played on a phone. Look at what mgba-wasm accepts for input first, and bring the owner a plan before building.

@@ -1,0 +1,194 @@
+---
+title: Several games in one ROM
+description: A menu that runs several small games, each one a scene in its own file that creates everything it shows and gives back only a score, one save for the whole ROM kept by the menu, and global settings set by every scene that needs them.
+sidebar:
+  order: 1.8
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import main from '../../../../../snippets/arcade/src/main.cpp?raw';
+import games from '../../../../../snippets/arcade/include/games.h?raw';
+import coinDash from '../../../../../snippets/arcade/src/coin_dash.cpp?raw';
+import dodge from '../../../../../snippets/arcade/src/dodge.cpp?raw';
+import font from '../../../../../snippets/arcade/include/font.h?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+## When to use it
+
+When one cartridge holds several games: a party game made of minigames, a collection of arcade classics, the side games in an RPG (fishing, cards, a race), or a set of experiments that you want on one ROM. Each game has its own art and rules, and the player goes back to a menu between them. The records of all of them should survive turning the GBA off.
+
+This page builds on [Scenes](/structure/scenes/), [Save slots](/basics/slots/) and [Level menu](/structure/levels/).
+
+## How to think about it
+
+**Each game is a scene that owns everything it creates.** A game is a function: it creates its background, sprites and text, plays until it ends, and returns the score. When it returns, every `bn::regular_bg_ptr` and `bn::sprite_ptr` it created goes out of scope and its graphics are freed, so the next scene starts from an empty screen, with all the sprites and VRAM free. The menu is a scene too. No game knows the others exist: Coin dash has a field and five coins, Dodge has a night sky and falling mines, and the menu only calls them through a table, `games[selected].play(text_generator)`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 190" role="img" aria-label="Three screens. In the middle, the menu, which owns its panel, its text and the coin cursor. On the left, Coin dash, which owns its field, the hero, the coins and its text. On the right, Dodge, which owns the hero, the mines and its text. Arrows go from the menu to each game, labelled play, and back, labelled score." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<image href="/images/arcade/dash.png" x="0" y="20" width="120" height="80" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/arcade/menu.png" x="140" y="20" width="120" height="80" style={{ imageRendering: 'pixelated' }} />
+			<image href="/images/arcade/dodge.png" x="280" y="20" width="120" height="80" style={{ imageRendering: 'pixelated' }} />
+			<text x="60" y="12" font-family="monospace" fill="#2f9e36">coin_dash()</text>
+			<text x="200" y="12" font-family="monospace" fill="#1e7cb8">menu()</text>
+			<text x="340" y="12" font-family="monospace" fill="#2f9e36">dodge()</text>
+			<text x="60" y="118">owns: field, hero,</text>
+			<text x="60" y="131">coins, text</text>
+			<text x="200" y="118">owns: panel, text,</text>
+			<text x="200" y="131">cursor</text>
+			<text x="340" y="118">owns: hero, mines,</text>
+			<text x="340" y="131">text</text>
+			<text x="200" y="160" font-size="10">play: every scene starts from an empty screen</text>
+			<text x="200" y="176" font-size="10">return score: everything the scene created is freed</text>
+		</g>
+		<g stroke="currentColor" fill="none">
+			<path d="M 140 50 L 124 50" /><path d="M 128 46 L 124 50 L 128 54" />
+			<path d="M 124 70 L 140 70" /><path d="M 136 66 L 140 70 L 136 74" />
+			<path d="M 260 50 L 276 50" /><path d="M 272 46 L 276 50 L 272 54" />
+			<path d="M 276 70 L 260 70" /><path d="M 264 66 L 260 70 L 264 74" />
+		</g>
+	</svg>
+	<figcaption>The hub, <code>main</code>, goes from the menu to a game and back. Only the score crosses.</figcaption>
+</figure>
+
+**A game gives back a score, and only the hub touches the save.** There's one save for the whole ROM: one `save_data` at the start of SRAM, with a record for each game, and a format number and a checksum, as in [Save slots](/basics/slots/). The hub reads it once at start-up, and after a game it compares the score with that game's record and writes the save again only when the record is beaten. Games never read or write SRAM, so two of them can't write over each other, and a new game only needs a line in the table: `best` grows with it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 176" role="img" aria-label="The bytes of save_data in SRAM: format, best of game 0, best of game 1, checksum. An arrow from Coin dash's score of 5 and Dodge's score of 3 goes into the hub, which writes best 0 as 5 and best 1 as 3. Under it, the menu after a reset, showing Best 5 of 5 and Best 3s, read back from SRAM." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor" text-anchor="middle" font-family="monospace">
+			<text x="22" y="17">SRAM 0</text>
+			<rect x="48" y="4" width="76" height="18" fill="none" stroke="currentColor" />
+			<text x="86" y="17">format</text>
+			<rect x="124" y="4" width="88" height="18" fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<text x="168" y="17" fill="#1e7cb8">best[0]: 5</text>
+			<rect x="212" y="4" width="88" height="18" fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<text x="256" y="17" fill="#1e7cb8">best[1]: 3</text>
+			<rect x="300" y="4" width="76" height="18" fill="none" stroke="currentColor" />
+			<text x="338" y="17">checksum</text>
+			<text x="200" y="44" font-family="sans-serif">the hub: if score &gt; best[selected], store(save)</text>
+		</g>
+		<path d="M 200 34 L 200 26" stroke="currentColor" fill="none" /><path d="M 196 30 L 200 26 L 204 30" stroke="currentColor" fill="none" />
+		<image href="/images/arcade/reset.png" x="128" y="56" width="144" height="96" style={{ imageRendering: 'pixelated' }} />
+		<text x="200" y="168" text-anchor="middle" font-size="10" fill="currentColor">after a reset, read back from SRAM</text>
+	</svg>
+	<figcaption>One record per game, in one save with one checksum.</figcaption>
+</figure>
+
+**A global setting belongs to no scene, so every scene that needs it sets it when it starts.** Some things aren't objects that go away with their scene. The backdrop color, the one the GBA shows where no background covers the screen, is one value for the whole console, and it stays until someone changes it. Dodge sets it to a night purple. Putting it back on the way out isn't reliable (see the pitfalls), so the menu sets its own blue every time it starts, whatever the last game left. The same goes for fades, blending, windows and the like: the scene that shows them sets them.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/arcade/dodge.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Dodge: the hero at the bottom of a purple screen, with mines falling." />
+		<figcaption><code>bn::backdrop::set_color(bn::color(6, 2, 10))</code></figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/arcade/menu.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The menu right after Dodge, on its own dark blue." />
+		<figcaption><code>bn::backdrop::set_color(bn::color(3, 4, 9))</code></figcaption>
+	</figure>
+</div>
+
+## The smallest thing that works
+
+In the menu, **Up** and **Down** pick a game and **A** plays it. Coin dash: take the five coins in ten seconds. Dodge: move left and right to stay away from the mines for as long as you can. **SELECT** in the menu resets the GBA, to see the records come back from SRAM.
+
+`main.cpp` is the hub: the table of games, the save and the menu.
+
+<Code code={main} lang="cpp" title="snippets/arcade/src/main.cpp" />
+
+`games.h` is everything the hub knows about the games: their names and what they take and return. Each game is in its own `.cpp`, as in [Files and headers](/structure/files/).
+
+<Code code={games} lang="cpp" title="snippets/arcade/include/games.h" />
+
+<details>
+<summary>The first game: <code>coin_dash.cpp</code></summary>
+
+<Code code={coinDash} lang="cpp" title="snippets/arcade/src/coin_dash.cpp" />
+
+</details>
+
+<details>
+<summary>The second game: <code>dodge.cpp</code></summary>
+
+<Code code={dodge} lang="cpp" title="snippets/arcade/src/dodge.cpp" />
+
+</details>
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/arcade/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/arcade/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The menu with no records. Coin dash: the hero takes the five coins, and the menu shows Best 5 of 5. Dodge: mines fall on a purple screen until one hits the hero at 3 seconds, and the menu, back on its blue, shows Best 3s. SELECT resets the GBA, and the menu comes back with both records." />
+	<figcaption>Both games, back to the menu after each one, then a reset. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="arcade" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `int (*play)(bn::sprite_text_generator& text_generator);` | A pointer to a function that takes a text generator and returns an `int`. Every game has that shape, so one table holds them all. |
+| `{ "Coin dash", coin_dash, " of 5" }` | A function's name, without `()`, is a pointer to it. |
+| `games[selected].play(text_generator)` | Calls the function the pointer points to, like calling it by name. |
+| `sizeof(games) / sizeof(games[0])` | The number of elements in a plain array, worked out by the compiler. It's `constexpr`, so it can size `best`. |
+| `save = {};` | Every member set to 0: no records. |
+| `bn::sram::read(save)`, `bn::sram::write(save)` | Read or write the whole struct at the start of SRAM. [Save slots](/basics/slots/) uses `read_offset` to keep several. |
+| `bn::core::reset()` | Goes back to the start of `main()`, almost like turning the GBA off and on. SRAM keeps what was written: the menu shows the records again. |
+
+Art: the field and the coin are the ones from [Scenes](/structure/scenes/), and the mine is from [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) by Kenney, CC0, copied by [`snippets/tools/arcade_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/arcade_assets.py), which also draws the menu's rows. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**The menu stays on during the game.**
+A test ROM that created the menu's panel and text in `main`, so they wouldn't have to be made again each time, kept them alive while the games ran. In Coin dash, the field, created later, hid the panel, but the menu's text stayed on top of the game. In Dodge, which has no background, the whole menu showed behind the mines. Create a scene's things inside the scene, so they go away with it.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/arcade/kept_dash.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Coin dash with the menu's text over the field." />
+		<figcaption>Coin dash.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/arcade/kept_dodge.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Dodge with the menu's panel and text behind the mines." />
+		<figcaption>Dodge.</figcaption>
+	</figure>
+</div>
+
+**One game's save writes over another's.**
+A test ROM where each game kept its own small save, a format, a record and a checksum, wrote all of them at the start of SRAM. Coin dash saved 5 coins, then Dodge saved 3 seconds at the same address. Before the reset the menu still showed both records, from RAM. After it, both games read Dodge's save, which was valid for each of them: Coin dash said "Best: 3 of 5", and the 5 was gone. Keep one save, with a place for every game, and let only the hub write it.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/arcade/shared_before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The menu showing Best 5 of 5 and Best 3s." />
+		<figcaption>Before the reset.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/arcade/shared_after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The menu showing Best 3 of 5 and Best 3s." />
+		<figcaption>After it.</figcaption>
+	</figure>
+</div>
+
+**The last game's color is left behind.**
+A test ROM where the menu didn't set the backdrop came back from Dodge to a purple menu, though Dodge called `bn::backdrop::remove_color()` before returning. Removing it only forgets the color Butano was asked for. In Butano's source, the GBA's color 0 is written again only when a color is set or when the first background palette is copied again, and the purple stayed on screen, so neither happened here. The fix in the snippet is the menu setting its own color when it starts.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/arcade/backdrop.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The menu, with its rows on a purple background." />
+	<figcaption>The menu after Dodge, in the test ROM.</figcaption>
+</figure>
+
+## Read more
+
+- Headers: [`bn_sram.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sram.h), [`bn_backdrop.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_backdrop.h) and [`bn_core.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_core.h), for `reset`.
+- cppreference: [pointers to functions](https://en.cppreference.com/w/cpp/language/pointer#Pointers_to_functions), and [`offsetof`](https://en.cppreference.com/w/cpp/types/offsetof).
+- Guide pages: [Scenes](/structure/scenes/), for scenes and fades, [Save slots](/basics/slots/), for the checksum and several saves, [SRAM saves](/basics/saves/), [Files and headers](/structure/files/), and [Level menu](/structure/levels/), for a menu of levels inside one game.
