@@ -1,0 +1,153 @@
+---
+title: Moving and one-way platforms
+description: Planks you jump up through and land on, solid only for feet that were above them, and platforms that carry whoever stands on them by exactly what they moved, updated before the player.
+genres: [platformer]
+sidebar:
+  order: 4.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import platforms from '../../../../../snippets/platforms/src/main.cpp?raw';
+import font from '../../../../../snippets/platforms/include/font.h?raw';
+
+## When to use it
+
+When a level has more than solid blocks: thin planks the player jumps up through from below and stands on from above, platforms that slide across a pit, elevators. They make levels feel built instead of carved, and they're everywhere in platformers. Both are small rules on top of the block collision of [Forgiving jumps](/math/forgiving/).
+
+## How to think about it
+
+**A one-way surface only stops feet that were above it.** A plank isn't part of `hits`, so heads and sides go through it. It only matters to a falling player, and only when the feet were on or above its top last frame and are on or below it now: `lands(top, old_feet, new_feet)`. Rising through it changes nothing, and a fall that starts below the top falls on through.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 160" role="img" aria-label="A plank. One path rises from below through it and comes back down on top: on the way up, nothing; on the way down, old feet above the top and new feet below it, so it lands. Next to it, two frames of the snippet: the player inside the plank on the way up, then standing on it." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="40" y="70" width="110" height="14" fill="#d9650b" fill-opacity="0.3" stroke="#d9650b" />
+			<path d="M 70 150 L 70 40 Q 74 26 82 40 L 90 70" fill="none" stroke="currentColor" stroke-dasharray="3 3" />
+			<circle cx="90" cy="70" r="3" fill="#2f9e36" />
+			<text x="16" y="118" fill="#1e7cb8">rising: no test</text>
+			<text x="98" y="56" fill="#2f9e36">old ≤ top ≤ new:</text>
+			<text x="98" y="68" fill="#2f9e36">land</text>
+		</g>
+		<image href="/images/platforms/through.png" x="200" y="4" width="96" height="64" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/platforms/on_plank.png" x="302" y="4" width="96" height="64" style={{ imageRendering: 'pixelated' }} />
+		<text x="248" y="82" text-anchor="middle" font-size="10" fill="currentColor">going up through</text>
+		<text x="350" y="82" text-anchor="middle" font-size="10" fill="currentColor">standing on it</text>
+	</svg>
+	<figcaption>Only the fall is tested, and only from above.</figcaption>
+</figure>
+
+**A moving platform carries whoever stands on it by exactly what it moved.** Each `mover` keeps this frame's move in `moved_x` and `moved_y`. The player remembers which one it stood on last frame, `riding`, and gets that move added to its position before anything else. Carried that way, the player stays put on the platform, can walk on it, and moves with it on both axes: across the pit and up the elevator. Landing on a mover uses the same one-way rule as the planks.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/carry_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player riding the red platform over the pit." />
+		<figcaption>Across the pit.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/elevator.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player halfway up the shaft on the elevator." />
+		<figcaption>Up the shaft.</figcaption>
+	</figure>
+</div>
+
+**Platforms move first, then the player.** The loop moves every platform, then carries the player, then reads the keys and does the player's physics against where the platforms already are. Everything the player is tested against is in its final place for this frame, so the feet end exactly on the top, frame after frame.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 70" role="img" aria-label="Four boxes in a row: movers update, carry the rider, keys and physics, draw. Arrows go from each to the next." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			{['movers update', 'carry the rider', 'keys and physics', 'bn::core::update'].map((label, i) => (
+				<g>
+					<rect x={6 + i * 98} y="20" width="84" height="30" rx="4" fill="none" stroke={i === 0 ? '#1e7cb8' : 'currentColor'} stroke-width={i === 0 ? 2 : 1} />
+					<text x={48 + i * 98} y="39">{label}</text>
+					{i < 3 && <path d={`M ${90 + i * 98} 35 L ${104 + i * 98} 35 M ${100 + i * 98} 31 L ${104 + i * 98} 35 L ${100 + i * 98} 39`} stroke="currentColor" fill="none" />}
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>One frame, in order.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+**←** and **→** walk, and **A** jumps. Jump up through the plank on the left and land on it. Step onto the red platform when it rests at the edge of the pit, ride it across, and do the same with the elevator on the right to reach the high ledge. Falling into the pit puts you back at the start. The top line says what you're standing on.
+
+<Code code={platforms} lang="cpp" title="snippets/platforms/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/platforms/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/platforms/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The player jumps up through the plank and lands on it, walks off, steps onto the red platform resting at the pit, rides it across, waits on the right for the elevator, rides it up, and steps onto the high ledge." />
+	<figcaption>The plank, the platform across the pit, and the elevator. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="platforms" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `int wait = 0;` inside `mover` | A default for that member. `{ sprite, 1, 0, -36, 36 }` lists the first five, and the rest keep their defaults. |
+| `[[nodiscard]] int top() const` | A member function that reads the platform without changing it, so it can be called on a `const mover&`. |
+| `for(int side_x : { (x - 7).floor_integer(), (x + 6).floor_integer() })` | The same test for the left and the right foot, from a list written in place. |
+| `const char* on = riding >= 0 ? ... : ...;` | Chained `?:`: the first condition that holds picks the text. |
+| `if(on != shown)` | Compares the pointers, not the letters. It works here because each text is one string literal, which always has the same address. |
+
+Art: the blocks, the planks, the red platforms, the hills and the character are from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0, laid out by [`snippets/tools/platforms_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/platforms_assets.py), which reads the level from `main.cpp`. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**The platform slides out from under the player.**
+A test ROM that didn't carry the rider got the same keys as the snippet: walk onto the red platform while it rests at the pit's edge, then wait. When the platform left, the player stayed where it was, the platform's edge passed under its feet, and it dropped into the pit and started over. The snippet rode it across.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/carry_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player on the moving platform." />
+		<figcaption>Carried.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/carry_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player falling into the pit, the platform gone to the right." />
+		<figcaption>Not carried: falling.</figcaption>
+	</figure>
+</div>
+
+**The player floats above or sinks into the elevator.**
+A test ROM that moved the platforms after the player, starting on the elevator, put the feet on the top where the elevator was, and then the elevator moved. On the way down, the feet stayed 1 pixel above it; on the way up, 1 pixel into it; resting, in place. In the snippet, measured the same way on the same frames, the feet never left the top.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/order_ok.png" width="204" height="144" style={{ imageRendering: 'pixelated' }} alt="Close up: the feet right on the platform's top." />
+		<figcaption>Platforms first: on it.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/order_hover.png" width="204" height="144" style={{ imageRendering: 'pixelated' }} alt="Close up: a row of sky between the feet and the platform." />
+		<figcaption>Player first, going down: 1 pixel above.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/order_sink.png" width="204" height="144" style={{ imageRendering: 'pixelated' }} alt="Close up: the feet over the platform's top row." />
+		<figcaption>Player first, going up: 1 pixel in.</figcaption>
+	</figure>
+</div>
+
+**A plank that's solid can't be jumped through.**
+A test ROM that treated the planks as blocks bumped the player's head on the plank's underside, from the same spot and the same jump that took the snippet up through it, and dropped it back on the ground.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/through.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player going up through the plank." />
+		<figcaption>One-way: through.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/platforms/solid.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player under the plank, head against it." />
+		<figcaption>Solid: bumped.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Forgiving jumps](/math/forgiving/), for the blocks and the box, [Gravity and jumping](/math/gravity/), [Map collision](/basics/collision/), and [Game objects](/structure/objects/), for keeping things like `mover` as structs with their own `update`.
+- cppreference: [default member initializers](https://en.cppreference.com/w/cpp/language/data_members#Member_initialization), and [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization).

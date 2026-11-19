@@ -110,7 +110,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 
 8. **Platformer:**
    - [x] Forgiving jumps: coyote time after leaving a ledge, and corner correction when the head clips a block's edge.
-   - [ ] Moving and one-way platforms: carried along by a platform, jumping up through one and landing on top.
+   - [x] Moving and one-way platforms: carried along by a platform, jumping up through one and landing on top.
    - [ ] Slopes: walking on sloped tiles, the height worked out from the pixel column.
 9. **Combat (any genre):**
    - [ ] Damage, knockback and invincibility: invincibility frames, blinking, a white flash through the palette, a push back.

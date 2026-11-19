@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first sixty-five pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first sixty-six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -107,6 +107,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 63. **Combos and sequences:** a short history of what was pressed and when, moves matched against its end inside a window of frames, a fighting-game motion and a cheat code read the same way, and a soft reset held as a chord that doesn't fire again on its own.
 64. **Press timing:** a press remembered for a few frames instead of only the one it happened on, a jump buffered before landing, a double tap that runs only when the taps are close, and a cursor that waits before it repeats while held.
 65. **Forgiving jumps:** coyote time, a jump still allowed a few frames after walking off a ledge, and corner correction, a head that slides past a block's corner instead of bumping it.
+66. **Moving and one-way platforms:** planks you jump up through and land on, solid only for feet that were above them, and platforms that carry whoever stands on them by exactly what they moved, updated before the player.
 19. **Game objects:** a class per kind of thing, a `bn::vector` of them, and removing them with `erase_if`.
 43. **Object pools:** every stone made at the start and kept hidden, a throw that wakes one up and resets it, a size worked out from one stone's life and the time between throws, and what it saves, measured.
 20. **Files and headers:** a class in its own `.h` and `.cpp`, include guards, and the compiler and linker errors.
