@@ -1,0 +1,150 @@
+---
+title: Level menu
+description: A grid of levels with a cursor, locks worked out from the coins won instead of kept, the goal still missing shown on a locked level, and the lock checked where a level starts, not only drawn.
+sidebar:
+  order: 1.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import levels from '../../../../../snippets/levels/src/main.cpp?raw';
+import font from '../../../../../snippets/levels/include/font.h?raw';
+
+export const won = [1, 3, 2, 2, 0, 0];
+export const needed = [0, 1, 3, 5, 8, 11];
+export const total = won.reduce((sum, coins) => sum + coins, 0);
+export const cellX = (level) => 130 + level * 40;
+
+## When to use it
+
+When a game has levels the player picks: a puzzle game with a hundred boards, a set of stages, a world map of missions, the minigames of a party game. The menu has to say three things at a glance: which levels can be played, how well each one went, and what's still missing to open the next.
+
+This menu opens levels by coins won in all. The same shape works for any goal: stars, a score, beating the level before.
+
+## How to think about it
+
+**The menu draws the progress, and locks are worked out from it, never kept.** The only thing the game remembers is `coins_won`, the best result in each level. A level is open when the coins in all reach its goal in `coins_needed`, and `unlocked` works that out every time it's asked. There's no list of open levels to keep up to date, so the menu can't show a lock that the coins already opened. `draw` makes the whole menu again from those numbers each time they or the cursor change.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 210" role="img" aria-label={`Three rows of six numbers. coins_won: 1, 3, 2, 2, 0, 0, which add up to ${total}. coins_needed: 0, 1, 3, 5, 8, 11. unlocked, worked out as ${total} at least the goal: yes for levels 1 to 5, no for level 6. Under them, the menu drawn from those numbers.`} style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor">
+			<text x="104" y="22" text-anchor="end" font-family="monospace" fill="#2f9e36">coins_won</text>
+			<text x="104" y="44" text-anchor="end" font-family="monospace">coins_needed</text>
+			<text x="104" y="66" text-anchor="end" font-family="monospace" fill="#1e7cb8">unlocked</text>
+			{won.map((coins, level) => (
+				<g text-anchor="middle">
+					<text x={cellX(level)} y="22" fill="#2f9e36">{coins}</text>
+					<text x={cellX(level)} y="44">{needed[level]}</text>
+					<text x={cellX(level)} y="66" fill={total >= needed[level] ? '#1e7cb8' : '#ff4d8d'}>{total >= needed[level] ? 'yes' : 'no'}</text>
+				</g>
+			))}
+			<text x="358" y="22" fill="#2f9e36">= {total}</text>
+			<text x="200" y="86" text-anchor="middle" font-size="10">unlocked = {total} ≥ coins_needed, asked each time</text>
+		</g>
+		<image href="/images/levels/end.png" x="128" y="94" width="144" height="96" style={{ imageRendering: 'pixelated' }} />
+		<text x="200" y="204" text-anchor="middle" font-size="10" fill="currentColor">draw: the menu, made from those numbers</text>
+	</svg>
+	<figcaption>The end of the demo below: 8 coins open levels 1 to 5.</figcaption>
+</figure>
+
+**The cursor goes everywhere, and a locked level shows what's missing.** Skipping locked levels would hide the one thing the player wants to know about them. So the cursor can stop on any level, and the line at the bottom changes: on an open level it shows the coins won and that **A** plays it; on a locked one, how many more coins it needs, `coins_needed[selected] - total_coins()`. The goal is a subtraction, not a message written by hand for each level.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/levels/locked.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The menu with the cursor on level 6, which shows a lock. The line at the bottom says: Level 6: 5 more coins to open." />
+	<figcaption>The cursor on level 6, locked: 11 needed, 6 won, 5 more.</figcaption>
+</figure>
+
+**The lock is checked where a level starts, not only drawn.** A lock on the screen is only a picture. What keeps a locked level closed is the test before it starts: **A** plays the selected level only if `unlocked(selected)`. Drawing and starting ask the same function, so they always agree.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 110" role="img" aria-label="A flow: A pressed, then the question unlocked of selected. Yes leads to play the level, which wins a coin and redraws the menu. No leads to nothing happening." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor" text-anchor="middle">
+			<rect x="4" y="38" width="72" height="30" rx="4" fill="none" stroke="currentColor" />
+			<text x="40" y="57">A pressed</text>
+			<rect x="96" y="38" width="150" height="30" rx="4" fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<text x="171" y="57" font-family="monospace" fill="#1e7cb8">unlocked(selected)?</text>
+			<rect x="276" y="8" width="96" height="30" rx="4" fill="none" stroke="#2f9e36" stroke-width="2" />
+			<text x="324" y="27" fill="#2f9e36">play: +1 coin</text>
+			<rect x="276" y="70" width="96" height="30" rx="4" fill="none" stroke="#ff4d8d" stroke-width="2" />
+			<text x="324" y="89" fill="#ff4d8d">nothing</text>
+			<text x="262" y="22" font-size="10">yes</text>
+			<text x="262" y="96" font-size="10">no</text>
+		</g>
+		<g stroke="currentColor" fill="none">
+			<path d="M 76 53 L 92 53" /><path d="M 88 49 L 92 53 L 88 57" />
+			<path d="M 246 48 L 272 23" /><path d="M 266 23 L 272 23 L 270 29" />
+			<path d="M 246 58 L 272 85" /><path d="M 270 79 L 272 85 L 266 85" />
+		</g>
+	</svg>
+	<figcaption>The same <code>unlocked</code> that draws the lock decides whether the level starts.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The **D-pad** moves the cursor, and **A** plays the selected level. There are no levels here: playing one just wins one more coin in it, up to three, so you can watch the locks open.
+
+<Code code={levels} lang="cpp" title="snippets/levels/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/levels/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/levels/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The level menu. Winning a coin in level 1 opens level 2, three coins in level 2 open level 3, two in level 3 open level 4, the cursor stops on locked level 6 and the bottom line says 5 more coins, then two coins in level 4 open level 5." />
+	<figcaption>Levels opening one after another as coins are won. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="levels" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `int coins_won[levels] = {};` | Empty braces set every element to 0. |
+| `for(int coins : coins_won)` | A range-based `for` over a plain array: the compiler knows its size. |
+| `level % columns`, `level / columns` | A level's column and row in the grid, from its number. `row * columns + column` goes back. |
+| `missing == 1 ? "" : "s"` | "1 more coin", "5 more coins". |
+| `changed = changed \|\| new_column != column \|\| new_row != row;` | The menu is only drawn again on the frames something changed: making its sprites every frame would be wasted work. |
+
+Art: the coin and the lock are from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0, cut by [`snippets/tools/levels_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/levels_assets.py), which also draws the panel, the boxes, the empty coin and the cursor. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**The lock stays after the goal is met.**
+A test ROM that worked out which levels were open once, at the start, and kept them in an array, never opened level 2. After the first coin, the box still showed the lock, the line at the bottom, which counts the coins itself, said "Level 2: 0 of 3 coins. A: play", and **A** did nothing. Two answers to one question disagreed. Work the lock out from the coins every time.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/levels/stored.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Level 2 still locked, with the bottom line saying it can be played." />
+		<figcaption>Kept from the start.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/levels/derived.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Level 2 open, with one coin won in it." />
+		<figcaption>Worked out each time.</figcaption>
+	</figure>
+</div>
+
+**Locked levels can be played.**
+A test ROM that drew the locks but didn't check them when **A** was pressed let the cursor go to level 3, still locked, and win all three of its coins. That opened levels 2 and 3 without level 1 or 2 ever being played: the lock had only been a picture.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/levels/drawn.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The menu with no coins in levels 1 and 2 and three coins in level 3." />
+	<figcaption>Three coins in level 3, none in levels 1 and 2.</figcaption>
+</figure>
+
+**One step past the last level stops the game.**
+A test ROM that moved the cursor as one number, `+ 1` for right and `+ 3` for down, with no limits, went from level 6 on to a level 7 that doesn't exist. There, the bottom line was built from numbers read past the end of `coins_needed` and `coins_won`, and the game stopped on Butano's error screen: "String is full". Keep the column and the row inside the grid.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/levels/index.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Butano's error screen: ERROR in bn_string.h, push_back, String is full." />
+	<figcaption>Right on level 6, in the test ROM.</figcaption>
+</figure>
+
+## Read more
+
+- Headers: [`bn_algorithm.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_algorithm.h), for `bn::clamp`, and [`bn_sprite_text_generator.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_text_generator.h), for `set_center_alignment`.
+- cppreference: [range-based for](https://en.cppreference.com/w/cpp/language/range-for), and [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization), for `= {}`.
+- Guide pages: [Scenes](/structure/scenes/), for going from the menu to a level and back, [Save slots](/basics/slots/), for keeping `coins_won` after the GBA is turned off, and [Text and HUD](/basics/hud/), for the text.
