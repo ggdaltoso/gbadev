@@ -1,0 +1,163 @@
+---
+title: Combos and sequences
+description: A short history of what was pressed and when, moves matched against its end inside a window of frames, a fighting-game motion and a cheat code read the same way, and a soft reset held as a chord that doesn't fire again on its own.
+sidebar:
+  order: 2.4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import combos from '../../../../../snippets/combos/src/main.cpp?raw';
+import font from '../../../../../snippets/combos/include/font.h?raw';
+
+export const events = [['↓', 100], ['↘︎', 103], ['→', 106], ['A', 106]];
+
+## When to use it
+
+When one key isn't the whole command. A fighting game's special move is a motion and then a button: down, down-right, right, and A. A cheat code is a sequence typed on the title screen. A soft reset is four keys held together, so it can't happen by accident. They're all the same question asked of the past: did these things happen, in this order, recently enough?
+
+This builds on [Keys as data](/basics/keys/): keys as values, and a set of keys as one number.
+
+## How to think about it
+
+**Keep a short history of what happened, with the frame it happened on.** Each event is a button pressed, or the D-pad turning to a new direction, and the frame number. The D-pad is kept as a direction, not as four keys, so down and right held together are one event, down-right, which no single key could give. The history keeps the last 16 events, and the oldest goes when a new one comes. The snippet shows the last eight at the bottom of the screen.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 190" role="img" aria-label="Four events in a row, each with a sign and a frame, for example: down at frame 100, down-right at 103, right at 106, A at 106. Next to them, the snippet's screen after a shot, with the same four icons on the Last row." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="84" y="24" font-family="monospace">history, for example</text>
+			{events.map(([sign, frame], i) => (
+				<g>
+					<rect x={8 + i * 40} y="40" width="34" height="34" rx="4" fill="none" stroke="currentColor" />
+					<text x={25 + i * 40} y="63" font-size="16">{sign}</text>
+					<text x={25 + i * 40} y="90" font-family="monospace">{frame}</text>
+				</g>
+			))}
+			<text x="84" y="116">keys and frame of each event</text>
+			<text x="84" y="132">down + right held: one event, ↘︎</text>
+		</g>
+		<image href="/images/combos/fire.png" x="196" y="20" width="204" height="136" style={{ imageRendering: 'pixelated' }} />
+		<text x="298" y="174" text-anchor="middle" font-size="10" fill="currentColor">the snippet, right after a shot</text>
+	</svg>
+	<figcaption>A history of events, newest on the right. The frames on the left are an example.</figcaption>
+</figure>
+
+**A move is what the history has to end with, inside a window.** The fire move is the list `↓ ↘︎ → A`, and the code to turn gold is `L R L R ↑ ↓ A`. Both are checked by `ends_with`, when A is pressed: the last events have to be those, in order, and the first of them can't be more than the window's frames old, 20 for the motion and 180 for the code. Only the end counts, so whatever was pressed before, a wrong key or half a try, doesn't get in the way. The window is what makes a motion a motion: the same keys spread over a second are walking, not a special move.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 150" role="img" aria-label="Two timelines of the same four events. On top, done in about 13 frames, inside the 20-frame window: a shot. Below, done in about 72 frames, the first event is outside the window: nothing." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="276" y="14" width="100" height="40" fill="#1e7cb8" fill-opacity="0.12" stroke="#1e7cb8" />
+			<rect x="276" y="80" width="100" height="40" fill="#1e7cb8" fill-opacity="0.12" stroke="#1e7cb8" />
+			<text x="326" y="10" text-anchor="middle" fill="#1e7cb8">20 frames before A</text>
+			<line x1="20" y1="34" x2="380" y2="34" stroke="currentColor" />
+			<line x1="20" y1="100" x2="380" y2="100" stroke="currentColor" />
+			<g text-anchor="middle" font-size="13">
+				<text x="311" y="30">↓</text><text x="336" y="30">↘︎</text><text x="361" y="30">→</text><text x="372" y="50" font-size="10">A</text>
+				<text x="16" y="96">↓</text><text x="190" y="96">↘︎</text><text x="361" y="96">→</text><text x="372" y="116" font-size="10">A</text>
+			</g>
+			<text x="20" y="62" fill="#2f9e36">about 13 frames: shot</text>
+			<text x="20" y="134" fill="#ff4d8d">about 72 frames: ↓ is outside, nothing</text>
+		</g>
+	</svg>
+	<figcaption>The same keys, fast and slow, as in the test runs. Only the fast one fits the window.</figcaption>
+</figure>
+
+**A chord is a set held together, and one of its keys pressed just now.** L, R, START and SELECT make one number, `reset_chord`. The four are held when `held & reset_chord` is all of them, in whatever order they went down. The reset also needs one of them `pressed` on this frame: after `bn::core::reset()` the player is often still holding all four, and without that test, the game would reset again on every frame until they let go.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 106" role="img" aria-label="Two tests on the bits of L, R, START and SELECT. held and reset_chord equals reset_chord: all four are down. pressed and reset_chord is not 0: one of them went down on this frame. Both true: reset." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor" font-family="monospace">
+			<text x="10" y="26">(held &amp; reset_chord) == reset_chord</text>
+			<text x="270" y="26" font-family="sans-serif" font-size="10">all four are down</text>
+			<text x="10" y="56">(pressed &amp; reset_chord) != 0</text>
+			<text x="270" y="56" font-family="sans-serif" font-size="10">one went down just now</text>
+			<text x="10" y="96" fill="#1e7cb8">both: bn::core::reset()</text>
+		</g>
+	</svg>
+	<figcaption>Holding the four after the reset passes the first test, not the second.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The top of the screen lists the moves. Do **↓ ↘︎ →** and **A** quickly to shoot. Type **L R L R ↑ ↓ A** to turn the hero gold, and again to turn it back. Hold **L**, **R**, **START** and **SELECT** together to reset: the time goes back to 0. On a keyboard, those are **A**, **S**, **Enter** and **Backspace**.
+
+<Code code={combos} lang="cpp" title="snippets/combos/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/combos/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/combos/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The moves screen. Down, down-right, right and A shoot. L R L R up down A turns the hero gold. Two more motions shoot twice. Holding L, R, START and SELECT resets: the time goes back to 0 and the hero isn't gold any more." />
+	<figcaption>A shot, the gold code, two more shots, then the reset. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="combos" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::span<const unsigned> move` | A view of an array that someone else owns: a pointer and a size. A plain array like `fire` turns into one by itself, so `ends_with(fire, ...)` takes any move. |
+| `history.erase(history.begin())` | Moves every event one place down, to make room at the end. With 16 events that's cheap. A ring buffer avoids the moves, if a history gets long. |
+| `key(value)` | Turns the number back into a `key_type`, the way `held` and `pressed` want it. |
+| `held \|= bn::keypad::held(key(value)) ? value : 0;` | Adds the key's bit when it's held, and nothing when it isn't. |
+| `(held & dpad) != direction` | The D-pad changed: a new direction, or let go. Letting go isn't remembered, so ↑ ↑ needs the D-pad let go in between, as typing it does. |
+| `hero_palette.set_fade(bn::colors::yellow, ...)` | Mixes the hero's colors with yellow. The palette is the hero's alone, so nothing else turns gold. |
+
+Art: the icons are drawn by [`snippets/tools/combos_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/combos_assets.py), with the letters taken from the font, and the shot is from [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) by Kenney, CC0. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**The reset doesn't let go.**
+A test ROM that reset when the four keys were held, without asking for a press, stayed on a white screen for as long as they were held, about two and a half seconds in the test, and only started when they were let go. From the code, it reset on every frame: four keys held is true again on the first frame after each reset. In the snippet, with the press, it resets once and runs while the keys are still down. Butano helps here: `bn::core::init()` reads the keys twice, so keys already held when the game starts don't look `pressed` on its first frame.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/combos/held_white.png" width="240" height="160" style={{ imageRendering: 'pixelated', border: '1px solid currentColor' }} alt="A white screen." />
+		<figcaption>Held only: white while held.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/combos/held_running.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The game running again at Time 0s." />
+		<figcaption>Held and pressed: running, keys still down.</figcaption>
+	</figure>
+</div>
+
+**A slip breaks the code.**
+A test ROM that checked the gold code step by step, going back to the first step on a wrong key, never turned gold when the code was typed after an extra L R: L R L R L R ↑ ↓ A. At the fifth key it expected ↑, got L, and went back to the start, but that L was the start of the real code, and it had been thrown away. The snippet, given the same keys, turned gold: the last seven events are the code.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/combos/steps.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The hero not gold, with R L R L R up down A on the Last row." />
+		<figcaption>Step by step.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/combos/suffix.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The hero gold, with the same keys on the Last row." />
+		<figcaption>The end of the history.</figcaption>
+	</figure>
+</div>
+
+**Any order of keys over any time is a move.**
+A test ROM with no window shot when ↓ and ↘︎ were each held for 0.6 seconds before → and A, about 72 frames for the whole motion. Walking down, then stopping, then walking right and pressing A would shoot too. The snippet, with its 20 frames, didn't shoot with the same keys. How wide the window is is a game design choice: wider is kinder, narrower is harder to do by accident.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/combos/nowindow.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="A shot leaving the hero after the slow motion." />
+		<figcaption>No window: a shot.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/combos/window.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="No shot after the same slow motion." />
+		<figcaption>20 frames: nothing.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Header: [`bn_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_keypad.h), and [`bn_span.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_span.h).
+- Butano source: [`bn_core.cpp`](https://github.com/GValiente/butano/blob/master/butano/src/bn_core.cpp), where `init` reads the keys twice ("Keypad polling fix").
+- cppreference: [`std::span`](https://en.cppreference.com/w/cpp/container/span), which `bn::span` follows.
+- Guide pages: [Keys as data](/basics/keys/), [Input](/basics/input/), [Input replays](/structure/replay/), and [Scenes](/structure/scenes/), where a reset would go back to the title.
