@@ -1,0 +1,174 @@
+---
+title: A map that changes
+description: Barrels pushed through a garden whose background map is written by the code, one function that changes the level and the map together, a map that only reaches the screen when it's copied again, and a sprite for the frames between two cells.
+genres: [puzzle]
+sidebar:
+  order: 5.495
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import mapedit from '../../../../../snippets/mapedit/src/main.cpp?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const zoom = 4;
+export const before = [[16, 17, 18, 19], [4, 5, 6, 7], [8, 9, 10, 11]];
+export const after = [[0, 1, 2, 3], [4, 5, 6, 7], [16, 17, 18, 19]];
+export const kinds = ['grass', 'grass', 'grass', 'bush', 'barrel'];
+export const frameX = (frame) => 30 + frame * 36;
+
+## When to use it
+
+When the world changes in play and the change stays: a crate pushed, a wall knocked down, a door that opens for good, a bridge built, grass cut. Changes that are too many for sprites, or that should stay in the level like the rest of it. The background is a map of cells, and the code can write those cells while the game runs.
+
+This page pushes barrels through the garden of [Grid-locked movement](/basics/grid/). To build a whole map from code once, see [Cave generation](/math/cave/); to animate tiles that don't move, [Animated tiles](/effects/tiles/).
+
+## How to think about it
+
+**Two copies of the level, changed together.** The rules read `level`, one character per 16x16 cell. The screen shows the background map, four 8x8 map cells per level cell, each holding the number of a tile. They must always agree, or the hero walks through a barrel that's drawn, or stops in front of one that isn't. So the snippet changes the level in one place only, `put`: it writes the character, then the four map cells. The map draws no art of its own: it only points at the 20 tiles of the tileset, four per kind of cell.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 300" role="img" aria-label="Cells 3 to 5 of the garden's second row, four times bigger, before and after two pushes. Above each level cell, its character in level; inside each map cell, its tile number. Before: o, dot, dot, with tiles 16 to 19, 4 to 7 and 8 to 11. After: dot, dot, o, with tiles 0 to 3, 4 to 7 and 16 to 19. Below, the tileset: five kinds of cell whose first tiles are 0, 4, 8, 12 and 16." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		{[['before', before, ['o', '.', '.'], 22], ['after', after, ['.', '.', 'o'], 134]].map(([name, tiles, chars, top]) => (
+			<g>
+				<text x="10" y={top + 46} font-size="10" fill="currentColor">{name}</text>
+				<image href={`/images/mapedit/${name}.png`} x="94" y={top + 14} width={48 * zoom} height={16 * zoom} style={{ imageRendering: 'pixelated' }} />
+				{tiles.map((cell, i) => (
+					<g>
+						<text x={94 + i * 64 + 32} y={top + 8} text-anchor="middle" font-size="11" fill="#1e7cb8" font-family="monospace">'{chars[i]}'</text>
+						<rect x={94 + i * 64} y={top + 14} width="64" height="64" fill="none" stroke="#1e7cb8" stroke-width="2" />
+						{cell.map((tile, part) => (
+							<g>
+								<rect x={94 + i * 64 + (part % 2) * 32} y={top + 14 + Math.floor(part / 2) * 32} width="32" height="32" fill="none" stroke="#fff" stroke-opacity="0.6" />
+								<text x={94 + i * 64 + (part % 2) * 32 + 16} y={top + 14 + Math.floor(part / 2) * 32 + 20} text-anchor="middle" font-size="11" font-weight="bold" fill="#2f9e36" stroke="#fff" stroke-width="3" paint-order="stroke">{tile}</text>
+							</g>
+						))}
+					</g>
+				))}
+			</g>
+		))}
+		<text x="190" y="124" text-anchor="middle" font-size="10" fill="currentColor">two pushes: put(3, 1, '.') ... put(5, 1, 'o')</text>
+		<image href="/images/mapedit/kinds.png" x="70" y="238" width="240" height="48" style={{ imageRendering: 'pixelated' }} />
+		{kinds.map((kind, i) => (
+			<text x={70 + i * 48 + 24} y="232" text-anchor="middle" font-size="9" fill="currentColor">{i * 4}: {kind}</text>
+		))}
+	</svg>
+	<figcaption>In <span style={{ color: '#1e7cb8' }}>blue</span>, what the rules read; in <span style={{ color: '#2f9e36' }}>green</span>, what the screen shows. Below, the tileset, by the first tile of each kind.</figcaption>
+</figure>
+
+**The screen shows a copy, and the copy is made only when asked.** The map cells the code writes are in RAM. What the GBA draws is a copy of them in video memory, and writing the RAM doesn't touch it. `reload_cells_ref` asks Butano to copy the whole map again, all 1024 cells, on the next `bn::core::update()`. Calling it twice in one frame still makes one copy: Butano's source only marks the map to be copied. So `put` can call it every time, and a frame that changes three cells costs the same as one.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 150" role="img" aria-label="Left, the map cells in RAM, where the barrel has already moved two cells. Right, the copy in video memory, which the screen shows, with the barrel still in its old place. An arrow from left to right: copied on the next bn::core::update, if reload_cells_ref was called." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<image href="/images/mapedit/after.png" x="20" y="34" width="144" height="48" style={{ imageRendering: 'pixelated' }} />
+		<image href="/images/mapedit/before.png" x="216" y="34" width="144" height="48" style={{ imageRendering: 'pixelated' }} />
+		<rect x="20" y="34" width="144" height="48" fill="none" stroke="#1e7cb8" stroke-width="2" />
+		<rect x="216" y="34" width="144" height="48" fill="none" stroke="#2f9e36" stroke-width="2" />
+		<path d="M 168 58 L 208 58 M 202 52 L 208 58 L 202 64" fill="none" stroke="#ff4d8d" stroke-width="2.5" />
+		<g font-size="10" fill="currentColor" text-anchor="middle">
+			<text x="92" y="24" fill="#1e7cb8">cells in RAM: what put wrote</text>
+			<text x="288" y="24" fill="#2f9e36">video memory: what the screen shows</text>
+			<text x="190" y="108" fill="#ff4d8d">copied, all of it, on the next bn::core::update()</text>
+			<text x="190" y="124" fill="#ff4d8d">if reload_cells_ref() was called since the last copy</text>
+		</g>
+	</svg>
+	<figcaption>Until the copy, the two disagree, as in the first pitfall.</figcaption>
+</figure>
+
+**Map cells change a whole cell at a time, so a moving barrel is a sprite.** A tile can't be drawn 2 pixels to the side. So when a push starts, `put` takes the barrel out of the map and a barrel sprite takes its place, on the same pixels. The sprite moves with the hero, 2 pixels a frame, and when the hero reaches its cell, `put` writes the barrel back into the map, one cell further, and the sprite hides. One sprite is enough, however many barrels there are: only one moves at a time.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 380 110" role="img" aria-label="A push from cell 3 to cell 4 of the second row, nine frames. Frame 0, in green, takes the barrel out of the map and shows the sprite. Frames 0 to 7, in blue, move the sprite 2 pixels each. Frame 8, in green, writes the barrel into the map at cell 4 and hides the sprite." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		{Array.from({ length: 9 }, (_, frame) => (
+			<g>
+				<rect x={frameX(frame) + 2} y="34" width="32" height="20" fill={frame < 8 ? '#1e7cb8' : 'none'} fill-opacity="0.45" />
+				{(frame === 0 || frame === 8) && <rect x={frameX(frame) + 2} y="34" width="32" height="20" fill="none" stroke="#2f9e36" stroke-width="3" />}
+				<text x={frameX(frame) + 18} y="68" text-anchor="middle" font-size="10" fill="currentColor">{frame}</text>
+			</g>
+		))}
+		<g font-size="10" fill="currentColor">
+			<text x="30" y="24" fill="#2f9e36">put(3, 1, '.'), sprite shown</text>
+			<text x="354" y="24" text-anchor="end" fill="#2f9e36">put(4, 1, 'o'), sprite hidden</text>
+			<text x="190" y="94" text-anchor="middle"><tspan fill="#1e7cb8">the sprite moves 2 px with the hero</tspan>, <tspan fill="#2f9e36">the map changes</tspan></text>
+		</g>
+	</svg>
+	<figcaption>One push. Holding the direction, frame 8 is also frame 0 of the next push.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Walk with the **D-pad** into a barrel to push it. It moves if the cell behind it is grass, and stops at bushes and at other barrels.
+
+<Code code={mapedit} lang="cpp" title="snippets/mapedit/src/main.cpp" />
+
+<details>
+<summary>The hero's walk animation, shared by several snippets: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/mapedit/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero pushes a barrel along the top corridor until it stops at a bush, then walks around the maze and pushes another barrel along a lower corridor. The barrels slide smoothly and stay where they're left." />
+	<figcaption>Two barrels pushed until a bush stops them. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="mapedit" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `char level[rows][columns + 1] = { "###...", ... };` | An array of arrays of `char`, so the game can write it. Each row copies its string, `'\0'` included: hence `columns + 1`. The `const char*` level of [Grid-locked movement](/basics/grid/) points at text in ROM, which can't be written. |
+| `auto put = [&](int x, int y, char kind) { ... };` | A lambda kept in a variable: a small function inside `main`. `[&]` lets it use `main`'s variables, here `map` and `bg_map`, by reference. |
+| `bn::unique_ptr<garden_map> map(new garden_map());` | The map's 1024 cells live on the heap, as in Butano's own example, and are freed when `map` goes away. |
+| `part % 2`, `part / 2` | The four map cells of a level cell, numbered 0 to 3 as in the tileset: the remainder is the column, the division the row. |
+| `kind == '#' ? bush_tiles : kind == 'o' ? barrel_tiles : ...` | Two `?:` in a row, read as "if, else if, else". |
+
+Art: [Tiny Town](https://www.kenney.nl/assets/tiny-town) by Kenney (the grass, the bushes and the barrel), cut into tiles by [`snippets/tools/mapedit_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/mapedit_assets.py), and the guide's hero from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998. Both CC0.
+
+## Pitfalls
+
+**The hero walks through a barrel.**
+A test ROM without the `reload_cells_ref` call changed the level and the map cells in RAM, but never sent them to the screen. Pushed from the left, the barrel at (3, 1) stayed drawn where it was, the sprite slid away from it and vanished on arrival, and the hero walked into the drawn barrel's cell and on through it: for the rules, it was grass. The real barrel, at (5, 1), wasn't drawn at all.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/mapedit/noreload.png" width="288" height="144" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero standing past a barrel that is still drawn at its starting cell, and nothing drawn where the barrel really is." />
+	<figcaption>Without <code>reload_cells_ref</code>: the screen still shows the start.</figcaption>
+</figure>
+
+**Two barrels become one.**
+A test ROM that only checked the cell behind the barrel for a bush, `!= '#'`, let the hero push the barrel at (11, 8) into the one at (10, 8). `put` wrote an `o` over an `o`, and the row that had two barrels had one. The snippet only pushes into grass, `== '.'`, so a barrel is a wall for another barrel.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/mapedit/merge.png" width="224" height="64" style={{ imageRendering: 'pixelated' }} alt="The bottom corridor with one barrel and the hero next to it." />
+		<figcaption>With <code>!= '#'</code>: one barrel left.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/mapedit/nomerge.png" width="224" height="64" style={{ imageRendering: 'pixelated' }} alt="The bottom corridor with two barrels side by side and the hero stopped next to them." />
+		<figcaption>With <code>== '.'</code>: the hero stops.</figcaption>
+	</figure>
+</div>
+
+**The barrel runs ahead of the hero.**
+A test ROM that wrote the barrel into its new cell as the push started, with no sprite, made it jump a whole cell at once. Pushing right, there was a cell of grass between the hero and the barrel for most of every step, until the hero caught up and the barrel jumped again. In the snippet, the sprite stays against the hero all the way.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/mapedit/jump.png" width="288" height="144" style={{ imageRendering: 'pixelated' }} alt="The hero pushing right, with grass between it and the barrel." />
+		<figcaption>Straight into the map: a cell ahead.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/mapedit/slide.png" width="288" height="144" style={{ imageRendering: 'pixelated' }} alt="The hero pushing right, with the barrel right against it." />
+		<figcaption>A sprite while it moves: against the hero.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Butano example: [`dynamic_regular_bg`](https://github.com/GValiente/butano/tree/master/examples/dynamic_regular_bg), a map written in RAM and reloaded.
+- Headers: [`bn_regular_bg_map_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_map_ptr.h), for `reload_cells_ref`, and [`bn_regular_bg_map_cell_info.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_regular_bg_map_cell_info.h), for what a cell holds besides its tile.
+- Tonc: [regular backgrounds](https://gbadev.net/tonc/regbg.html), for map cells, screen blocks and tiles in video memory.
+- cppreference: [lambda expressions](https://en.cppreference.com/w/cpp/language/lambda), for `put`, and [arrays](https://en.cppreference.com/w/cpp/language/array), for `level`.
+- Guide pages: [Grid-locked movement](/basics/grid/), [Cross-shaped explosion](/basics/explosion/), [Cave generation](/math/cave/), for a map built from code all at once, and [Animated tiles](/effects/tiles/), for changing tiles instead of cells.

@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first fifty-five pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first fifty-six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -79,6 +79,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 53. **Difficulty curve:** how hard the game is, as a table of rows by distance, blended between rows and held after the last one, and the time between obstacles that the player actually feels.
 54. **Grid-locked movement:** a character whose place is a cell, with a sprite that slides to it, a step that starts only when the last one is over, and walls checked on the cell ahead before moving.
 55. **Cross-shaped explosion:** a blast worked out once as a list of cells, arms that walk out from the bomb and stop at the first wall, and flames that hit whatever is on their cells, other bombs included.
+56. **A map that changes:** barrels pushed through a background map written by the code, one function that changes the level and the map together, a map that only reaches the screen when it's copied again, and a sprite for the frames between two cells.
 
 ### Effects
 
