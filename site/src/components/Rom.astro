@@ -16,7 +16,21 @@ const { name } = Astro.props;
 			<button type="button">▶&#xFE0E; Run {name}.gba</button>
 		</div>
 	</div>
-	<p class="keys">Arrows: D-pad · X: A · Z: B · Enter: Start · Backspace: Select · A/S: L/R</p>
+	<!-- Touch controls: shown after Run on touch screens, or with the button below. aria-hidden, because
+	     the keyboard already does all of this for anyone who can't touch. -->
+	<div class="pad" aria-hidden="true">
+		<span class="shoulder" data-key="L">L</span>
+		<span class="shoulder" data-key="R">R</span>
+		<span class="dpad" data-dpad>
+			<span data-arm="Up"></span><span data-arm="Left"></span><span data-arm="Right"></span><span data-arm="Down"></span>
+		</span>
+		<span class="menu"><span data-key="Select">SELECT</span><span data-key="Start">START</span></span>
+		<span class="ab"><span data-key="B">B</span><span data-key="A">A</span></span>
+	</div>
+	<p class="keys">
+		Arrows: D-pad · X: A · Z: B · Enter: Start · Backspace: Select · A/S: L/R
+		<button type="button" class="pad-toggle" aria-pressed="false">Touch controls</button>
+	</p>
 </gba-rom>
 
 <style>
@@ -79,6 +93,119 @@ const { name } = Astro.props;
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-3);
 	}
+	.keys .pad-toggle {
+		display: none;
+		position: static;
+		width: auto;
+		margin-inline-start: 0.5rem;
+		padding: 0.1rem 0.5rem;
+		border: 1px solid currentColor;
+		border-radius: 0.25rem;
+		color: inherit;
+		font-size: inherit;
+	}
+	gba-rom.on .keys .pad-toggle {
+		display: inline;
+	}
+	.keys .pad-toggle[aria-pressed='true'] {
+		background: #34343f;
+		color: #fff;
+	}
+	/* The pad: L and R on top, the D-pad left, START and SELECT in the middle, A and B right. */
+	.pad {
+		display: none;
+		grid-template-columns: 1fr auto 1fr;
+		grid-template-areas: 'l . r' 'dpad menu ab';
+		align-items: center;
+		gap: 0.75rem 0.5rem;
+		margin-top: 1rem;
+		/* Touching the pad must not scroll, zoom, select text or open a menu. */
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+	}
+	gba-rom.on.touch .pad {
+		display: grid;
+	}
+	.pad [data-key],
+	.pad [data-arm] {
+		display: grid;
+		place-items: center;
+		background: #34343f;
+		color: #fff;
+		font-weight: 600;
+		box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.3);
+	}
+	.pad .down,
+	.pad [data-arm].down {
+		background: #1e7cb8;
+		box-shadow: none;
+	}
+	.shoulder {
+		width: 5.5rem;
+		height: 2.25rem;
+		border-radius: 0.75rem 0.75rem 0.25rem 0.25rem;
+	}
+	.shoulder[data-key='L'] {
+		grid-area: l;
+		justify-self: start;
+	}
+	.shoulder[data-key='R'] {
+		grid-area: r;
+		justify-self: end;
+	}
+	.dpad {
+		grid-area: dpad;
+		justify-self: start;
+		position: relative;
+		width: 8.5rem;
+		height: 8.5rem;
+	}
+	.dpad [data-arm] {
+		position: absolute;
+		width: 34%;
+		height: 34%;
+	}
+	[data-arm='Up'] { left: 33%; top: 0; border-radius: 0.4rem 0.4rem 0 0; }
+	[data-arm='Down'] { left: 33%; bottom: 0; border-radius: 0 0 0.4rem 0.4rem; }
+	[data-arm='Left'] { top: 33%; left: 0; border-radius: 0.4rem 0 0 0.4rem; }
+	[data-arm='Right'] { top: 33%; right: 0; border-radius: 0 0.4rem 0.4rem 0; }
+	.dpad::after {
+		/* The middle of the cross. */
+		content: '';
+		position: absolute;
+		inset: 33%;
+		background: #34343f;
+	}
+	.menu {
+		grid-area: menu;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	.menu [data-key] {
+		width: 4.25rem;
+		height: 2.25rem;
+		border-radius: 1.125rem;
+		font-size: 0.7rem;
+	}
+	.ab {
+		grid-area: ab;
+		justify-self: end;
+		position: relative;
+		width: 8.5rem;
+		height: 8.5rem;
+	}
+	.ab [data-key] {
+		position: absolute;
+		width: 3.75rem;
+		height: 3.75rem;
+		border-radius: 50%;
+		font-size: 1.25rem;
+	}
+	.ab [data-key='A'] { right: 0; top: 0.75rem; }
+	.ab [data-key='B'] { left: 0; bottom: 0.75rem; }
 </style>
 
 <script>
@@ -119,6 +246,77 @@ const { name } = Astro.props;
 			emulator.loadGame(path);
 			button.remove();
 			this.classList.add('on');
+			this.connectPad(emulator);
+		}
+
+		connectPad(emulator: { buttonPress(name: string): void; buttonUnpress(name: string): void }) {
+			const pad = this.querySelector<HTMLElement>('.pad')!;
+			const toggle = this.querySelector<HTMLButtonElement>('.pad-toggle')!;
+			const show = (on: boolean) => {
+				this.classList.toggle('touch', on);
+				toggle.setAttribute('aria-pressed', String(on));
+			};
+			show(matchMedia('(pointer: coarse)').matches);
+			toggle.addEventListener('click', () => {
+				show(!this.classList.contains('touch'));
+				toggle.blur();   // Focused, Enter (START) and Space would click it again.
+			});
+
+			// What each finger (pointer) is pressing. A key is down while any finger holds it.
+			const fingers = new Map<number, Set<string>>();
+			const isHeld = (key: string) => [...fingers.values()].some((keys) => keys.has(key));
+			const paint = () =>
+				pad.querySelectorAll<HTMLElement>('[data-key], [data-arm]').forEach((element) => {
+					element.classList.toggle('down', isHeld(element.dataset.key ?? element.dataset.arm!));
+				});
+
+			const setFinger = (id: number, keys: Set<string>) => {
+				const before = fingers.get(id) ?? new Set<string>();
+				fingers.delete(id);
+				for (const key of before) {
+					if (!keys.has(key) && !isHeld(key)) emulator.buttonUnpress(key);
+				}
+				for (const key of keys) {
+					if (!before.has(key) && !isHeld(key)) emulator.buttonPress(key);
+				}
+				if (keys.size) fingers.set(id, keys);
+				paint();
+			};
+
+			// The keys under a point. On the D-pad, the angle from its middle picks one of 8 directions,
+			// so a thumb can roll from one direction to the next, diagonals included.
+			const keysAt = (x: number, y: number) => {
+				const target = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-key], [data-dpad]');
+				if (!target || !pad.contains(target)) return new Set<string>();
+				if (target.dataset.key) return new Set([target.dataset.key]);
+				const box = target.getBoundingClientRect();
+				const dx = x - (box.left + box.width / 2);
+				const dy = y - (box.top + box.height / 2);
+				if (Math.hypot(dx, dy) < box.width * 0.12) return new Set<string>();
+				const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+				const keys = new Set<string>();
+				if (Math.abs(angle) < 67.5) keys.add('Right');
+				if (Math.abs(angle) > 112.5) keys.add('Left');
+				if (angle > 22.5 && angle < 157.5) keys.add('Down');
+				if (angle < -22.5 && angle > -157.5) keys.add('Up');
+				return keys;
+			};
+
+			pad.addEventListener('pointerdown', (event) => {
+				event.preventDefault();
+				pad.setPointerCapture(event.pointerId);
+				setFinger(event.pointerId, keysAt(event.clientX, event.clientY));
+			});
+			pad.addEventListener('pointermove', (event) => {
+				if (pad.hasPointerCapture(event.pointerId)) setFinger(event.pointerId, keysAt(event.clientX, event.clientY));
+			});
+			for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
+				pad.addEventListener(type, (event) => setFinger(event.pointerId, new Set()));
+			}
+			// A key left down when the page loses focus would stay down in the game.
+			const releaseAll = () => [...fingers.keys()].forEach((id) => setFinger(id, new Set()));
+			addEventListener('blur', releaseAll);
+			document.addEventListener('visibilitychange', releaseAll);
 		}
 	}
 	customElements.define('gba-rom', GbaRom);

@@ -101,6 +101,6 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Several games in one ROM: each one a scene that owns its resources, one shared save.
 
 6. **The site:**
-   - [ ] Study touch controls for the emulator: an on-screen D-pad and buttons, so a page's ROM can be played on a phone. Look at what mgba-wasm accepts for input first, and bring the owner a plan before building.
+   - [x] Study touch controls for the emulator: an on-screen D-pad and buttons, so a page's ROM can be played on a phone. Look at what mgba-wasm accepts for input first, and bring the owner a plan before building.
 
 Art for these: Kenney packs (CC0) the owner downloaded to `~/Downloads/kenney_*.zip`. Copy only the pack a lesson uses into `assets/kenney-<pack>/`, with a `CREDITS.md`.
