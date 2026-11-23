@@ -1,0 +1,196 @@
+---
+title: Damage, knockback and invincibility
+description: One counter after each hit that ignores further hits, flashes the hero white through its palette, then blinks it, and a push away from what hit, at the same speed from any side, that loses speed every frame and stops at walls.
+sidebar:
+  order: 7.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import damage from '../../../../../snippets/damage/src/main.cpp?raw';
+import font from '../../../../../snippets/damage/include/font.h?raw';
+import heroWalk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const timeline = [
+	{ from: 0, to: 4, label: 'white', color: '#ff4d8d' },
+	{ from: 0, to: 16, label: 'pushed, no control', color: '#1e7cb8' },
+	{ from: 0, to: 60, label: 'hits ignored', color: '#2f9e36' },
+];
+export const shown = (k) => k < 4 || (60 - k) % 8 < 4;
+export const strip = [
+	{ k: -2, label: 'before' },
+	{ k: 1, label: 'white' },
+	{ k: 6, label: 'hidden' },
+	{ k: 10, label: 'pushed' },
+	{ k: 22, label: 'hidden' },
+	{ k: 26, label: 'shown' },
+	{ k: 61, label: 'can be hit' },
+];
+export const heroColors = ['#171717', '#432e27', '#4c7446', '#5586b9', '#65659b', '#681c1c', '#688488', '#6a4834', '#882e2e', '#acc1c6', '#bfa787', '#c43c3c', '#e8d4b2', '#f8f8f8', '#ffffff'];
+export const pushSteps = [6, 4.8, 3.84, 3.07, 2.46, 1.97, 1.57, 1.26, 1, 0.8, 0.64, 0.51];
+
+## When to use it
+
+Whenever something can hurt the player more than once: enemies that walk into the hero, spikes, shots. A hit has to be felt and seen, and it can't land again on every frame the two still overlap. Most action games answer with the same three things: a short time after a hit when nothing hurts, the hero blinking through it, and a push away from what hit. The same counter drives all three.
+
+[Hitboxes](/math/hitboxes/) decides when two things touch, and [Hitstop](/effects/hitstop/) freezes the world on the hit. This page is about what happens to the one who got hit.
+
+## How to think about it
+
+**After a hit, a second in which nothing hurts.** A hit sets `invincible` to 60, and every frame takes one away. While it's above 0 the hit check doesn't even run. The same counter says what the hero looks like and whether the D-pad works: the first 4 frames are white, the first 16 are the push with the keys ignored, and the rest blink. One number, counted down, instead of a flag for each.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 448 170" role="img" aria-label="A timeline of the 60 frames after a hit. A short pink bar over the first 4 frames: white. A blue bar over the first 16: pushed, no control. A green bar over all 60: hits ignored. Under it, a row of 60 small cells, filled where the hero is shown: all of the first 4, then 4 hidden, 4 shown, and so on. Below, seven frames of the snippet: before the hit, white, hidden, pushed to the left, hidden, shown, and after the 60 frames." style={{ display: 'block', width: '100%', maxWidth: '640px', marginInline: 'auto' }}>
+		<g font-size="9" fill="currentColor">
+			{timeline.map((bar, i) => (
+				<g>
+					<rect x={8 + bar.from * 7} y={8 + i * 16} width={(bar.to - bar.from) * 7} height="11" fill={bar.color} fill-opacity="0.3" stroke={bar.color} />
+					<text x={bar.to === 60 ? 12 : 12 + bar.to * 7} y={17 + i * 16} fill={bar.color}>{bar.label}</text>
+				</g>
+			))}
+			{Array.from({ length: 60 }, (_, k) => (
+				<rect x={8 + k * 7} y="58" width="6" height="10" fill={shown(k) ? 'currentColor' : 'none'} fill-opacity="0.6" stroke="currentColor" stroke-opacity="0.4" />
+			))}
+			<text x="8" y="80">frame 0: the hit</text>
+			<text x="428" y="80" text-anchor="end">60</text>
+			<text x="218" y="80" text-anchor="middle">filled: the hero is shown</text>
+		</g>
+		<image href="/images/damage/strip.png" x="0" y="88" width="448" height="64" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="9" fill="currentColor" text-anchor="middle">
+			{strip.map((cell, i) => (
+				<text x={32 + i * 64} y="164">{cell.k < 0 ? cell.label : `${cell.k}: ${cell.label}`}</text>
+			))}
+		</g>
+	</svg>
+	<figcaption>The 60 frames after a hit, and seven of them captured from the snippet.</figcaption>
+</figure>
+
+**The push goes away from what hit, at the same speed from any side.** The direction is the hero's position minus the log's. Its length depends on how deep the two overlapped, so the snippet divides it by that length and multiplies by `knockback_speed`, 6. Every frame the push moves the hero and then loses a fifth of its speed: 6, 4.8, 3.84 and so on, about 30 pixels in all. It's added to the position before the clamp to the hedge, so a wall stops it like it stops walking.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 150" role="img" aria-label="A log on the right and the hero to its left and a little below. An arrow from the log to the hero is the difference; divided by its length and times 6 it becomes a short arrow of length 6. From the hero, dots to the left get closer together: the steps of the push, 6, 4.8, 3.84 and so on, about 30 pixels in all." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="300" y="40" width="40" height="28" rx="6" fill="#d9650b" fill-opacity="0.3" stroke="#d9650b" />
+			<text x="320" y="84" text-anchor="middle">log</text>
+			<circle cx="270" cy="64" r="8" fill="#1e7cb8" fill-opacity="0.3" stroke="#1e7cb8" />
+			<path d="M 320 54 L 278 63" stroke="currentColor" stroke-dasharray="3 3" />
+			<text x="300" y="24" text-anchor="middle">hero − log</text>
+			{pushSteps.reduce((acc, step) => [...acc, acc[acc.length - 1] - step * 6], [270]).slice(1).map((x, i) => (
+				<circle cx={x} cy={64 + (270 - x) * 0.21} r="3" fill="#1e7cb8" fill-opacity={1 - i * 0.06} />
+			))}
+			<text x="70" y="120" fill="#1e7cb8">moves 6, 4.8, 3.84, 3.07 ... about 30 pixels</text>
+			<text x="70" y="136">length 6 from any side: (dx, dy) × 6 / √(dx² + dy²)</text>
+		</g>
+	</svg>
+	<figcaption>One step per frame, each a fifth shorter than the last. Drawn 6 times bigger.</figcaption>
+</figure>
+
+**The flash is a palette, the blink is the counter.** `set_fade(bn::colors::white, 1)` on the hero's palette mixes every one of its colors all the way into white, without touching a tile, and `set_fade(..., 0)` gives the colors back. The blink is `invincible % 8 < 4`, worked out again every frame. Nothing remembers whether the hero is hidden, so when the counter reaches 0 the hero is shown.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 110" role="img" aria-label="The hero's 15 colors in a row, from black to white, and below them the same 15 cells all white, with fade 1. To the right, the hero as drawn with each: normal, and a white silhouette." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{heroColors.map((color, i) => (
+				<g>
+					<rect x={70 + i * 14} y="20" width="12" height="16" fill={color} stroke="currentColor" stroke-opacity="0.3" />
+					<rect x={70 + i * 14} y="58" width="12" height="16" fill="#ffffff" stroke="currentColor" stroke-opacity="0.3" />
+				</g>
+			))}
+			<text x="64" y="32" text-anchor="end">fade 0</text>
+			<text x="64" y="70" text-anchor="end">fade 1</text>
+			<text x="175" y="96" text-anchor="middle">the hero's palette, index 0 left out</text>
+		</g>
+		<image href="/images/damage/flash.png" x="290" y="14" width="96" height="48" style={{ imageRendering: 'pixelated' }} />
+		<text x="338" y="80" text-anchor="middle" font-size="10" fill="currentColor">before, and frame 1</text>
+	</svg>
+	<figcaption>White comes from the palette: the tiles stay the same.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The D-pad walks. Two logs wander around the hedge, and touching one costs a heart and pushes you back. The bottom line counts the invincible frames down. At the last heart the hearts fill up again, since there's no game over here.
+
+<Code code={damage} lang="cpp" title="snippets/damage/src/main.cpp" />
+
+<details>
+<summary>The hero's walk: <code>hero_walk.h</code></summary>
+
+<Code code={heroWalk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/damage/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/damage/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks right along the bottom of the hedge. A log walks into it: the hero turns white, loses a heart, is pushed down and to the left against the hedge, blinks while the counter goes down, and walks on." />
+	<figcaption>A hit, the push, and a second of blinking. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="damage" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::sprite_palette_ptr hero_palette = hero.palette();` | A copy of the handle, not of the colors: both point to the same palette, so a fade through it changes the hero. `palette()` itself gives a `const&` that can't be changed. |
+| `knockback *= knockback_friction;` | `*=` on a `bn::fixed_point` multiplies both coordinates by the same number. |
+| `bn::fixed_point(dx, dy) * knockback_speed / length` | The direction kept in whole pixels, so `bn::sqrt` of an `int` gives its length, then scaled to 6. `bn::max(..., 1)` keeps the division safe when the two are at the same spot. |
+| `return { sprite, walk, velocity };` | Builds an `enemy` from its members in order. The animation is made from a copy of the sprite handle, which points to the same sprite. |
+| `health > 1 ? health - 1 : max_health` | The last heart doesn't go to 0: a real game would start its game over here. |
+
+Art: the hero, the logs, the hearts and the hedge are from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, laid out by [`snippets/tools/damage_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/damage_assets.py). The pack has only full hearts, so the script paints the empty one from it. The font is the one from [Text and HUD](/basics/hud/), from the same pack.
+
+## Pitfalls
+
+**The hearts are gone in five frames.**
+A test ROM with neither invincibility nor a push got the same keys as the snippet. The log walked into the hero and the hit check ran on every frame they overlapped: one heart on each of 5 frames in a row, and none left. The snippet lost one heart and was pushed away. (With the push but no invincibility, that same run also lost only one: the push separated them on the next frame. Where a push can't separate them, only the counter is left; that case wasn't measured here.)
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/damage/drain_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Four hearts left, the hero pushed away from the log." />
+		<figcaption>Invincible: one heart.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/damage/drain_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="No hearts left, the white hero still touching the log." />
+		<figcaption>Not invincible: all five.</figcaption>
+	</figure>
+</div>
+
+**Flashing one log flashes them all.**
+The two logs are made from the same sprite item, so Butano gives them the same palette. A test ROM that faded the first log's palette on each hit turned both logs white. Giving that log a palette of its own first, with `sprite.set_palette(bn::sprite_items::log.palette_item().create_new_palette())`, made only that one white in another test ROM. The snippet's hero has no twin, so its palette is its own.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/damage/shared_palette.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Both logs white." />
+		<figcaption>Shared palette: both white.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/damage/own_palette.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="One log white, the other one normal." />
+		<figcaption><code>create_new_palette</code>: one.</figcaption>
+	</figure>
+</div>
+
+**The hero stays hidden after blinking.**
+A test ROM that blinked by flipping `set_visible(! hero.visible())` every 4 frames flipped it 15 times in the 60, an odd number. When the counter ran out the hero was hidden, and stayed hidden while it walked on. The snippet, which works the blink out from the counter, showed it.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/damage/blink_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="After the invincibility, the hero visible on the right." />
+		<figcaption>From the counter: shown.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/damage/blink_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="After the invincibility, no hero anywhere." />
+		<figcaption>Flipped: still hidden.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Hitboxes](/math/hitboxes/), for the boxes and the first word on safe frames, [Hitstop](/effects/hitstop/) and [Screen shake](/effects/shake/), for the rest of a hit's feel, [Palettes and colors](/basics/palettes/), for shared palettes, and [Vectors and angles](/math/vectors/), for the same speed in every direction.
+- Headers: [`bn_sprite_palette_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_palette_ptr.h), for `set_fade`, and [`bn_sprite_palette_item.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_palette_item.h), for `create_new_palette`.
+- Butano example: [`examples/palettes`](https://github.com/GValiente/butano/tree/master/examples/palettes), with a fade scene.

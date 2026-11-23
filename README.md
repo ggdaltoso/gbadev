@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first sixty-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first sixty-eight pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -96,6 +96,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 31. **Animated tiles:** water and fountains that move all over a background by copying a few tiles per frame, copies that share tiles, and phases that need their own.
 35. **Hitstop:** a few frozen frames on each hit, a counter that skips the world while the spark and the buttons keep running, and one hit per swing.
 36. **Iris transition:** a circle-shaped window from an H-Blank effect, a transition as a state with input waiting, and the swap while the screen is black.
+68. **Damage, knockback and invincibility:** one counter after each hit that ignores further hits, flashes the hero white through its palette and then blinks it, a push away from what hit at the same speed from any side that loses speed every frame and stops at walls, and the traps measured.
 
 ### Structure
 
