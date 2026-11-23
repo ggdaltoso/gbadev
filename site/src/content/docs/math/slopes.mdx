@@ -1,0 +1,148 @@
+---
+title: Slopes
+description: Ground that rises one pixel per pixel across, its height worked out from the column under the middle of the feet, found by looking a little above the feet, and stuck to on the way down.
+genres: [platformer]
+sidebar:
+  order: 4.8
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import slopes from '../../../../../snippets/slopes/src/main.cpp?raw';
+import font from '../../../../../snippets/slopes/include/font.h?raw';
+
+export const cellX = (i) => 40 + i * 6;
+
+## When to use it
+
+When the ground isn't only flat: hills, ramps, the sides of a valley. With square blocks a hill is a staircase, and the player hops up each step. With slopes the player walks up and down smoothly. The cells are still in a grid, as in [Forgiving jumps](/math/forgiving/): a slope is one more kind of cell, with a surface that changes inside it.
+
+## How to think about it
+
+**A slope cell has a height for every column.** The level has `/`, going up to the right, and `\`, going up to the left, one pixel up for each pixel across. In a `/` cell, the surface in the column `local_x` pixels from its left edge is `top + 17 - local_x`; in a `\` cell, `top + local_x`. `ground(x, y)` goes down the column from row `y` and returns the first surface it finds: the top of a block, or a slope's height in that column.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 150" role="img" aria-label="A 18 by 18 cell with a slope going up to the right. The column 6 pixels from the left is marked: its surface is top plus 17 minus 6, 11 pixels below the top." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="40" y="20" width="108" height="108" fill="none" stroke="currentColor" />
+			<path d="M 40 128 L 148 20 L 148 128 Z" fill="#d9650b" fill-opacity="0.25" stroke="#2f9e36" stroke-width="2" />
+			<rect x={cellX(6)} y="20" width="6" height="108" fill="#1e7cb8" fill-opacity="0.15" stroke="#1e7cb8" />
+			<circle cx={cellX(6) + 3} cy={128 - 7 * 6 + 3} r="3" fill="#1e7cb8" />
+			<text x="34" y="24" text-anchor="end" font-family="monospace">top</text>
+			<text x={cellX(6) + 3} y="142" text-anchor="middle" font-family="monospace" fill="#1e7cb8">local_x = 6</text>
+			<text x="170" y="70" font-family="monospace" fill="#1e7cb8">surface = top + 17 - 6</text>
+			<text x="170" y="86" font-family="monospace" fill="#1e7cb8">        = top + 11</text>
+			<text x="170" y="112">one pixel up per pixel across</text>
+		</g>
+	</svg>
+	<figcaption>A <code>/</code> cell, drawn 6 times bigger.</figcaption>
+</figure>
+
+**The feet are one point, in the middle.** On flat ground, testing the corners of the box is right. On a slope it isn't: one corner is over higher ground than the other, and standing on the higher one leaves the middle of the player floating over the slope. So `ground` is asked about one column, the one under the middle of the feet, and the player's feet go exactly there.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/slopes/zoom_middle.png" width="180" height="180" style={{ imageRendering: 'pixelated' }} alt="Close up: the player's feet on the slope." />
+		<figcaption>The middle: on the slope.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/slopes/zoom_corners.png" width="180" height="180" style={{ imageRendering: 'pixelated' }} alt="Close up: the player floating above the slope." />
+		<figcaption>The higher corner: floating.</figcaption>
+	</figure>
+</div>
+
+**Look a little above the feet, and stick a little below.** Walking up, each step puts the slope's surface above the feet, so `ground` starts looking `step_up` pixels higher: 4, more than the 1.5 a step can climb. Walking down, each step leaves the surface a little below the feet, and gravity alone would let the player fall a bit and land, again and again. So a player who was on the ground and finds ground no more than `stick_down` pixels below is pulled down onto it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 150" role="img" aria-label="Two slopes. Going up, the surface after a step is 1.5 pixels above the feet, inside a 4-pixel window above them, so it's found. Going down, the surface is 1.5 pixels below the feet, inside a 4-pixel window below them, so the feet stick to it." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<path d="M 20 130 L 160 30" stroke="#2f9e36" stroke-width="2" />
+			<rect x="86" y="62" width="20" height="16" fill="#1e7cb8" fill-opacity="0.15" stroke="#1e7cb8" />
+			<line x1="86" y1="78" x2="106" y2="78" stroke="currentColor" stroke-width="2" />
+			<text x="90" y="100" fill="#1e7cb8">step_up: 4 above</text>
+			<text x="24" y="20">going up</text>
+			<path d="M 240 30 L 380 130" stroke="#2f9e36" stroke-width="2" />
+			<rect x="300" y="62" width="20" height="16" fill="#ff4d8d" fill-opacity="0.15" stroke="#ff4d8d" />
+			<line x1="300" y1="62" x2="320" y2="62" stroke="currentColor" stroke-width="2" />
+			<text x="226" y="74" fill="#ff4d8d">stick_down:</text><text x="226" y="88" fill="#ff4d8d">4 below</text>
+			<text x="244" y="20">going down</text>
+			<text x="200" y="146" text-anchor="middle">black line: the feet before the step; box: where ground still counts</text>
+		</g>
+	</svg>
+	<figcaption>Two small windows around the feet.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+**←** and **→** walk over the hill, and **A** jumps. You can land anywhere on the slopes. The top line says whether you stand on flat ground, on a slope, or neither.
+
+<Code code={slopes} lang="cpp" title="snippets/slopes/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/slopes/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/slopes/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The player walks right, up the slope, across the top and down the other side, then comes back, jumps and lands on the slope." />
+	<figcaption>Over the hill and back, with a jump onto the slope. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="slopes" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `"...../###\\...."` | `\\` in a string is one `\` character: a single `\` would start an escape like `\n`. |
+| `kind == '#' ? top : kind == '/' ? ... : no_ground` | Chained `?:`, one surface per kind of cell. |
+| `(x - origin_x) % cell` | The remainder of the division: how many pixels into its cell column `x` is. |
+| `constexpr int no_ground = 1000;` | A number far below the screen stands for "nothing", so the same `>=` tests work without a special case. |
+| `bool sticks = on_ground && ...;` | `on_ground` is still last frame's value here: only a player who was standing sticks, not one falling past. |
+
+Art: the blocks, the hills and the character are from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer) by Kenney, CC0. The pack has no slopes, so [`snippets/tools/slopes_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/slopes_assets.py) draws them from its dirt and grass tiles, cut along the diagonal, and reads the level from `main.cpp`. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**Walking downhill is a string of small falls.**
+A test ROM without `stick_down` walked over the hill with → held. Going down, it was in the air for 12 captured frames in a row, the whole slope: "Air" on the top line, the player above the surface. A jump pressed then wouldn't happen, since jumping needs `on_ground`. The snippet, with the same keys, never read "Air".
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/slopes/down.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Going down the slope, Slope on the top line." />
+		<figcaption>Sticking: on the slope.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/slopes/nostick.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Going down the slope, Air on the top line, the player above the surface." />
+		<figcaption>Not sticking: in the air.</figcaption>
+	</figure>
+</div>
+
+**The player floats over slopes.**
+A test ROM that took the higher ground under the two corners of the box floated 6 to 7 pixels above the slope at the middle of the feet, measured on the same frames where the snippet's feet were on it within a pixel. On the flat top the two agreed.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/slopes/up.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player on the slope." />
+		<figcaption>The middle.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/slopes/corners.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The player above the slope." />
+		<figcaption>The corners.</figcaption>
+	</figure>
+</div>
+
+**The player walks through the hill.**
+A test ROM that looked for ground from the feet down, with no `step_up`, walked straight into the hill at the height of the flat ground. Each step up put the surface above the feet, where the search didn't look, so it found the block under the hill instead, and the top line said "Ground" all the way across.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/slopes/nostep.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The player inside the hill, at the level of the flat ground." />
+	<figcaption>Halfway through the hill, in the test ROM.</figcaption>
+</figure>
+
+## Read more
+
+- Guide pages: [Forgiving jumps](/math/forgiving/) and [Moving and one-way platforms](/math/platforms/), for the rest of the collision, [Gravity and jumping](/math/gravity/), and [Map collision](/basics/collision/).
+- cppreference: [string literals](https://en.cppreference.com/w/cpp/language/string_literal), for the escapes, and [arithmetic operators](https://en.cppreference.com/w/cpp/language/operator_arithmetic), for `%`.
