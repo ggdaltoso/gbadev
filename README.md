@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first sixty-nine pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first seventy pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -116,6 +116,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 21. **State machines:** an enemy with an `enum class`, one `switch`, and a single place where the state changes.
 44. **Scripted cutscenes:** a cutscene as a list of steps played one at a time, each step done when its own condition says so, and a skip that leaves the world as the cutscene would.
 50. **Hazards with a warning:** dangers that start on a schedule written as data, each one warning before it hurts, its phase worked out from its age, and a warning long enough to get out of the way.
+70. **A boss in phases:** health that picks the phase every frame from a table read from the last row up, each phase a list of attacks played in a loop, a phase change that starts the new list from its first attack on a clean screen, and the traps measured.
 22. **Performance:** CPU usage on screen, `bn::profiler`, and fixing what it finds.
 45. **Input replays:** the seed and the buttons instead of what happened, a game that reads its buttons from one place, and buttons stored as runs of frames.
 46. **Formations:** a wave of enemies as one point plus each enemy's cell, edges from the outermost living enemies, and steps that come more often as fewer are left.

@@ -1,0 +1,169 @@
+---
+title: A boss in phases
+description: A boss whose health picks its phase every frame from a table read from the last row up, each phase a list of attacks played in a loop, and a phase change that starts the new list from its first attack on a clean screen.
+sidebar:
+  order: 4.8
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import phases from '../../../../../snippets/phases/src/main.cpp?raw';
+import font from '../../../../../snippets/phases/include/font.h?raw';
+
+export const bands = [
+	{ from: 200, to: 134, label: 'Phase 1: calm', color: '#2f9e36' },
+	{ from: 133, to: 67, label: 'Phase 2: angry', color: '#1e7cb8' },
+	{ from: 66, to: 0, label: 'Phase 3: desperate', color: '#ff4d8d' },
+];
+export const hx = (health) => 20 + (200 - health) * 1.8;
+export const lists = [
+	{ name: 'calm', attacks: [{ label: 'rings', frames: 120, image: 'p1_ring' }, { label: 'fans', frames: 120, image: 'p1_fan' }] },
+	{ name: 'angry', attacks: [{ label: 'spiral', frames: 150, image: 'p2_spiral' }, { label: 'wide fans', frames: 90, image: 'p2_fan' }] },
+	{ name: 'desperate', attacks: [{ label: 'turning rings', frames: 180, image: 'p3_rings' }, { label: 'fast fans', frames: 60, image: 'p3_fans' }] },
+];
+
+## When to use it
+
+For a fight that should change as it goes: a boss that starts calm, gets angrier as its health drops, and ends in a last desperate burst. The player learns one set of attacks, then the rules change. The same structure fits a boss in any genre: a platformer boss that walks, then jumps, then throws things, or a shooter boss like the one here.
+
+It builds on [Bullet patterns](/math/bullets/), for the attacks, and [State machines](/structure/states/): a phase is a state, picked by a number instead of by events.
+
+## How to think about it
+
+**Health picks the phase.** Each row of `phases` says the health a phase starts at: 200, 133 and 66. Every frame, `phase_for(health)` reads the table from the last row up and returns the first phase whose start the health has reached. The phase isn't something that happens, and nothing has to notice the moment health crosses a line: whatever the health is now, the phase follows from it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 150" role="img" aria-label="A bar for the boss's health from 200 on the left to 0 on the right, in three bands: phase 1 from 200 to 134, phase 2 from 133 to 67, phase 3 from 66 to 0. An arrow shows phase_for reading from the right end, phase 3 first. Under each band, a capture of the snippet in that phase." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{bands.map((band) => (
+				<g>
+					<rect x={hx(band.from)} y="20" width={hx(band.to) - hx(band.from)} height="18" fill={band.color} fill-opacity="0.3" stroke={band.color} />
+					<text x={(hx(band.from) + hx(band.to)) / 2} y="52" text-anchor="middle" fill={band.color}>{band.label}</text>
+				</g>
+			))}
+			{[200, 133, 66, 0].map((health) => (
+				<text x={hx(health)} y="14" text-anchor="middle" font-family="monospace">{health}</text>
+			))}
+			<path d="M 380 44 L 380 62 L 250 62" fill="none" stroke="currentColor" stroke-dasharray="3 3" />
+			<text x="244" y="66" text-anchor="end">phase_for reads from the last row up</text>
+		</g>
+		{['p1_ring', 'p2_spiral', 'p3_rings'].map((image, i) => (
+			<image href={`/images/phases/${image}.png`} x={hx(bands[i].from) + (hx(bands[i].to) - hx(bands[i].from) - 96) / 2} y="78" width="96" height="64" style={{ imageRendering: 'pixelated' }} />
+		))}
+	</svg>
+	<figcaption>The boss's 200 points of health, cut into three phases.</figcaption>
+</figure>
+
+**A phase is a list of attacks played in a loop.** An `attack` is a bullet pattern and how many frames it lasts. A phase points to its list with a `bn::span`, a view of a `constexpr` array that knows its length, so phases can have lists of different sizes. `attack_index` says which attack is playing, and `attack_frames` counts up to its length; then the index moves to the next one, back to the first after the last.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 220" role="img" aria-label="Three rows, one per phase. Each row has two blocks as long as their attacks: calm has rings for 120 frames and fans for 120; angry has a spiral for 150 and wide fans for 90; desperate has turning rings for 180 and fast fans for 60. An arrow at the end of each row goes back to its start. Each block has a capture of that attack." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{lists.map((phase, row) => {
+				let x = 80;
+				return (
+					<g>
+						<text x="72" y={36 + row * 70} text-anchor="end">{phase.name}</text>
+						{phase.attacks.map((attack) => {
+							const width = attack.frames * 1.2;
+							const block = (
+								<g>
+									<rect x={x} y={8 + row * 70} width={width - 4} height="56" rx="4" fill="none" stroke={bands[row].color} />
+									<image href={`/images/phases/${attack.image}.png`} x={x + 4} y={12 + row * 70} width="48" height="32" style={{ imageRendering: 'pixelated' }} />
+									<text x={x + 4} y={58 + row * 70}>{attack.label}, {attack.frames}</text>
+								</g>
+							);
+							x += width;
+							return block;
+						})}
+						<path d={`M ${x} ${36 + row * 70} q 14 0 14 -14 q 0 -16 -14 -16`} fill="none" stroke="currentColor" />
+					</g>
+				);
+			})}
+		</g>
+	</svg>
+	<figcaption>Each phase's list, as long as its attacks, played again and again.</figcaption>
+</figure>
+
+**A phase change is a fresh start.** When `phase_for` gives a different phase, the snippet starts the new list from its first attack, with its frame count at 0, clears the old bullets, and waits 60 frames before firing. All the counters belong to the list that was playing, so none of them mean anything in the new one. The clean screen also tells the player that something changed.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/phases/before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Boss 134, phase 1, bullets all over the screen." />
+		<figcaption>Health 134: phase 1.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/phases/after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Boss 128, phase 2, no bullets on the screen." />
+		<figcaption>Moments later, phase 2: a clean screen.</figcaption>
+	</figure>
+</div>
+
+## The smallest thing that works
+
+**←** and **→** fly the plane, and holding **A** fires at the boss. Each shot that lands takes 3 points of health. The top line shows the boss's health and its phase. Nothing hits the plane: the page is about the boss.
+
+<Code code={phases} lang="cpp" title="snippets/phases/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/phases/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/phases/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The plane fires at the boss the whole time. In phase 1 the boss fires rings and small fans; at 131 the screen clears and phase 2 brings a spiral and wider fans; at 65 phase 3 brings turning rings and fast bursts of fans, until the boss is defeated." />
+	<figcaption>The whole fight, from 200 to defeated. Captured from the emulator (1x).</figcaption>
+</figure>
+
+<Rom name="phases" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::span<const attack> attacks;` | A pointer and a length together. `{ 133, angry }` makes one from the array `angry`, whatever its size. |
+| `constexpr attack angry[] = { ... };` | Arrays built at compile time and kept in ROM, so the span points to data that lives as long as the game. |
+| `attacks[attack_index]` | `bn::span`'s `[]` checks the index with `BN_ASSERT`, so an index past the end stops the game with a message instead of reading something else. |
+| `bn::erase_if(shots, [&](bn::sprite_ptr& shot) { ... })` | The lambda moves each shot and says whether to remove it. `[&]` lets it change `health`. |
+| `(attack_index + 1) % attacks.size()` | The next attack, and the first one again after the last. |
+
+Art: the same as [Bullet patterns](/math/bullets/), with the player's shot from [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) by Kenney, CC0, through [Formations](/structure/formation/). The planes are from Pixel Shmup, the sky from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer), both by Kenney, CC0, and the bullet is drawn by [`snippets/tools/bullets_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/bullets_assets.py). The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+All three test ROMs got the same keys as the snippet: A held under the boss for the whole fight. The pictures are the same frame of each.
+
+**A phase that waits for an exact health never starts.**
+A test ROM that changed phase when `health == from_health` stayed in phase 1 for the whole fight, all the way to "Defeated". Each shot takes 3, so health went 134, 131, and never was 133; then 68, 65, and never 66. With a phase picked from a range, it doesn't matter which numbers health lands on.
+
+**The last phase never comes.**
+A test ROM that read the table from the first row down, returning the first phase whose start the health had reached, stayed in phase 2 below 66. Any health at or below 66 is also at or below 133, so the search stopped at phase 2 every time. Read from the last row up, the lowest phase reached wins.
+
+**The new phase gets stuck on one attack.**
+A test ROM that didn't reset `attack_index` and `attack_frames` on a phase change started phase 3 on its second attack, the fast fans, and fired them until the boss was defeated. The test was `== now.frames`, so the frame count carried over from phase 2 must have been past the 60 frames that attack lasts (worked out, not printed): counting up from there, it never equals 60. The turning rings of phase 3 never played.
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', justifyItems: 'center' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/phases/snippet.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Boss 35, phase 3, turning rings." />
+		<figcaption>The snippet: phase 3, turning rings.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/phases/equal.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Boss 35, phase 1, a ring." />
+		<figcaption><code>==</code>: still phase 1.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/phases/order.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Boss 35, phase 2, a spiral." />
+		<figcaption>Read from the top: phase 2.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/phases/noreset.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Boss 35, phase 3, a cone of fast fans." />
+		<figcaption>Not reset: stuck on the fans.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Bullet patterns](/math/bullets/), for the attacks, [State machines](/structure/states/), [Hazards with a warning](/structure/hazards/), for timing as data, and [Damage, knockback and invincibility](/effects/damage/), for the hits.
+- Header: [`bn_span.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_span.h).
+- cppreference: [`std::span`](https://en.cppreference.com/w/cpp/container/span), which `bn::span` follows, and [lambda captures](https://en.cppreference.com/w/cpp/language/lambda).

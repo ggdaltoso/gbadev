@@ -115,7 +115,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 9. **Combat (any genre):**
    - [x] Damage, knockback and invincibility: invincibility frames, blinking, a white flash through the palette, a push back.
    - [x] Bullet patterns (shooter): rings, spirals and shots aimed at the player, as data.
-   - [ ] A boss in phases: health picks the phase, each phase a list of attacks.
+   - [x] A boss in phases: health picks the phase, each phase a list of attacks.
    - [ ] Homing missiles: turning toward a target a little each frame, with a top turn rate.
 10. **Game systems:**
    - [ ] Pause: freezing the game but not the pause menu; what keeps running and what stops, and timers that stay right.
