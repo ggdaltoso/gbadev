@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first sixty-eight pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first sixty-nine pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -125,6 +125,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 
 23. **Fixed-point numbers:** why `bn::fixed` and not `float`, sine and cosine from a table, and where precision and range run out.
 24. **Vectors and angles:** the same speed in every direction, aiming with `atan2`, and distance without a square root.
+69. **Bullet patterns:** rings, spirals and fans aimed at the player as rows of numbers in a table, an angle turned into a velocity with a cosine and a sine, volleys spread around a first angle, angles kept between 0 and 360, and the traps measured.
 25. **Hitboxes:** `bn::fixed_rect` between moving things, boxes that match the art, and safe frames after a hit.
 26. **Velocity and acceleration:** a velocity kept between frames, acceleration and friction as steps toward a target, and surfaces as data.
 27. **Interpolation and easing:** a fraction of the way from one point to another, curves that change the feel without changing the duration, and arriving exactly.

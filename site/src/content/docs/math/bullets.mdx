@@ -1,0 +1,167 @@
+---
+title: Bullet patterns
+description: Rings, spirals and fans aimed at the player as rows of numbers in a table, an angle turned into a velocity with a cosine and a sine, volleys spread around a first angle, and angles kept between 0 and 360.
+genres: [shooter]
+sidebar:
+  order: 2.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import bullets from '../../../../../snippets/bullets/src/main.cpp?raw';
+import font from '../../../../../snippets/bullets/include/font.h?raw';
+
+export const rows = [
+	{ image: 'ring', text: 'Ring: 16 shots, 22.5° apart, every 40' },
+	{ image: 'spiral', text: 'Spiral: 2 shots, 180° apart, turn 13°, every 4' },
+	{ image: 'flower', text: 'Flower: 8 shots, 45° apart, turn 9°, every 24' },
+	{ image: 'fan', text: 'Aimed fan: 5 shots, 12° apart, aimed, every 36' },
+];
+export const rad = (d) => (d * Math.PI) / 180;
+export const fan = [-24, -12, 0, 12, 24];
+
+## When to use it
+
+In a shooter where the enemies fire more than one bullet straight down: a boss that fills the screen with rings, a turret that sweeps a spiral, a ship that throws a fan at the player. In "bullet hell" games, dodging the patterns *is* the game. Every one of those patterns is the same few lines of code. What changes is a handful of numbers, so the patterns belong in a table, and new ones are written without touching the code.
+
+## How to think about it
+
+**A pattern is a row of numbers.** How often it fires, how many bullets per volley, how many degrees between them, how much the whole volley turns after each one, the speed, and whether it's aimed at the player. A ring is 16 bullets 22.5° apart, which covers the circle. Make it turn 9° after each volley and fire 8 bullets, and it's a flower. Two bullets 180° apart that turn 13° are a spiral with two arms. The same loop fires all of them.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 236" role="img" aria-label="Four rows. Each one has a small capture of the snippet and the pattern's numbers. Ring: 16 shots, 22.5 degrees apart, every 40 frames: a circle of bullets. Spiral: 2 shots, 180 apart, turning 13 degrees, every 4: two curved arms. Flower: 8 shots, 45 apart, turning 9, every 24: rings that turn. Aimed fan: 5 shots, 12 apart, aimed: a curved row of bullets heading for the plane." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		{rows.map((row, i) => (
+			<g>
+				<image href={`/images/bullets/${row.image}.png`} x="4" y={4 + i * 58} width="78" height="52" style={{ imageRendering: 'pixelated' }} />
+				<text x="94" y={34 + i * 58} font-size="11" fill="currentColor" font-family="monospace">{row.text}</text>
+			</g>
+		))}
+	</svg>
+	<figcaption>The four rows of <code>patterns</code>, and what each one fires.</figcaption>
+</figure>
+
+**An angle becomes a velocity: the cosine and the sine, times the speed.** At angle `a`, a bullet moves `cos(a) × speed` across and `sin(a) × speed` down each frame. The screen's y grows downward, so 90° points down and angles grow clockwise. The velocity is worked out once, when the bullet is fired, and kept in the bullet as a `bn::fixed_point`: after that it's one addition per frame. Butano's `bn::degrees_lut_cos` and `bn::degrees_lut_sin` read a table, and only accept angles from 0 to 360, so every angle goes through `wrap` first.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 180" role="img" aria-label="A circle with 0 degrees to the right and 90 degrees down. A bullet's direction at 30 degrees, below the horizontal, splits into cos 30 times speed across and sin 30 times speed down." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<circle cx="120" cy="90" r="70" fill="none" stroke="currentColor" stroke-opacity="0.4" />
+			<line x1="40" y1="90" x2="200" y2="90" stroke="currentColor" stroke-opacity="0.4" />
+			<line x1="120" y1="10" x2="120" y2="170" stroke="currentColor" stroke-opacity="0.4" />
+			<text x="196" y="84" text-anchor="end">0°</text>
+			<text x="126" y="168">90°</text>
+			<text x="44" y="84">180°</text>
+			<text x="126" y="20">270°</text>
+			<line x1="120" y1="90" x2={120 + 70 * Math.cos(rad(30))} y2={90 + 70 * Math.sin(rad(30))} stroke="#ff4d8d" stroke-width="2" />
+			<line x1="120" y1="90" x2={120 + 70 * Math.cos(rad(30))} y2="90" stroke="#1e7cb8" stroke-width="2" />
+			<line x1={120 + 70 * Math.cos(rad(30))} y1="90" x2={120 + 70 * Math.cos(rad(30))} y2={90 + 70 * Math.sin(rad(30))} stroke="#2f9e36" stroke-width="2" />
+			<path d={`M 145 90 A 25 25 0 0 1 ${120 + 25 * Math.cos(rad(30))} ${90 + 25 * Math.sin(rad(30))}`} fill="none" stroke="#ff4d8d" />
+			<text x="150" y="104" fill="#ff4d8d">a</text>
+			<text x="230" y="70" fill="#1e7cb8" font-family="monospace">x += cos(a) × speed</text>
+			<text x="230" y="90" fill="#2f9e36" font-family="monospace">y += sin(a) × speed</text>
+			<text x="230" y="120">y grows downward,</text>
+			<text x="230" y="134">so angles go clockwise</text>
+		</g>
+	</svg>
+	<figcaption>One angle, two numbers kept in the bullet.</figcaption>
+</figure>
+
+**A volley is bullets spread from a first angle, and aiming only moves that first angle.** The bullets of a volley are at `first`, `first + spread`, `first + 2 × spread` and so on. For a ring or a spiral, `first` is the pattern's own angle, which turns by `turn` after each volley. For an aimed pattern, `bn::degrees_atan2` gives the angle from the boss to the player, and `first` goes back by half the fan, `spread × (shots - 1) / 2`, so the middle bullet is the one at the player.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 170" role="img" aria-label="The boss at the top and the player below and to the right. A dashed line from the boss to the player is the aimed angle. Five rays leave the boss 12 degrees apart, the middle one on the dashed line; the first ray is 24 degrees before it." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="140" y="12" width="28" height="18" rx="4" fill="#d9650b" fill-opacity="0.3" stroke="#d9650b" />
+			<text x="132" y="25" text-anchor="end">boss</text>
+			<circle cx="230" cy="150" r="7" fill="#2f9e36" fill-opacity="0.3" stroke="#2f9e36" />
+			<text x="242" y="154">player</text>
+			{fan.map((offset) => {
+				const at = Math.atan2(150 - 21, 230 - 154) * 180 / Math.PI;
+				const a = rad(at + offset);
+				return <line x1="154" y1="21" x2={154 + 142 * Math.cos(a)} y2={21 + 142 * Math.sin(a)} stroke="#ff4d8d" stroke-width={offset === 0 ? 2 : 1} stroke-dasharray={offset === 0 ? '4 3' : ''} />;
+			})}
+			<text x="290" y="60" fill="#ff4d8d">5 bullets, 12° apart</text>
+			<text x="290" y="76" font-family="monospace">first = at_ship</text>
+			<text x="290" y="90" font-family="monospace">  - 12 × 4 / 2</text>
+			<text x="290" y="110">the middle one on</text>
+			<text x="290" y="124">the dashed line</text>
+		</g>
+	</svg>
+	<figcaption>An aimed fan: the angle to the player is its middle, not its edge.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The D-pad flies the plane, and **A** goes to the next pattern. The boss fires the current one, and the top line shows its name and how many bullets are on screen. Nothing hits the plane: this page is about the patterns, and [Hitboxes](/math/hitboxes/) and [Damage, knockback and invincibility](/effects/damage/) are about getting hit.
+
+<Code code={bullets} lang="cpp" title="snippets/bullets/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/bullets/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bullets/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The boss fires rings, then a two-armed spiral, then turning rings, then fans of five bullets that follow the plane as it flies left and right." />
+	<figcaption>Ring, spiral, flower and aimed fan. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="bullets" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr pattern patterns[] = { { "Ring", 40, 16, 22.5, 0, 1, false }, ... };` | A table built at compile time, kept in ROM. Each `{ ... }` fills a `pattern`'s members in the order they're declared. |
+| `sizeof(patterns) / sizeof(patterns[0])` | The number of rows: the whole array's size divided by one row's. It follows the table when rows are added. |
+| `const pattern& now = patterns[current];` | A reference: a second name for that row, not a copy of it. |
+| `to_ship.y().round_integer()` | `bn::degrees_atan2` takes `int`s. Whole pixels are plenty to aim. |
+| `bullets.push_back({ ..., velocity })` | Fired while `! bullets.full()`: a volley that doesn't fit loses its last bullets instead of going over the sprite budget. |
+
+Art: the planes are from [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) by Kenney, CC0, and the sky from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer), also by Kenney, CC0. The pack has no round bullet, so [`snippets/tools/bullets_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/bullets_assets.py) draws one, and flips the boss to face down. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**An angle past 360 stops the game.**
+A test ROM that didn't wrap the angles of a volley stopped on its very first ring: the ring starts at 90° and adds 22.5° per bullet, so the 14th bullet asked for 382.5°. Butano's error screen named `degrees_lut_cos` and the angle it got, 382.5. `bn::degrees_lut_sin` and `bn::degrees_lut_cos` check their range with `BN_ASSERT`, so an angle out of range stops the game instead of reading past the table.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/bullets/nowrap.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Butano's error screen: error in bn_math.h, degrees_lut_cos, angle must be in the range 0 to 360: 382.500." />
+	<figcaption>The test ROM, a moment after it started.</figcaption>
+</figure>
+
+**A ring of 16 has 8 directions.**
+A test ROM that rounded each velocity to whole pixels fired the same 16 bullets per ring, but they flew in 8 lines, two bullets on each. At speed 1, a cosine of 0.92 and one of 0.71 both round to 1, so 22.5° and 45° go the same way. The diagonals also move 1 across and 1 down each frame, about 1.41 pixels instead of 1 (worked out, not measured). Keep the velocity in `bn::fixed`.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bullets/ring_fixed.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Rings of 16 evenly spaced bullets." />
+		<figcaption><code>bn::fixed</code>: 16 directions.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bullets/ring_int.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Bullets only on 8 lines: across, down, up and the diagonals." />
+		<figcaption>Whole pixels: 8.</figcaption>
+	</figure>
+</div>
+
+**The aimed fan misses to one side.**
+A test ROM that started the fan at the angle to the player, instead of half a fan before it, sent the first bullet at the plane and the other four off to its left. The snippet's fan, with the same keys, had its middle bullet on the plane.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bullets/fan_centered.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Fans of five bullets centered on the plane." />
+		<figcaption>Centered: the middle one aimed.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/bullets/fan_edge.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Fans of five bullets with only their right end on the plane." />
+		<figcaption>Not centered: the edge aimed.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Vectors and angles](/math/vectors/), for `atan2` and the same speed in every direction, [Fixed-point numbers](/math/fixed/), for the sine table, [Sprite budget](/structure/budget/), for how many bullets fit, and [Formations](/structure/formation/).
+- Header: [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h), for `degrees_lut_sin`, `degrees_lut_cos` and `degrees_atan2`.
+- cppreference: [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization), and [`sizeof`](https://en.cppreference.com/w/cpp/language/sizeof).
