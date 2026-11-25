@@ -1,0 +1,196 @@
+---
+title: Pause
+description: A pause that freezes the game but not its menu, by skipping the game's update while the loop keeps running, with the music paused apart, the game's own palettes darkened, and a clock that counts the game's frames so it stays right.
+sidebar:
+  order: 4.2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import pause from '../../../../../snippets/pause/src/main.cpp?raw';
+import font from '../../../../../snippets/pause/include/font.h?raw';
+import walk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const fx = (frame) => 40 + frame * 0.8;
+export const fy = (seconds) => 30 + (30 - seconds) * 25;
+
+## When to use it
+
+In almost every game. The player puts the GBA down to answer the door, and when they come back, nothing should have moved: the enemies, the hero's step, the clock. Meanwhile the pause menu itself has to work: a cursor that moves and blinks, a choice to resume or start again.
+
+It's close to [Hitstop](/effects/hitstop/), which freezes the game for a few frames after a hit, and to [State machines](/structure/states/): paused and playing are two states of the whole game.
+
+## How to think about it
+
+**The loop never stops. Each frame runs either the game or the menu.** `bn::core::update()` still runs every frame, so the screen is still drawn and the keys still read. What changes is which code runs before it. START flips `paused`. Then one branch moves the logs, the hero and the clock, and the other moves the menu's cursor. Neither branch knows the other exists.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 250" role="img" aria-label="The game loop as a flowchart. At the top, START pressed flips paused. Then two branches: if paused, the menu runs, with its keys and the cursor's blink; if playing, the game runs: the logs, the hero and the clock. Both branches meet at drawing, which darkens the game, shows or hides the menu and writes the clock, then bn::core::update, and an arrow goes back to the top." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<defs>
+			<marker id="pause-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+				<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+			</marker>
+		</defs>
+		<g font-size="11" fill="currentColor" text-anchor="middle">
+			<rect x="120" y="10" width="160" height="30" rx="4" fill="none" stroke="currentColor" />
+			<text x="200" y="29">START pressed: flip paused</text>
+			<path d="M 170 40 L 105 70" stroke="currentColor" marker-end="url(#pause-arrow)" />
+			<path d="M 230 40 L 295 70" stroke="currentColor" marker-end="url(#pause-arrow)" />
+			<text x="118" y="54" fill="#ff4d8d">paused</text>
+			<text x="284" y="54" fill="#2f9e36">playing</text>
+			<rect x="20" y="72" width="170" height="48" rx="4" fill="#ff4d8d" fill-opacity="0.12" stroke="#ff4d8d" />
+			<text x="105" y="92">the menu</text>
+			<text x="105" y="108" font-size="10">its keys, the cursor's blink</text>
+			<rect x="210" y="72" width="170" height="48" rx="4" fill="#2f9e36" fill-opacity="0.12" stroke="#2f9e36" />
+			<text x="295" y="92">the game</text>
+			<text x="295" y="108" font-size="10">the logs, the hero, the clock</text>
+			<path d="M 105 120 L 170 150" stroke="currentColor" marker-end="url(#pause-arrow)" />
+			<path d="M 295 120 L 230 150" stroke="currentColor" marker-end="url(#pause-arrow)" />
+			<rect x="90" y="152" width="220" height="42" rx="4" fill="#1e7cb8" fill-opacity="0.12" stroke="#1e7cb8" />
+			<text x="200" y="170">drawing, every frame</text>
+			<text x="200" y="185" font-size="10">darken or not, menu shown or hidden, the clock</text>
+			<path d="M 200 194 L 200 210" stroke="currentColor" marker-end="url(#pause-arrow)" />
+			<text x="200" y="226" font-family="monospace">bn::core::update()</text>
+			<path d="M 270 222 L 380 222 L 380 25 L 284 25" fill="none" stroke="currentColor" stroke-dasharray="3 3" marker-end="url(#pause-arrow)" />
+		</g>
+	</svg>
+	<figcaption>One loop, two branches. The pause picks the branch, not whether the loop runs.</figcaption>
+</figure>
+
+**What isn't updated stops, and nothing else does.** The logs' walk is a `bn::sprite_animate_action`, which moves to its next frame only when `update()` is called. The hero's step only changes in `walk.update()`. Both live in the game branch, so they stop mid-step. The cursor's blink counts `menu_frames`, which only the menu branch adds to, so it keeps blinking. Things Butano runs on its own keep going whatever the loop does: the music is the one in the snippet, so it gets `bn::music::pause()`.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/blink_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Paused: the hero and a log stopped mid-step at the top left, the heart cursor next to Resume." />
+		<figcaption>Paused: the cursor is showing.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/blink_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="About twelve frames later: the hero and the logs in exactly the same place and pose, the cursor hidden." />
+		<figcaption>About 12 frames later: same poses, cursor hidden.</figcaption>
+	</figure>
+</div>
+
+**A timer that stays right counts the game's frames, not the loop's.** The clock is `time_left`, and the only `--time_left` is inside the game branch. While paused it isn't touched, so it waits at whatever it was. In the demo, the game was paused for about 3 seconds with the clock at 27, and it came back at 27. A timer worked out from a frame count that keeps running, like the loop's, would have lost those seconds (see the pitfalls).
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 200" role="img" aria-label="A graph of the clock over loop frames. The game plays until frame 120, is paused until frame 300, then plays again. The green line, the game's clock, goes down while playing and stays flat during the pause. A pink dashed line, a clock worked out from the loop's frames, keeps going down during the pause and ends 3 seconds lower." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x={fx(120)} y="20" width={fx(300) - fx(120)} height="160" fill="#ff4d8d" fill-opacity="0.1" />
+			<text x={(fx(120) + fx(300)) / 2} y="34" text-anchor="middle" fill="#ff4d8d">paused</text>
+			<path d={`M ${fx(0)} 180 L ${fx(400)} 180`} stroke="currentColor" />
+			<path d={`M ${fx(0)} 20 L ${fx(0)} 180`} stroke="currentColor" />
+			<text x={fx(400)} y="194" text-anchor="end">loop frames</text>
+			{[30, 28, 26, 24].map((seconds) => (
+				<text x={fx(0) - 6} y={fy(seconds) + 3} text-anchor="end">{seconds}</text>
+			))}
+			<text x={fx(0) - 6} y="14" text-anchor="end">Time</text>
+			<path d={`M ${fx(0)} ${fy(30)} L ${fx(120)} ${fy(28)} L ${fx(300)} ${fy(28)} L ${fx(400)} ${fy(26.33)}`} fill="none" stroke="#2f9e36" stroke-width="2" />
+			<path d={`M ${fx(120)} ${fy(28)} L ${fx(300)} ${fy(25)} L ${fx(330)} ${fy(24.5)}`} fill="none" stroke="#ff4d8d" stroke-width="2" stroke-dasharray="4 3" />
+			<text x={fx(305)} y={fy(28) - 6} fill="#2f9e36">the game's frames</text>
+			<text x={fx(335)} y={fy(24.5) - 4} fill="#ff4d8d">the loop's frames</text>
+		</g>
+	</svg>
+	<figcaption>A drawing of the two clocks around a 3-second pause, not a capture.</figcaption>
+</figure>
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Time 27, the hero next to a log at the top left, the frame before START." />
+		<figcaption>The frame before START: 27.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Time 27, the same scene, the first frame after Resume." />
+		<figcaption>About 3 seconds later, the frame after Resume: 27.</figcaption>
+	</figure>
+</div>
+
+## The smallest thing that works
+
+The hero walks the arena with the **D-pad** while two logs wander and the clock counts down from 30. At 0 the round starts again. **START** pauses: the game goes dark and the music stops. **↑** and **↓** pick Resume or Restart, and **A** chooses. **START** again also resumes.
+
+<Code code={pause} lang="cpp" title="snippets/pause/src/main.cpp" />
+
+<details>
+<summary>The hero's walk: <code>hero_walk.h</code></summary>
+
+<Code code={walk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/pause/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/pause/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks up to the top left, next to a log. START: the screen goes dark, the menu shows Paused, Resume and Restart, and the hero and logs stop mid-step while the heart cursor blinks and moves between Resume and Restart. A on Resume: the light comes back and everything moves again, the clock still at 27." />
+	<figcaption>A pause of about 3 seconds, and back. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="pause" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::keypad::start_pressed()` | True only on the frame START goes down, so one press flips `paused` once, however long it's held. |
+| `auto restart = [&]() { ... };` | A lambda that captures the locals by reference, so it can move the hero and refill `enemies`. It's called from the menu and when the clock runs out. |
+| `bn::sprite_palette_ptr hero_palette = hero.palette();` | A copy of the handle to the hero's palette. `hero.palette()` gives a `const&`, which can't be faded. |
+| `bn::bg_palettes::set_fade(bn::colors::black, fade);` | Mixes every background color with black: `0.6` is 60% of the way. |
+| `bn::music::pause()`, `bn::music::resume()` | The music carries on from where it stopped. `bn::music::paused()` says which one is in effect. |
+| `(time_left + 59) / 60` | Frames to seconds, rounded up, so the clock shows 1 until the last frame instead of 0 for a whole second. |
+
+Art: the hero, the logs, the heart and the hedge are from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, through [Damage, knockback and invincibility](/effects/damage/), copied by [`snippets/tools/pause_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/pause_assets.py). The font is the one from [Text and HUD](/basics/hud/), from the same pack. Music: [Napping on a Cloud](https://opengameart.org/content/napping-on-a-cloud) by congusbongus, CC0, from [the music page](/basics/music/).
+
+## Pitfalls
+
+**A held START pauses and unpauses every frame.**
+A test ROM that read `start_held()` instead of `start_pressed()` was held for about 36 frames: it was paused on every other frame, 18 in all, with the menu flickering. When the key came up it happened to be playing. An odd number of frames would have left it paused (worked out, not seen). Either way, the player can't tell what one press will do.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/held_a.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Playing, START held." />
+		<figcaption>START held, one frame: playing.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/held_b.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Paused, the next frame." />
+		<figcaption>The next frame: paused.</figcaption>
+	</figure>
+</div>
+
+**A clock worked out from the loop's frames runs during the pause.**
+A test ROM that kept a `frame` count, added to on every pass of the loop, and showed `deadline - frame` as the clock, was paused for 5 seconds. After resuming it showed 22, and the snippet, with the same keys, showed 28. Six seconds of the round were gone while nobody was playing. The same goes for a deadline from `bn::timer`, which counts the hardware's ticks no matter what the loop does (worked out from [Timers and random numbers](/basics/timers/), not tested).
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/clock_game.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Time 28 after a 5-second pause." />
+		<figcaption>The snippet: 28.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/clock_loop.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Time 22 after the same pause." />
+		<figcaption>Counted in loop frames: 22.</figcaption>
+	</figure>
+</div>
+
+**Darkening every sprite palette darkens the menu too.**
+A test ROM that called `bn::sprite_palettes::set_fade` instead of fading the hero's and the logs' palettes dimmed the menu's letters and the clock with the rest. The text is still there, but grey on dark green. The letters are sprites like the hero, so a fade for all sprites can't skip them. Fading only the game's own palettes leaves the menu bright.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/fade_own.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Paused, white menu letters on the darkened arena." />
+		<figcaption>The game's palettes only: a bright menu.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/pause/fade_all.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Paused, the menu letters and the clock grey and dim." />
+		<figcaption>All sprite palettes: a dim menu.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Timers and random numbers](/basics/timers/), for frame counters and `bn::timer`, [Hitstop](/effects/hitstop/), a freeze of a few frames, [State machines](/structure/states/), [Palettes and colors](/basics/palettes/), for fades, and [Music](/basics/music/).
+- Headers: [`bn_music.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_music.h), [`bn_bg_palettes.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_bg_palettes.h), [`bn_sprite_palette_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_palette_ptr.h) and [`bn_keypad.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_keypad.h).
+- Butano's [audio example](https://github.com/GValiente/butano/blob/master/examples/audio/src/main.cpp), which pauses and resumes music with A.
+- cppreference: [lambda captures](https://en.cppreference.com/w/cpp/language/lambda).
