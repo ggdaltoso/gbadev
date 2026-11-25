@@ -1,0 +1,196 @@
+---
+title: Inventory as data
+description: Items as rows of a table and the bag as slots that keep a row's number and a count, stacks filled before new slots, eating from a slot that closes up when it empties, and the bag kept in SRAM as plain numbers.
+genres: [top-down]
+sidebar:
+  order: 10.7
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import inventory from '../../../../../snippets/inventory/src/main.cpp?raw';
+import font from '../../../../../snippets/inventory/include/font.h?raw';
+import walk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const rows = [
+	{ name: 'Candy', stack: 9, heal: 1, icon: 'candy' },
+	{ name: 'Donut', stack: 5, heal: 2, icon: 'donut' },
+	{ name: 'Pizza', stack: 3, heal: 4, icon: 'pizza' },
+	{ name: 'Burger', stack: 2, heal: 6, icon: 'burger' },
+];
+export const bag = [{ item: 0, count: 3 }, { item: 3, count: 1 }, { item: 2, count: 1 }];
+export const rowY = (index) => 46 + index * 30;
+export const slotY = (index) => 46 + index * 38;
+export const fieldX = (index) => 6 + (index < 3 ? index * 40 : 120 + (index - 3) * 24);
+export const fieldW = (index) => (index < 3 ? 40 : 24);
+export const fields = ['format', 'health', 'slot_count', 'item', 'count', 'item', 'count', 'item', 'count', 'item', 'count', 'item', 'count', 'item', 'count'];
+
+## When to use it
+
+When the player carries things: potions in an RPG, keys and bombs in an adventure, food here. The items the game knows about are written once, as data. The bag only says which of them the player has, and how many. Adding a new kind of item is a new row, not new code.
+
+It builds on [SRAM saves](/basics/saves/), which keeps the bag, and is a cousin of [Bullet patterns](/math/bullets/) and [A boss in phases](/structure/phases/), which also keep their content in a table.
+
+## How to think about it
+
+**An item is a row of a table. The bag keeps the row's number.** `item_types` has one row per kind of item: its name, how many fit in one slot, and how much it heals. The row's position is the item's id, and it's also the frame of `food.bmp` that draws it. A slot in the bag is just two numbers: which row, and how many. Everything else about the item is looked up when it's needed.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 180" role="img" aria-label="On the left, the item table: row 0 Candy, stack 9, heals 1; row 1 Donut, stack 5, heals 2; row 2 Pizza, stack 3, heals 4; row 3 Burger, stack 2, heals 6, each with its picture. On the right, the bag: slot 0 holds item 0, count 3; slot 1 holds item 3, count 1; slot 2 holds item 2, count 1. An arrow goes from each slot to its row." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor">
+			<text x="10" y="20" font-family="monospace">item_types</text>
+			<text x="64" y="36" font-size="9">name</text>
+			<text x="124" y="36" font-size="9">stack</text>
+			<text x="164" y="36" font-size="9">heal</text>
+			{rows.map((row, index) => (
+				<g>
+					<rect x="6" y={rowY(index) - 4} width="194" height="26" rx="3" fill="none" stroke="#1e7cb8" />
+					<text x="14" y={rowY(index) + 13} font-family="monospace">{index}</text>
+					<image href={`/images/inventory/${row.icon}.png`} x="30" y={rowY(index) + 1} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+					<text x="64" y={rowY(index) + 13}>{row.name}</text>
+					<text x="132" y={rowY(index) + 13} font-family="monospace">{row.stack}</text>
+					<text x="170" y={rowY(index) + 13} font-family="monospace">{row.heal}</text>
+				</g>
+			))}
+			<text x="300" y="20" font-family="monospace">bag</text>
+			{bag.map((held, index) => (
+				<g>
+					<rect x="300" y={slotY(index) - 4} width="110" height="30" rx="3" fill="#2f9e36" fill-opacity="0.12" stroke="#2f9e36" />
+					<text x="308" y={slotY(index) + 15} font-family="monospace">{`{ ${held.item}, ${held.count} }`}</text>
+					<image href={`/images/inventory/${rows[held.item].icon}.png`} x="384" y={slotY(index) + 3} width="16" height="16" style={{ imageRendering: 'pixelated' }} />
+					<path d={`M 300 ${slotY(index) + 11} L 204 ${rowY(held.item) + 9}`} fill="none" stroke="currentColor" stroke-dasharray="3 3" />
+				</g>
+			))}
+			<text x="300" y="166" font-size="9">{'{ item, count }'}</text>
+		</g>
+	</svg>
+	<figcaption>The table never changes. The bag is two numbers per slot.</figcaption>
+</figure>
+
+**Adding fills a stack before it takes a new slot.** `add` first looks for a slot with the same item and room left under that item's `stack`. Only if there's none does it take a new slot, and if the bag is full it says no. The food stays on the ground then, and "Bag full" shows: nothing the player found disappears. A test ROM with a bag of two slots, full of candy and a burger, showed it: the pizza stayed under the hero.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/stack_one.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="One candy and one burger in the bag, a second candy on the ground in front of the hero." />
+		<figcaption>One candy in the bag, another just ahead.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/stack_two.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The first slot now shows the candy with a 2." />
+		<figcaption>Picked up: the same slot, now 2.</figcaption>
+	</figure>
+</div>
+
+**Using an item takes one. An empty slot goes, and the rest move left.** A uses the slot under the cursor: health goes up by the row's `heal`, and the count goes down. At zero, `bag.erase` removes the slot, and every slot after it moves one place left, so the bag never has holes. The cursor can stand on an empty box, so the code checks `selected < bag.size()` before reading the slot.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/eat_before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Health 6, the cursor on the burger, the second of three slots: candy 3, burger 1, pizza 1." />
+		<figcaption>Health 6, the cursor on the burger.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/eat_after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Health 10, two slots: candy 3, pizza 1, the cursor now on the pizza." />
+		<figcaption>A: health 10, the pizza moved left.</figcaption>
+	</figure>
+</div>
+
+**The save is plain numbers, written when they change.** `bn::sram::write` copies the bytes of a struct, so `save_data` holds only ints: a format number, the health, how many slots are used, and six `slot`s. That's 15 ints, 60 bytes (worked out, not printed). The game keeps the bag in a `bn::vector` and copies it into the struct on every change. At start it reads the struct back and refills the vector. START restarts the ROM, and the bag comes back as it was.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 70" role="img" aria-label="save_data as a row of 15 boxes, 4 bytes each: format, health, slot_count, then item and count six times, one pair per slot." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="7" fill="currentColor" text-anchor="middle">
+			{fields.map((field, index) => (
+				<g>
+					<rect x={fieldX(index)} y="14" width={fieldW(index)} height="26" fill={index < 3 ? '#1e7cb8' : '#2f9e36'} fill-opacity={index < 3 || Math.floor((index - 3) / 2) % 2 === 0 ? 0.15 : 0.3} stroke="currentColor" stroke-width="0.5" />
+					<text x={fieldX(index) + fieldW(index) / 2} y="30">{field}</text>
+				</g>
+			))}
+			<text x="6" y="56" text-anchor="start" font-size="9">byte 0</text>
+			<text x="414" y="56" text-anchor="end" font-size="9">byte 60</text>
+			<text x={126 + 144} y="10" font-size="9">slots[6]: one item and count per slot</text>
+		</g>
+	</svg>
+	<figcaption>save_data, as SRAM stores it.</figcaption>
+</figure>
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/save_before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Health 10, candy 3 and pizza 1, the hero at the top right." />
+		<figcaption>Just before START.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/save_after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="After the restart: the hero back in the middle, health 10, candy 3 and pizza 1 still in the bag." />
+		<figcaption>After the restart: the same bag.</figcaption>
+	</figure>
+</div>
+
+## The smallest thing that works
+
+The hero walks with the **D-pad** and picks up the food that appears on the grass, up to three at a time. Health goes down by 1 every 3 seconds. **L** and **R** move the cursor along the bag, and **A** eats what's under it. **START** restarts the ROM, to show the bag coming back from SRAM, and **SELECT** empties the save.
+
+<Code code={inventory} lang="cpp" title="snippets/inventory/src/main.cpp" />
+
+<details>
+<summary>The hero's walk: <code>hero_walk.h</code></summary>
+
+<Code code={walk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/inventory/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/inventory/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero picks up a candy, a burger, two more candies that stack on the first, and a pizza. R moves the cursor to the burger, and A eats it: health goes from 6 to 10 and the pizza moves into its slot. START restarts the ROM, and the bag comes back with candy 3 and pizza 1." />
+	<figcaption>Picking up, stacking, eating, and a restart. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="inventory" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr item_type item_types[] = { ... };` | The table, built at compile time and kept in ROM. The `const char*` names point into ROM too. |
+| `sizeof(item_types) / sizeof(item_types[0])` | The number of rows, worked out by the compiler, so adding a row needs no other change. |
+| `bool add(bn::vector<slot, bag_size>& bag, int item)` | The `&` passes the caller's bag itself, not a copy, so `add` can change it. |
+| `bag.erase(bag.begin() + selected)` | Removes one slot and moves the ones after it left. `bag.begin() + selected` points to the slot. |
+| `bn::sram::write(save)` | Copies the struct's bytes to SRAM. It only accepts types that can be copied byte by byte (see the pitfalls). |
+| `bn::random random;` | Starts from the same state on every boot, so the food appears in the same order every time. For different runs, see [Timers and random numbers](/basics/timers/). |
+
+Art: the food is from [Pixel Platformer Food Expansion](https://www.kenney.nl/assets/pixel-platformer-food-expansion) by Kenney, CC0. The hero and the grass are from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, and the bar, the slot boxes and the cursor are drawn by [`snippets/tools/inventory_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/inventory_assets.py). The font is the one from [Text and HUD](/basics/hud/), from the same pack.
+
+## Pitfalls
+
+**Using an empty slot stops the game.**
+A test ROM without `selected < bag.size()` picked up one candy, moved the cursor to the empty box next to it, and pressed A. It stopped on Butano's error screen: `bn_vector.h`, "Invalid index: 1 - 1", the index asked for and the size. `bn::vector`'s `[]` checks the index with `BN_ASSERT`. A plain array would have read whatever was past the end, without a word (worked out, not tested).
+
+**Without stacking, the bag fills with copies.**
+A test ROM whose `add` never looked for a stack put each candy in a new slot. After the same walk as the snippet, it had three slots, candy, burger, candy, where the snippet had two, candy 2 and burger. With six slots, six candies would fill the bag.
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', justifyItems: 'center' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/noguard.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Butano's error screen: ERROR in bn_vector.h, operator[], index >= 0 && index < _size, Invalid index: 1 - 1." />
+		<figcaption>No check: the error screen.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/stacked.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The bag with candy 2 and burger 1." />
+		<figcaption>The snippet: candy 2, burger.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/inventory/nostack.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The bag with candy 1, burger 1, candy 1." />
+		<figcaption>No stacking: candy, burger, candy.</figcaption>
+	</figure>
+</div>
+
+**A `bn::vector` can't go into the save.**
+A test ROM whose `save_data` held `bn::vector<slot, bag_size> slots` instead of the array didn't build: `static assertion failed: Source is not trivially copyable`, and the same for `Destination`, from `bn_sram.h`. A vector keeps its size and runs code when it's copied, so its bytes alone aren't the vector. That's why the snippet copies the bag into a plain array of `slot`s to save it.
+
+## Read more
+
+- Guide pages: [SRAM saves](/basics/saves/), for the format number and `bn::sram`, [Save slots](/basics/slots/), for more than one save and a checksum, and [Level menu](/structure/levels/), another cursor over boxes.
+- Headers: [`bn_vector.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_vector.h) and [`bn_sram.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sram.h).
+- cppreference: [`std::is_trivially_copyable`](https://en.cppreference.com/w/cpp/types/is_trivially_copyable) and [`std::vector::erase`](https://en.cppreference.com/w/cpp/container/vector/erase), which `bn::vector` follows.

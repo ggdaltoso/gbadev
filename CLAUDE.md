@@ -119,7 +119,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Homing missiles: turning toward a target a little each frame, with a top turn rate.
 10. **Game systems:**
    - [x] Pause: freezing the game but not the pause menu; what keeps running and what stops, and timers that stay right.
-   - [ ] Inventory as data: an item table, stacks, a menu to use them, kept in the save.
+   - [x] Inventory as data: an item table, stacks, a menu to use them, kept in the save.
    - [ ] Random without streaks: a shuffle bag, so the same thing doesn't come up three times in a row.
    - [ ] Camera dead zone and look-ahead: the camera moves only when the hero leaves a box, and shows more ahead.
 11. **Technique:**
