@@ -1,0 +1,175 @@
+---
+title: Homing missiles
+description: A missile that keeps a heading and turns it toward its target a little each frame, the shortest way round, never more than a top turn rate, with its sprite rotated to match and fuel that runs out.
+sidebar:
+  order: 2.6
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import homing from '../../../../../snippets/homing/src/main.cpp?raw';
+import font from '../../../../../snippets/homing/include/font.h?raw';
+
+export const rad = (d) => (d * Math.PI) / 180;
+export const fly = (maxTurn) => {
+	let x = 40, y = 20, heading = 90;
+	const points = [[x, y]];
+	for (let frame = 0; frame < 400; ++frame) {
+		const target = Math.atan2(70 - y, 330 - x) * 180 / Math.PI;
+		let difference = target - heading;
+		while (difference >= 180) difference -= 360;
+		while (difference < -180) difference += 360;
+		heading += Math.max(-maxTurn, Math.min(maxTurn, difference));
+		x += Math.cos(rad(heading)) * 1.5;
+		y += Math.sin(rad(heading)) * 1.5;
+		points.push([x, y]);
+		if (Math.abs(x - 330) < 3 && Math.abs(y - 70) < 3) break;
+	}
+	return points.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join(' ');
+};
+
+## When to use it
+
+For anything that should chase: missiles that follow the player's plane, a bee that comes after the hero, a magic bolt that finds the nearest enemy. A chaser that points straight at its target every frame can't be escaped, and that isn't fun. One that can only turn so fast curves after its target, overshoots when the target dodges, and has to come round again. That turn rate is the knob between "dodgeable" and "deadly".
+
+[Bullet patterns](/math/bullets/) has the angles and the velocity from a cosine and a sine; this page adds a heading that changes.
+
+## How to think about it
+
+**A missile keeps a heading, and turns it a little each frame.** Its heading is an angle in degrees, kept between frames like a [velocity](/math/velocity/). Each frame, `bn::degrees_atan2` gives the angle to the ship, and the heading turns toward it, but by no more than `max_turn`, 1.5 degrees. Then the missile moves 1.5 pixels along its heading. Without the limit the heading would just be the angle to the ship, and the missile would fly straight at it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 170" role="img" aria-label="A missile starts at the top left heading down, and a target is on the right. With a turn limit of 1.5 degrees per frame its path is a wide curve that swings down and then round to the target. With no limit the path is a straight line to the target." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<polyline points={fly(1000)} fill="none" stroke="#ff4d8d" stroke-dasharray="4 3" />
+			<polyline points={fly(1.5)} fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<circle cx="40" cy="20" r="4" fill="currentColor" />
+			<text x="48" y="16">start, heading down</text>
+			<circle cx="330" cy="70" r="6" fill="#2f9e36" fill-opacity="0.3" stroke="#2f9e36" />
+			<text x="340" y="66" fill="#2f9e36">ship</text>
+			<text x="150" y="40" fill="#ff4d8d">no limit: straight at it</text>
+			<text x="150" y="128" fill="#1e7cb8">at most 1.5° per frame: a curve</text>
+		</g>
+	</svg>
+	<figcaption>The same rule worked out frame by frame for a still target, drawn here, not captured.</figcaption>
+</figure>
+
+**Turn the shortest way round.** The angle to the ship minus the heading isn't the turn yet: from a heading of 170° to a target of 190°, written as -170° by `atan2`, the difference is -340°, which would mean turning almost all the way round the other way. `turn_between` adds or takes 360 until the difference is between -180 and 180: here, +20°. Then the limit is applied to that.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 180" role="img" aria-label="A circle with the heading at 170 degrees, a little below left, and the target at 190 degrees, a little above left. A short arc of 20 degrees joins them: the shortest way. A long dashed arc of 340 degrees goes the other way round." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<circle cx="200" cy="90" r="70" fill="none" stroke="currentColor" stroke-opacity="0.3" />
+			<line x1="200" y1="90" x2={200 + 70 * Math.cos(rad(170))} y2={90 + 70 * Math.sin(rad(170))} stroke="#1e7cb8" stroke-width="2" />
+			<line x1="200" y1="90" x2={200 + 70 * Math.cos(rad(190))} y2={90 + 70 * Math.sin(rad(190))} stroke="#2f9e36" stroke-width="2" />
+			<path d={`M ${200 + 50 * Math.cos(rad(170))} ${90 + 50 * Math.sin(rad(170))} A 50 50 0 0 1 ${200 + 50 * Math.cos(rad(190))} ${90 + 50 * Math.sin(rad(190))}`} fill="none" stroke="#1e7cb8" stroke-width="2" />
+			<path d={`M ${200 + 58 * Math.cos(rad(170))} ${90 + 58 * Math.sin(rad(170))} A 58 58 0 1 0 ${200 + 58 * Math.cos(rad(190))} ${90 + 58 * Math.sin(rad(190))}`} fill="none" stroke="#ff4d8d" stroke-dasharray="4 3" />
+			<text x="122" y="112" text-anchor="end" fill="#1e7cb8">heading 170°</text>
+			<text x="122" y="72" text-anchor="end" fill="#2f9e36">target 190° (−170°)</text>
+			<text x="286" y="70" font-family="monospace" fill="#ff4d8d">−170 − 170 = −340</text>
+			<text x="286" y="90" font-family="monospace" fill="#1e7cb8">−340 + 360 = +20</text>
+			<text x="286" y="116">the long way, and</text>
+			<text x="286" y="130">the short way round</text>
+		</g>
+	</svg>
+	<figcaption>Two numbers for the same direction: the difference has to be wrapped too.</figcaption>
+</figure>
+
+**The sprite turns with the heading, the other way.** The missile is an affine sprite: `set_rotation_angle` turns it, and Butano turns counterclockwise, while the headings grow clockwise because the screen's y grows down. The art points up, which is heading 270, so the rotation is `270 - heading`, wrapped. A test ROM that launched the missiles straight to the right showed the nose in front, where the missile was going.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 110" role="img" aria-label="The missile art pointing up, labeled heading 270, rotation 0. Next to it, a capture of a missile flying right, heading 0, rotation 270, its nose on the right." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<path d="M 60 20 q 8 0 8 12 l 0 26 l 6 8 l -28 0 l 6 -8 l 0 -26 q 0 -12 8 -12 z" fill="#f4b41b" fill-opacity="0.4" stroke="currentColor" />
+			<text x="60" y="84" text-anchor="middle">the art: heading 270</text>
+			<text x="60" y="98" text-anchor="middle" font-family="monospace">270 − 270 = 0</text>
+		</g>
+		<image href="/images/homing/nose.png" x="202" y="8" width="96" height="72" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="10" fill="currentColor">
+			<text x="250" y="98" text-anchor="middle" font-family="monospace">heading 0: 270 − 0 = 270</text>
+		</g>
+	</svg>
+	<figcaption>A missile flying right, from the test ROM.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The D-pad flies the plane. The boss launches a missile every 50 frames, straight down; it turns after you from there. Each missile has 180 frames of fuel, then explodes, and one that reaches the plane explodes and counts a hit. Swerve as one gets close and it will overshoot.
+
+<Code code={homing} lang="cpp" title="snippets/homing/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/homing/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/homing/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The plane darts right and left along the bottom. Missiles leave the boss heading down and curve after it; some reach it and burst, others overshoot, swing wide and run out of fuel." />
+	<figcaption>Short swerves left and right. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="homing" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::clamp(turn_between(...), -max_turn, max_turn)` | The turn rate limit in one line: the shortest turn, cut to the range a missile can manage in a frame. |
+| `flying.sprite.set_rotation_angle(...)` | Makes the sprite affine. Each rotated sprite with its own angle uses one of the 32 affine matrices, so 8 missiles fit easily. |
+| `velocity * missile_speed` | `bn::fixed_point` times `bn::fixed`: both coordinates scaled, a direction of length 1 made 1.5 long. |
+| `int life = missile_life;` | A default member value: `{ sprite, 90 }` sets the first two members, and `life` starts full. |
+| `bn::erase_if(missiles, ...)` | Missiles out of fuel are removed after the loop, not inside it: erasing inside a range-based `for` over the same vector would break the loop under it. |
+
+Art: the planes, the missile and the burst are from [Pixel Shmup](https://www.kenney.nl/assets/pixel-shmup) by Kenney, CC0, cut by [`snippets/tools/homing_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/homing_assets.py), and the sky from [Pixel Platformer](https://www.kenney.nl/assets/pixel-platformer), also by Kenney, CC0. The font is the one from [Text and HUD](/basics/hud/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+**A missile with no turn limit can't be dodged.**
+The snippet and a test ROM that pointed each missile straight at the plane every frame got the same keys: seven short swerves to the right and back. The snippet was hit 7 times; the test ROM, 13. Its missiles turned as fast as the plane swerved, so a swerve never made one miss.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/homing/limit_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Hits 7 at the end of the run." />
+		<figcaption>1.5° per frame: 7 hits.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/homing/limit_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Hits 13 at the end of the same run." />
+		<figcaption>No limit: 13.</figcaption>
+	</figure>
+</div>
+
+**Missiles circle instead of coming.**
+A test ROM that turned by the raw difference, without wrapping it to -180..180, got the same keys as the snippet: the plane up to the top left corner, then still. The snippet's missiles kept reaching the plane, from 3 hits to 7. The test ROM's stayed at 3: its missiles came from below and to the right, where the angle to the plane is written near -180 while the heading is near 180 (worked out, not printed), and they turned the long way, looping at the bottom right until their fuel ran out.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/homing/short_way.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Missiles on their way to the plane in the top left corner." />
+		<figcaption>Shortest way: coming.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/homing/long_way.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Missiles in the lower right, turning away from the plane." />
+		<figcaption>Raw difference: looping away.</figcaption>
+	</figure>
+</div>
+
+**Missiles that missed come back, forever.**
+A test ROM whose missiles never ran out of fuel got the same swerves as the first pitfall. The ones that missed swung round and kept chasing, more and more stayed in the air, and the plane was hit 12 times instead of 7. At the same frame, the snippet had 3 missiles in the air and the test ROM 6.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/homing/fuel_on.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Three missiles in the air." />
+		<figcaption>180 frames of fuel: 3 in the air.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center' }}>
+		<img src="/images/homing/fuel_off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Six missiles in the air around the plane." />
+		<figcaption>No fuel: 6.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Bullet patterns](/math/bullets/), for angles and velocities, [Vectors and angles](/math/vectors/), for `atan2`, [Rotation and scaling](/effects/affine/), for affine sprites, and [Velocity and acceleration](/math/velocity/).
+- Headers: [`bn_math.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_math.h), for `degrees_atan2`, and [`bn_sprite_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_sprite_ptr.h), for `set_rotation_angle`.
+- Butano example: [`examples/sprites`](https://github.com/GValiente/butano/tree/master/examples/sprites), with a rotation scene.
