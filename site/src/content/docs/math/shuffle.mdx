@@ -1,0 +1,148 @@
+---
+title: Random without streaks
+description: A shuffle bag that holds every kind a fixed number of times, shuffled with Fisher-Yates and drawn one by one, a check at the seam between bags, and plain random next to it to compare the streaks.
+sidebar:
+  order: 7.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import shuffle from '../../../../../snippets/shuffle/src/main.cpp?raw';
+import font from '../../../../../snippets/shuffle/include/font.h?raw';
+
+export const deck = ['pizza', 'candy', 'burger', 'donut', 'candy', 'pizza', 'donut', 'burger'];
+export const tx = (index) => 20 + index * 34;
+export const seamOld = ['pizza', 'burger', 'candy', 'candy'];
+export const seamBad = ['candy', 'candy', 'donut', 'pizza'];
+export const seamGood = ['donut', 'candy', 'candy', 'pizza'];
+
+## When to use it
+
+When random has to feel fair: the next piece in a falling-block game, which enemy comes out of the door, what a chest drops. Plain random has no memory, so sooner or later the same thing comes up four or five times in a row, and the player feels cheated. A shuffle bag still surprises, but it can't do that.
+
+It builds on [Timers and random numbers](/basics/timers/), for `bn::random` and seeds.
+
+## How to think about it
+
+**Plain random has no memory.** Each `get_int(4)` has a 1 in 4 chance of giving the same kind as the last one, whatever came before. A streak of three is a 1 in 16 chance at any draw, and over hundreds of draws long streaks are sure to happen. In the snippet, plain random's longest streak was 5 after 147 draws, and still 5 after 1175. The bag next to it never went past 2.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/shuffle/streak.png" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Draw 147. The top row, plain random, has five donuts in a row; its longest streak is 5. The bottom row, the shuffle bag, has no kind more than twice in a row; its longest streak is 2." />
+	<figcaption>Draw 147: five donuts in a row on top, from plain random. Captured from the snippet (2x).</figcaption>
+</figure>
+
+**A shuffle bag is a deck of cards.** Put every kind in, `copies` times each: 4 kinds, 2 copies, 8 tokens. Shuffle, then take them out one at a time. When the bag is empty, fill it and shuffle again. Every 8 draws, each kind has come out exactly twice. Inside a bag the two copies of a kind can come out together, but never three.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 320 120" role="img" aria-label="Eight tokens in a row, two of each food, in a shuffled order: pizza, candy, burger, donut, candy, pizza, donut, burger. An arrow takes the last one out: the next draw. Under the row: when it's empty, put two of each back and shuffle." style={{ display: 'block', width: '100%', maxWidth: '480px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<rect x="10" y="20" width="276" height="34" rx="6" fill="#1e7cb8" fill-opacity="0.1" stroke="#1e7cb8" />
+			{deck.map((name, index) => (
+				<image href={`/images/shuffle/${name}.png`} x={tx(index)} y="25" width="24" height="24" style={{ imageRendering: 'pixelated' }} />
+			))}
+			<text x="10" y="14">the bag, shuffled</text>
+			<path d="M 262 58 q 10 26 34 26" fill="none" stroke="currentColor" />
+			<path d="M 292 80 l 6 4 l -6 4" fill="none" stroke="currentColor" />
+			<text x="260" y="104" text-anchor="middle">next draw: from the end</text>
+			<text x="10" y="80">empty: two of each back in,</text>
+			<text x="10" y="94">and shuffle again</text>
+		</g>
+	</svg>
+	<figcaption>Two of each kind per bag, so no kind gets ahead.</figcaption>
+</figure>
+
+**The seam between two bags needs a look.** The old bag can end with two candies, and the new one, shuffled on its own, can start with two more: four in a row, across the seam. So after shuffling, `refill` compares the token that comes out first with the last one drawn. If they're the same, it swaps another kind into that place. With that check, the longest streak is two, and the snippet never showed more in 1175 draws.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 340 150" role="img" aria-label="Two rows. Without the check: the old bag ends pizza, burger, candy, candy, and the new bag starts candy, candy: four candies in a row across the seam. With the check: the new bag's first candy was swapped with a donut, so the new bag starts donut, and the streak stops at two." style={{ display: 'block', width: '100%', maxWidth: '500px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{[{ label: 'without the check', next: seamBad, y: 26, color: '#ff4d8d' }, { label: 'with the check', next: seamGood, y: 92, color: '#2f9e36' }].map((line) => (
+				<g>
+					<text x="10" y={line.y - 8}>{line.label}</text>
+					{seamOld.map((name, index) => (
+						<image href={`/images/shuffle/${name}.png`} x={10 + index * 34} y={line.y} width="24" height="24" style={{ imageRendering: 'pixelated' }} />
+					))}
+					<path d={`M 150 ${line.y - 4} L 150 ${line.y + 30}`} stroke="currentColor" stroke-dasharray="3 3" />
+					{line.next.map((name, index) => (
+						<image href={`/images/shuffle/${name}.png`} x={160 + index * 34} y={line.y} width="24" height="24" style={{ imageRendering: 'pixelated' }} />
+					))}
+					<rect x="74" y={line.y - 3} width={line.next[0] === 'candy' ? 148 : 64} height="30" rx="4" fill="none" stroke={line.color} stroke-width="1.5" />
+					<text x="330" y={line.y + 16} text-anchor="end" fill={line.color}>{line.next[0] === 'candy' ? '4 in a row' : '2 at most'}</text>
+				</g>
+			))}
+			<text x="150" y="142" text-anchor="middle">old bag | new bag</text>
+		</g>
+	</svg>
+	<figcaption>The new bag's first token is checked against the old bag's last.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+Two rows draw at the same time, one food every 15 frames, the newest on the right. The top row uses `random.get_int(4)`. The bottom row draws from the bag. Each row shows its current streak and its longest. Holding **A** draws every frame, to see what happens after hundreds of draws.
+
+<Code code={shuffle} lang="cpp" title="snippets/shuffle/src/main.cpp" />
+
+<details>
+<summary>The font: <code>font.h</code></summary>
+
+<Code code={font} lang="cpp" title="snippets/shuffle/include/font.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/shuffle/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Two rows of food scroll to the left. At first one draw every quarter second, then very fast while A is held. Plain random's longest streak climbs to 5; the shuffle bag's stays at 2." />
+	<figcaption>About 180 draws, the last ones with A held. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="shuffle" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::swap(_tokens[index], _tokens[random.get_int(index + 1)]);` | Fisher-Yates. Going down from the end, each place swaps with any place up to and including itself. `get_int(index + 1)` goes from 0 to `index`. |
+| `for(int index = 0; _tokens[bag_size - 1] == _last; ++index)` | A loop that's only a condition: keep swapping until the first token out differs from the last one drawn. With more than one kind it always ends. |
+| `int _tokens[bag_size] = {};` | A plain array as a class member, filled with zeros. `= {}` gives the members a value before the first `refill`. |
+| `explicit row(int y)` | `explicit` stops an `int` turning into a `row` by accident, as in `row r = 36;`. |
+| `text.shrink(fixed_text);` | Drops the text sprites past the hint, so only the counters are rewritten. |
+
+Art: the food is from [Pixel Platformer Food Expansion](https://www.kenney.nl/assets/pixel-platformer-food-expansion) by Kenney, CC0, through [Inventory as data](/basics/inventory/), copied by [`snippets/tools/shuffle_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/shuffle_assets.py). The font is the one from [Text and HUD](/basics/hud/), from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0.
+
+## Pitfalls
+
+All three test ROMs were run with A held for 20 seconds, about 1175 draws, like the snippet. The pictures are their last frames.
+
+**Without the check, streaks cross the seam.**
+A test ROM without the swap at the seam reached a longest streak of 3 in the bag row, where the snippet stayed at 2. With two copies, four in a row is possible: two at the end of one bag and two at the start of the next (worked out, not seen in this run).
+
+**A big bag is plain random again.**
+A test ROM with 20 copies of each kind, an 80-token bag, reached a longest streak of 4. Inside a big bag, the copies of a kind can bunch up, just like plain random. A small bag is fairer, and 1 copy of each would never repeat at all. But then the last draw of each bag can be guessed from the three before it (worked out, not tested).
+
+**A new `bn::random` every draw gives the same number every time.**
+A test ROM that drew with `bn::random().get_int(kinds)`, a new generator for each draw, drew the burger 155 times in a row, every single draw. A new `bn::random` always starts from the same state, so its first number is always the same. Keep one generator and let it run.
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', justifyItems: 'center' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/shuffle/long.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Draws 1175. Random: longest 5. Shuffle bag: longest 2." />
+		<figcaption>The snippet: bag longest 2.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/shuffle/noseam.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Draws 1175. Shuffle bag: longest 3." />
+		<figcaption>No check at the seam: 3.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/shuffle/big.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Draws 1176. Shuffle bag: longest 4." />
+		<figcaption>20 copies of each: 4.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/shuffle/fresh.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Draws 155. Random: streak 155, a whole row of burgers." />
+		<figcaption>A new generator per draw: all burgers.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Timers and random numbers](/basics/timers/), for `bn::random`, `bn::seed_random` and seeds, and [Inventory as data](/basics/inventory/), where the food comes from.
+- Header: [`bn_random.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_random.h).
+- Wikipedia: [Fisher–Yates shuffle](https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle), with the wrong way to do it and why it's biased.
+- cppreference: [`std::swap`](https://en.cppreference.com/w/cpp/algorithm/swap), which `bn::swap` is.
