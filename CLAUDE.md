@@ -121,7 +121,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Pause: freezing the game but not the pause menu; what keeps running and what stops, and timers that stay right.
    - [x] Inventory as data: an item table, stacks, a menu to use them, kept in the save.
    - [x] Random without streaks: a shuffle bag, so the same thing doesn't come up three times in a row.
-   - [ ] Camera dead zone and look-ahead: the camera moves only when the hero leaves a box, and shows more ahead.
+   - [x] Camera dead zone and look-ahead: the camera moves only when the hero leaves a box, and shows more ahead.
 11. **Technique:**
    - [ ] Debugging: `BN_LOG` in mGBA's log, `BN_ASSERT`, and reading Butano's error screen.
    - [ ] Where memory lives: IWRAM, EWRAM and ROM, `constexpr` vs globals, big arrays and stack overflow, measured.

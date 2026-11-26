@@ -1,0 +1,139 @@
+---
+title: Camera dead zone and look-ahead
+description: A camera that follows a focus point a little ahead of the hero, slid there over several frames, and moves only when that point leaves a box around the screen's center, with the map's edges applied last.
+sidebar:
+  order: 5.1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import deadzone from '../../../../../snippets/deadzone/src/main.cpp?raw';
+import walk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const withZone = [0, 0, 0, 0, 0, -5, -13, -18, -18, -18, -18, -18, -18, -18, -18, -18, -18, -19, -25, -25, -25, -25, -25, -25, -23, -23, -23, -23, -23, -24, -24, -24, -24, -24, -24, -21, -18, -14, -12, -10, -8];
+export const noZone = [0, 0, -23, -42, -60, -69, -77, -76, -59, -44, -33, -27, -22, -34, -51, -67, -77, -83, -89, -70, -54, -39, -32, -27, -30, -48, -64, -76, -82, -88, -69, -53, -39, -32, -26, -21, -18, -14, -12, -10, -8];
+export const gx = (index) => 40 + index * 8.5;
+export const gy = (moved) => 24 - moved * 1.2;
+export const line = (values) => values.map((value, index) => `${index ? 'L' : 'M'} ${gx(index)} ${gy(value)}`).join(' ');
+
+## When to use it
+
+Whenever the camera follows the player around a world bigger than the screen. [Camera](/basics/camera/) puts the camera on the hero, or glides it there. That works, but every step scrolls the screen, even a small one to line up with a door, and the player sees as much behind as ahead. A dead zone lets the hero move a little without scrolling. Look-ahead shows more of where the hero is going. Platformers use both a lot, and top-down games too, like the snippet.
+
+## How to think about it
+
+**The camera follows a point, not the hero.** The snippet keeps a focus point, the pink cross, a little ahead of the hero: 48 pixels to the side the hero last walked, 28 up or down. Walking right, the hero sits left of the screen's center, and there's more to see ahead. The lead is kept when the hero stops, so standing still doesn't scroll the screen back.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/deadzone/run_right.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Running right: the hero left of the box's middle, the pink cross on the box's right edge, the river ahead." />
+		<figcaption>Running right: the focus is ahead, on the right.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/deadzone/run_left.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Running left: the hero right of the box's middle, the pink cross on the box's left edge." />
+		<figcaption>Running left: the focus is on the left.</figcaption>
+	</figure>
+</div>
+
+**The camera moves only when the focus leaves the box.** The white corners mark a box 64 by 40 pixels around the screen's center. While the focus is inside it, the camera stays. When the focus pushes against a side, the camera moves just enough to keep it on that side. That's one `bn::clamp` per axis: the camera's position, kept within `zone_x` of the focus. In the snippet, the hero tapping left and right moved the camera 45 pixels in all. Without the box, the same taps moved it 422.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 150" role="img" aria-label="A graph of how far the camera moved, over about 120 frames of tapping left and right. With the dead zone, the green line drops by about 20 pixels twice and stays flat the rest of the time. Without it, the pink line swings back and forth by 60 to 90 pixels with every tap." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<path d={`M 40 ${gy(0)} L 390 ${gy(0)}`} stroke="currentColor" stroke-opacity="0.4" />
+			<path d={`M 40 10 L 40 ${gy(-95)}`} stroke="currentColor" />
+			<text x="34" y={gy(0) + 3} text-anchor="end">0</text>
+			<text x="34" y={gy(-50) + 3} text-anchor="end">-50</text>
+			<text x="34" y={gy(-90) + 3} text-anchor="end">-90</text>
+			<path d={line(noZone)} fill="none" stroke="#ff4d8d" stroke-width="2" />
+			<path d={line(withZone)} fill="none" stroke="#2f9e36" stroke-width="2" />
+			<text x={gx(40)} y={gy(4)} text-anchor="end" fill="#2f9e36">with the box</text>
+			<text x={gx(19) + 6} y={gy(-89) + 4} fill="#ff4d8d">without</text>
+			<text x="390" y="146" text-anchor="end">frames of tapping, about 120</text>
+			<text x="44" y="10">camera x, pixels</text>
+		</g>
+	</svg>
+	<figcaption>Measured from the captures: how far the background moved, frame by frame, added up.</figcaption>
+</figure>
+
+**The lead slides; it doesn't jump.** When the hero turns around, the focus has to cross from one side to the other, 96 pixels. Every frame it covers 1/16 of what's left, so the camera turns around smoothly. In the snippet, the fastest the camera moved on that turn was 5 pixels in a frame. Taps are short, so the lead only gets part of the way before turning back. That's why the taps above still moved the camera a little.
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.5rem', justifyItems: 'center' }}>
+	{[0, 1, 2, 3].map((index) => (
+		<figure style={{ margin: 0, textAlign: 'center' }}>
+			<img src={`/images/deadzone/turn_${index}.png`} width="160" height="107" style={{ imageRendering: 'pixelated' }} alt={`Turning around, ${index * 9} frames later: the pink cross slides from the box's right edge toward its left.`} />
+			<figcaption>{index === 0 ? 'turning' : `+${index * 9} frames`}</figcaption>
+		</figure>
+	))}
+</div>
+
+## The smallest thing that works
+
+The **D-pad** walks the hero over the 1024x1024 map from [Big maps](/basics/bigmap/), at 2 pixels a frame. The white corners and the pink cross are there to show how the camera thinks: a real game would hide them.
+
+<Code code={deadzone} lang="cpp" title="snippets/deadzone/src/main.cpp" />
+
+<details>
+<summary>The hero's walk: <code>hero_walk.h</code></summary>
+
+<Code code={walk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/deadzone/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero runs right with the pink cross ahead of it, pushing the box. Stopped, the camera stays. Running left, the cross slides across the box to the other side, and the camera turns around smoothly. Short taps left and right barely move the camera." />
+	<figcaption>Running right, turning around, then short taps. Captured from the emulator (1x).</figcaption>
+</figure>
+
+<Rom name="deadzone" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::clamp(camera.x(), focus.x() - zone_x, focus.x() + zone_x)` | The dead zone in one line: the camera stays where it is unless that's more than `zone_x` from the focus. |
+| `lead += (wanted_lead - lead) / lead_steps;` | Easing by a fraction of what's left, as in [Camera](/basics/camera/)'s smooth follow. Dividing a `bn::fixed_point` by an `int` divides both axes. |
+| `world.dimensions().width() / 2` | Half the map in pixels, from the background itself, so the edges are right for any map size. |
+| `bool right = corner % 2;` | The four corners from one loop: bit 0 is left or right, bit 1 top or bottom. One sprite, flipped. |
+| `focus_marker.set_camera(camera);` | The cross is in the world, so it moves with the map. The corners have no camera, so they stay on the screen. |
+
+Art: the map is from [Big maps](/basics/bigmap/), built from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, and so is the hero. The corners and the cross are drawn by [`snippets/tools/deadzone_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/deadzone_assets.py).
+
+## Pitfalls
+
+**A lead that jumps jerks the screen.**
+A test ROM that set `lead = wanted_lead` straight away, instead of sliding it, moved the camera 34 pixels in a single frame when the hero turned around, and 18 when it first started walking. The snippet's biggest step on the same keys was 5. The box absorbs part of the jump, but not the 96 pixels the focus crosses.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/deadzone/jump_before.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Just before turning around: the cross on the box's right edge." />
+		<figcaption>The frame before the turn.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/deadzone/jump_after.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The next frame: the cross on the box's left edge and the whole map 34 pixels further right." />
+		<figcaption>The next frame: the map moved 34 pixels.</figcaption>
+	</figure>
+</div>
+
+**Without a dead zone, every tap scrolls the screen.**
+A test ROM with a box of 0 by 0, so the camera sat on the focus, swung the camera back and forth by 60 to 90 pixels while the hero tapped left and right. That's the pink line in the graph above: 422 pixels of scrolling, against 45 in the snippet.
+
+**The map's edges have to come last.**
+A test ROM that kept the camera inside the map first, and applied the dead zone after, let the camera go past the map's right edge. Next to the lake it showed a row of trees that aren't there: the only trees on the map are on its left side, so the map repeats past its edge (worked out from the map). The snippet clamps to the edges last, so they always win. At the edge, the camera stops and the hero walks to the side of the screen.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/deadzone/edge_last.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The snippet at the map's right edge: the lake on the left, the hero near the right side of the screen, grass to the edge." />
+		<figcaption>Edges last: the camera stops.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/deadzone/edge_first.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The test ROM: the hero in the box, and two columns of trees on the right, past the map's edge." />
+		<figcaption>Edges first: trees past the edge.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Camera](/basics/camera/), for `bn::camera_ptr` and a smooth follow, [Big maps](/basics/bigmap/), for the map, and [Interpolation and easing](/math/easing/).
+- Header: [`bn_camera_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_camera_ptr.h).
+- Itay Keren's [Scroll back: the theory and practice of cameras in side-scrollers](https://www.gamedeveloper.com/design/scroll-back-the-theory-and-practice-of-cameras-in-side-scrollers), with dead zones and look-ahead from many games.
