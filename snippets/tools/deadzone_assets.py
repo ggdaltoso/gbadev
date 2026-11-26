@@ -4,6 +4,7 @@ graphics/corner.bmp, 8x8: the top-left corner of the dead zone's box, an L two p
 The snippet flips it for the other three corners.
 graphics/focus.bmp, 8x8: a small cross for the camera's focus point.
 graphics/world.bmp is the 1024x1024 map from the bigmap snippet (snippets/tools/bigmap_assets.py).
+graphics/font.bmp is the HUD font, from the inventory snippet, for the mode's name.
 
 Usage: python3 deadzone_assets.py <snippets folder>
 """
@@ -41,3 +42,4 @@ save(focus, 'focus')
 
 for extension in ['bmp', 'json']:
     shutil.copy(f'{snippets}/bigmap/graphics/world.{extension}', f'{out}/')
+    shutil.copy(f'{snippets}/inventory/graphics/font.{extension}', f'{out}/')

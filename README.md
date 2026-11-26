@@ -61,7 +61,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 
 4. **Backgrounds:** regular backgrounds, the 4 layers, priorities, scrolling.
 5. **Camera:** world and screen coordinates, `set_camera`, keeping the camera inside the map, and dead zone or smooth follow.
-75. **Camera dead zone and look-ahead:** a focus point slid ahead of the hero, a camera that moves only when that point leaves a box, the map's edges applied last, and the traps measured.
+75. **Camera dead zone and look-ahead:** a focus point slid ahead of the hero, a camera that moves only when that point leaves a box, the map's edges applied last, each half alone a button away to compare, and the traps measured.
 6. **Map collision:** turning a position into a cell, checking before moving, and one axis at a time.
 7. **Palettes and colors:** 15-bit colors, the transparent index 0, shared palettes, the ways to change colors, and palette rotation.
 8. **Text and HUD:** sprite fonts, alignment, regenerating only on change, and text that ignores the camera.
