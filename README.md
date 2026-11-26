@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first seventy-six pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first seventy-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -122,6 +122,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 70. **A boss in phases:** health that picks the phase every frame from a table read from the last row up, each phase a list of attacks played in a loop, a phase change that starts the new list from its first attack on a clean screen, and the traps measured.
 76. **Debugging:** `BN_LOG` lines in mGBA's log instead of on the screen, `BN_ASSERT` checks that stop the game where the bug is found, Butano's error screen read line by line, a stack trace in the log, what a release build drops, and the traps measured.
 22. **Performance:** CPU usage on screen, `bn::profiler`, and fixing what it finds.
+77. **Where memory lives:** IWRAM, EWRAM and ROM and what goes in each by default, `constexpr` tables that cost no RAM, code moved to IWRAM to run faster, a stack that grows down toward the globals, and the traps measured.
 45. **Input replays:** the seed and the buttons instead of what happened, a game that reads its buttons from one place, and buttons stored as runs of frames.
 46. **Formations:** a wave of enemies as one point plus each enemy's cell, edges from the outermost living enemies, and steps that come more often as fewer are left.
 47. **Sprite budget:** Butano's 128 sprites shared by enemies, shots and text, shot capacity worked out from what's left, the per-line limit that drops the oldest sprites, and when a background is the better deal.

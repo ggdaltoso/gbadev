@@ -1,0 +1,173 @@
+---
+title: Where memory lives
+description: IWRAM, EWRAM and ROM, what goes in each by default, constexpr tables that cost no RAM, code moved to IWRAM to run faster, and a stack that grows down toward the globals, all measured.
+sidebar:
+  order: 5.2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import memory from '../../../../../snippets/memory/src/main.cpp?raw';
+
+export const regions = [
+	{ name: 'IWRAM', size: '32 KB', speed: 'fastest', holds: 'globals and the stack', color: '#2f9e36' },
+	{ name: 'EWRAM', size: '256 KB', speed: 'slower', holds: 'globals marked BN_DATA_EWRAM', color: '#1e7cb8' },
+	{ name: 'ROM', size: 'up to 32 MB', speed: 'read only', holds: 'code and constexpr data', color: '#ff4d8d' },
+];
+export const cycles = [
+	{ code: 'code in ROM', values: [14, 18, 19] },
+	{ code: 'code in IWRAM', values: [8, 13, 9] },
+];
+export const stack = [
+	{ depth: 0, used: 1516, left: 11980 },
+	{ depth: 20, used: 6796, left: 6700 },
+	{ depth: 42, used: 12604, left: 892 },
+];
+export const kb = (bytes) => (bytes / 32768) * 300;
+
+## When to use it
+
+When the game grows: big tables, maps, buffers, or a function that has to run fast. The GBA has no memory manager and no operating system to warn you. Each variable lives in one of three places, picked when you write it, and getting it wrong costs speed, space, or a crash that shows up somewhere else.
+
+## How to think about it
+
+**Three places, each with its own size and speed.** IWRAM is small and fast, inside the CPU. EWRAM is eight times bigger and slower, on a separate chip. ROM is the cartridge: huge, but it can only be read. By default, code and `constexpr` data stay in ROM, and globals and the stack go in IWRAM. The snippet's screen shows how much of each it uses, with `bn::memory::used_static_iwram()` and friends: Butano itself already took 11080 bytes of IWRAM, a third of it.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 130" role="img" aria-label="Three boxes. IWRAM: 32 KB, fastest, holds globals and the stack. EWRAM: 256 KB, slower, holds globals marked BN_DATA_EWRAM. ROM: up to 32 MB, read only, holds code and constexpr data." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor">
+			{regions.map((region, index) => (
+				<g>
+					<rect x={10 + index * 138} y="10" width="128" height="110" rx="6" fill={region.color} fill-opacity="0.12" stroke={region.color} />
+					<text x={74 + index * 138} y="34" text-anchor="middle" font-weight="bold" font-size="14">{region.name}</text>
+					<text x={74 + index * 138} y="56" text-anchor="middle">{region.size}</text>
+					<text x={74 + index * 138} y="74" text-anchor="middle">{region.speed}</text>
+					<text x={74 + index * 138} y="96" text-anchor="middle" font-size="9">{region.holds.split(' marked ')[0]}</text>
+					<text x={74 + index * 138} y="109" text-anchor="middle" font-size="9">{region.holds.includes(' marked ') ? 'marked BN_DATA_EWRAM' : ''}</text>
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>The three places, and what goes in each when you don't say otherwise.</figcaption>
+</figure>
+
+**A global costs RAM and ROM; `constexpr` costs only ROM.** A global with a starting value needs that value somewhere when the GBA is switched off, so it's kept in ROM and copied to RAM when the game starts. A `constexpr` table is never copied: the code reads it straight from ROM. In a test ROM that made the snippet's `iwram_numbers` `constexpr`, IWRAM used dropped by exactly 8192 bytes, the array's size, and the ROM didn't change by a byte. Tables that never change, like levels, sine tables and enemy stats, should be `constexpr`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 110" role="img" aria-label="Two bars of IWRAM used out of 32768 bytes. The snippet, with the 8 KB array as a global: 19272 bytes. With the array constexpr: 11080 bytes. The ROM was 138344 bytes both times." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{[{ label: 'a global', bytes: 19272 }, { label: 'constexpr', bytes: 11080 }].map((bar, index) => (
+				<g>
+					<text x="80" y={28 + index * 30} text-anchor="end">{bar.label}</text>
+					<rect x="88" y={16 + index * 30} width="300" height="18" fill="none" stroke="currentColor" stroke-opacity="0.4" />
+					<rect x="88" y={16 + index * 30} width={kb(bar.bytes)} height="18" fill="#2f9e36" />
+					<text x={92 + kb(bar.bytes)} y={28 + index * 30}>{bar.bytes}</text>
+				</g>
+			))}
+			<text x="88" y="90">IWRAM used, out of 32768. ROM: 138344 bytes both times.</text>
+		</g>
+	</svg>
+	<figcaption>Measured on the snippet's screen, in a test ROM with the 8 KB array made <code>constexpr</code>.</figcaption>
+</figure>
+
+**Where the code runs matters as much as where the data is.** The CPU fetches every instruction from wherever the code is, and code is in ROM unless you say otherwise. The snippet sums the same 2048 numbers from each place, with the loop in ROM and with the loop copied to IWRAM by `BN_CODE_IWRAM`. With the loop in ROM, the reads cost 14 to 19 cycles a number and the place of the data barely mattered. With the loop in IWRAM, IWRAM data took 8 cycles, ROM 9 and EWRAM 13.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 150" role="img" aria-label="Cycles to read a number. Code in ROM: IWRAM data 14, EWRAM 18, ROM 19. Code in IWRAM: IWRAM data 8, EWRAM 13, ROM 9." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{cycles.map((row, rowIndex) => (
+				<g>
+					<text x="10" y={22 + rowIndex * 66}>{row.code}</text>
+					{row.values.map((value, index) => (
+						<g>
+							<text x="60" y={42 + rowIndex * 66 + index * 14} text-anchor="end">{regions[index].name}</text>
+							<rect x="66" y={33 + rowIndex * 66 + index * 14} width={value * 15} height="11" fill={regions[index].color} />
+							<text x={70 + value * 15} y={42 + rowIndex * 66 + index * 14}>{value}</text>
+						</g>
+					))}
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>Measured in the snippet: CPU cycles per number, loop included. Shorter is faster.</figcaption>
+</figure>
+
+**The stack grows down toward the globals.** Globals fill IWRAM from the bottom. The stack, where local variables live, starts at the top and grows down with every function call. Nothing stands between them. In the snippet, each call of `stack_at_depth` takes 264 bytes, its 256-byte buffer and a little more, and the screen shows what's left between the two.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 420 130" role="img" aria-label="IWRAM as a bar, 32768 bytes. Globals take 19272 from the left. The stack takes from the right: 1516 bytes at depth 0, leaving 11980; 6796 at depth 20, leaving 6700; 12604 at depth 42, leaving 892." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{stack.map((row, index) => (
+				<g>
+					<text x="122" y={28 + index * 32} text-anchor="end">depth {row.depth}: {row.left} left</text>
+					<rect x="130" y={16 + index * 32} width="270" height="18" fill="none" stroke="currentColor" stroke-opacity="0.4" />
+					<rect x="130" y={16 + index * 32} width={kb(19272) * 0.9} height="18" fill="#2f9e36" />
+					<rect x={400 - kb(row.used) * 0.9} y={16 + index * 32} width={kb(row.used) * 0.9} height="18" fill="#ff4d8d" />
+				</g>
+			))}
+			<text x="130" y="118" fill="#2f9e36">globals →</text>
+			<text x="400" y="118" text-anchor="end" fill="#ff4d8d">← stack</text>
+		</g>
+	</svg>
+	<figcaption>Measured in the snippet, pressing Up. At about depth 45 they'd meet (worked out).</figcaption>
+</figure>
+
+## The smallest thing that works
+
+The same 2048 numbers are kept three times: as a `constexpr` table in ROM, as a global in IWRAM, and as a global moved to EWRAM with `BN_DATA_EWRAM`. The screen shows how much of each place the ROM uses, how many cycles a read takes from each, and how much stack a chain of calls takes. **Up** and **Down** change how deep the chain goes, up to 32.
+
+<Code code={memory} lang="cpp" title="snippets/memory/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/memory/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The snippet's screen: IWRAM globals 19272 of 32768, EWRAM globals 41956 of 262144, ROM 138344, the cycle table, then the stack line counting up as Up is pressed to depth 32, 9700 bytes with 3796 left, and back down." />
+	<figcaption>Up to depth 32, then halfway back. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="memory" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `constexpr bn::array<int, count> make_numbers()` | A function the compiler runs while building the ROM, so the table is filled before the game starts. |
+| `BN_DATA_EWRAM bn::array<int, count> ewram_numbers` | Moves a global from IWRAM to EWRAM. It still has a starting value, so it still takes ROM too. |
+| `BN_CODE_IWRAM [[gnu::noipa]] int sum_with_iwram_code(...)` | Copies the function to IWRAM at boot. Worth it only for small, hot code: IWRAM is tiny. |
+| `[[gnu::always_inline]] inline int sum(...)` | One loop pasted into both functions, so the only difference between them is where they live. |
+| `[[gnu::noipa]]` | Stops the compiler from seeing which array is passed in and working the sum out while building, which would measure nothing. |
+| `volatile char buffer[256];` | `volatile` makes the compiler keep the buffer on the stack even though it's barely used. |
+| `bn::memory::used_stack_iwram()` | How far the stack has grown down from the top of IWRAM, right now. |
+
+Art: the font is the one from [Text and HUD](/basics/hud/), from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, copied by [`snippets/tools/memory_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/memory_assets.py).
+
+## Pitfalls
+
+**A global too big for IWRAM doesn't build.**
+A test ROM with one more global, `int grid[8192]`, 32 KB, failed to link: "section `.data' is not within region `iwram'". That's the good case: it fails before the game runs. Move big arrays to EWRAM with `BN_DATA_EWRAM`, or make them `constexpr` if they never change.
+
+**A stack overflow doesn't crash: it overwrites the globals.**
+A test ROM with a 16 KB local array in `main`, `volatile int scratch[4096]`, built and ran. Its stack took 17908 bytes, 4412 more than was free, and the IWRAM numbers summed wrong: the screen showed -1 where the cycles should be, because the stack had written over `iwram_numbers` (worked out from the wrong sum). Another test ROM let the chain of calls go to depth 70, 6500 bytes past the globals: no crash, and the screen looked fine, since nothing read the globals it had overwritten. Keep big arrays out of local variables, and watch `used_stack_iwram()` in deep or recursive code.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/memory/local.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="A 16 KB local array: stack 17908 bytes, IWRAM left -4412, and -1 in the IWRAM column of the cycle table." />
+		<figcaption>16 KB local: the sum is wrong, -1.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/memory/deep.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Depth 70: stack 19996 bytes, IWRAM left -6500, and the rest of the screen looks normal." />
+		<figcaption>Depth 70: -6500 left, and it looks fine.</figcaption>
+	</figure>
+</div>
+
+**Zeros in `BN_DATA_EWRAM` still take ROM.**
+A test ROM with `BN_DATA_EWRAM int ewram_zeros[16384]`, 64 KB that start as zero, grew the ROM from 138344 to 203872 bytes: 64 KB of zeros stored to be copied. With `BN_DATA_EWRAM_BSS` instead, the ROM didn't grow (8 bytes smaller, from the code around it) and EWRAM grew by the same 64 KB: those are cleared when the game starts, not copied. Use `BN_DATA_EWRAM_BSS` for arrays without a starting value.
+
+**With the code in ROM, timing the data says little.**
+The first version of the snippet read EWRAM data in 14 cycles from ROM code, the same as IWRAM. After the code changed a little, the same read took 18. With the loop in IWRAM, every build measured 8, 13 and 9. Code in ROM waits on the cartridge for each instruction, so small changes in where it lands move the timings (worked out, not measured). Time hot code where it will run.
+
+## Read more
+
+- Guide pages: [Performance](/structure/profiler/), to find the code worth moving to IWRAM, and [Debugging](/structure/debugging/), for `BN_ASSERT` and the logs.
+- Header: [`bn_memory.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_memory.h), with `used_static_iwram`, `used_stack_iwram` and the EWRAM allocator.
+- Butano example: [`world_map`](https://github.com/GValiente/butano/blob/master/examples/world_map/include/load_attributes.h), which puts a function in IWRAM with `BN_CODE_IWRAM`.
+- Tonc: [GBA memory](https://gbadev.net/tonc/hardware.html), the memory map and how fast each part is.
+- cppreference: [`constexpr`](https://en.cppreference.com/w/cpp/language/constexpr).
