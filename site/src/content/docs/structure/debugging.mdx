@@ -1,0 +1,179 @@
+---
+title: Debugging
+description: BN_LOG lines in mGBA's log instead of on the screen, BN_ASSERT checks that stop the game where the bug is found, Butano's error screen read line by line, a stack trace in the log, and what a release build drops.
+sidebar:
+  order: 4.9
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import debugging from '../../../../../snippets/debugging/src/main.cpp?raw';
+import makefile from '../../../../../snippets/debugging/Makefile?raw';
+import walk from '../../../../../snippets/common/include/hero_walk.h?raw';
+
+export const sizes = [
+	{ label: 'the snippet', kb: 166 },
+	{ label: 'no stack trace', kb: 126 },
+	{ label: 'no logs either', kb: 123 },
+	{ label: 'no asserts either', kb: 98 },
+];
+export const bar = (kb) => kb * 1.5;
+
+## When to use it
+
+Whenever the game does something you didn't expect and you can't see why. The GBA has no debugger window next to the game and no `printf` to a terminal, so Butano gives you two tools: `BN_LOG` writes a line to the emulator's log, and `BN_ASSERT` stops the game with a message the moment something is wrong. Both come with every Butano project, already on.
+
+## How to think about it
+
+**`BN_LOG` writes to the emulator, not to the screen.** It takes any number of values, text, `int`, `bn::fixed`, `bool`, and writes them as one line to mGBA's log: in mGBA, **Tools → View logs**. Nothing appears in the game, so you can log without moving the HUD out of the way. In the snippet, every line below came from the emulator's log while the hero walked, stopped and was hit.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/debugging/log.png" width="240" height="268" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The game screen: the hero on green grass, Health 3. Under it, the mGBA log: Started. Health: 3; Stopped at 42, 16; Stopped at 42, -14; Frame 211: health 3." />
+	<figcaption>The screen, and what the log had at the same moment. The log's lines are the real ones, drawn under the capture.</figcaption>
+</figure>
+
+**`BN_ASSERT` stops the game where the bug is found, and says where.** `BN_ASSERT(condition, message...)` does nothing while the condition is true. When it's false, the game stops on Butano's error screen. The bug might have started far away, a caller asking for the wrong thing, but the game stops at the check instead of carrying on with a wrong number until something else breaks. Each line of the screen answers a question:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 660 330" role="img" aria-label="Butano's error screen with labels. ERROR in main.cpp: the file. damage::20: the function and the line. amount <= health: the condition that was false. Hit for 1 with 0 health left: the message, with the values. Stack trace logged: the call stack went to the log. 21.9.0 DKA: Butano's version and toolchain." style={{ display: 'block', width: '100%', maxWidth: '660px', marginInline: 'auto' }}>
+		<image href="/images/debugging/error.png" x="0" y="5" width="480" height="320" style={{ imageRendering: 'pixelated' }} />
+		<g font-size="13" fill="currentColor">
+			{[
+				{ y: 42, x: 200, text: 'the file' },
+				{ y: 66, x: 160, text: 'function :: line' },
+				{ y: 113, x: 185, text: 'the condition' },
+				{ y: 161, x: 270, text: 'your message' },
+				{ y: 266, x: 230, text: 'stack trace in the log', from: 'M 195 290 L 212 290 L 230 266' },
+				{ y: 292, x: 462, text: 'Butano version, toolchain' },
+			].map((label) => (
+				<g>
+					<path d={`${label.from ?? `M ${label.x} ${label.y}`} L 492 ${label.y}`} stroke="#1e7cb8" stroke-dasharray="3 3" />
+					<text x="498" y={label.y + 4}>{label.text}</text>
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>The fourth B in the snippet: the hit asked for 1 health with 0 left. Captured from the emulator (2x).</figcaption>
+</figure>
+
+**The stack trace says how the game got there.** The error screen names the function the check is in, but not who called it. With `STACKTRACE := true` in the Makefile, Butano writes the chain of calls to the log after the error screen, innermost first. The names are as the compiler stores them: `_Z6damageii` is `damage(int, int)`, between `_Z` and the `i`s, `6damage` is the name and its length.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/debugging/stack.png" width="300" height="124" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The mGBA log: Frame 365: health 1; Hurt. Health: 0; then, in pink, - stack trace -, 0x8000364 - _Z6damageii, 0x800068c - main." />
+	<figcaption>The end of the snippet's log: the last hit, then <code>damage</code>, called from <code>main</code>.</figcaption>
+</figure>
+
+**Checks are for development; a release build drops them.** The logs, the asserts and the stack trace all take room in the ROM, and a little CPU. Each can be turned off with a flag, and then it costs nothing. The snippet's ROM, built four ways:
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 130" role="img" aria-label="Bars of ROM size. The snippet: 166 KB. Without the stack trace: 126 KB. Without logs too: 123 KB. Without asserts too: 98 KB." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{sizes.map((size, index) => (
+				<g>
+					<text x="104" y={22 + index * 28} text-anchor="end">{size.label}</text>
+					<rect x="110" y={10 + index * 28} width={bar(size.kb)} height="18" fill={index ? '#2f9e36' : '#1e7cb8'} />
+					<text x={116 + bar(size.kb)} y={22 + index * 28}>{size.kb} KB</text>
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>Measured: the size of each <code>.gba</code>. Each row drops one more thing than the one above.</figcaption>
+</figure>
+
+The flags go in `USERFLAGS` in the Makefile: `-DBN_CFG_LOG_ENABLED=false` and `-DBN_CFG_ASSERT_ENABLED=false`. Leave `STACKTRACE` empty to drop the stack trace. The stack trace alone took 41 KB, most of it probably the names of the functions (worked out, not measured), so it's the first thing to drop when the ROM gets big.
+
+## The smallest thing that works
+
+The **D-pad** walks the hero. When it stops, the log gets its position. **A** logs the frame and the health. **B** hits the hero for 1. The fourth B hits with no health left: `damage` checks its caller with a `BN_ASSERT`, and the game stops on the error screen, on purpose.
+
+<Code code={debugging} lang="cpp" title="snippets/debugging/src/main.cpp" />
+
+<Code code={makefile} lang="makefile" title="snippets/debugging/Makefile" />
+
+<details>
+<summary>The hero's walk: <code>hero_walk.h</code></summary>
+
+<Code code={walk} lang="cpp" title="snippets/common/include/hero_walk.h" />
+
+</details>
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/debugging/demo.gif" width="480" height="444" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The hero walks right, stops, walks up, stops; each stop adds a line to the log under the screen. A adds the frame and health. Two B presses take the health to 1, then A, then two more B presses: the error screen, and the stack trace in the log." />
+	<figcaption>The game, with the emulator's log drawn under it as it filled. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="debugging" />
+
+The page's emulator doesn't show the log. To see it, download [the ROM](/roms/debugging.gba) and open it in [mGBA](https://mgba.io/), then **Tools → View logs**. `BN_LOG` lines are at the warning level.
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `BN_ASSERT(amount <= health, "Hit for ", amount, " with ", health, " health left");` | The condition first, then any number of values for the message, written like `BN_LOG`'s. The condition itself shows on the error screen too. |
+| `[[gnu::noinline]] int damage(...)` | Asks the compiler not to paste `damage` into `main`. A function that small would be, and then it vanishes from the stack trace (see Pitfalls). |
+| `if(was_walking && ! walking)` | Logs once, when the hero stops, instead of every frame it stands still. |
+| `bool walking = step_x != 0 \|\| step_y != 0;` | One name for a condition used twice: in the `if` and to remember for the next frame. |
+| `STACKTRACE := true` | Set before the `include`: `butano.mk` sets it with `?=`, only if nothing set it first. |
+
+Art: the hero is the guide's shared one, from [Zelda-like tilesets and sprites](https://opengameart.org/content/zelda-like-tilesets-and-sprites) by ArMM1998, CC0, and so is the font, from [Text and HUD](/basics/hud/), copied by [`snippets/tools/debugging_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/debugging_assets.py).
+
+## Pitfalls
+
+**With asserts off, the bug is still there, just quiet.**
+A test ROM built with `-DBN_CFG_ASSERT_ENABLED=false` didn't stop at the fourth B. It took the health to -1, then -2 on the fifth, and showed "Health -2" as if nothing was wrong. Turning asserts off removes the check, not the bug. Butano doesn't even run the condition then: it tells the compiler to assume it's true (read in `bn_assert.h`).
+
+**Work inside a `BN_ASSERT` disappears with it.**
+A test ROM whose `damage` did the subtraction inside the check, `BN_ASSERT((health -= amount) >= 0, ...)`, worked while asserts were on. Built with them off, five hits left the health at 3: the log said "Hurt. Health: 3" five times. Put only questions in a `BN_ASSERT`, never changes.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/debugging/off.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Asserts off, after five hits: the HUD says Health -2." />
+		<figcaption>Asserts off: health -2.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/debugging/side.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The subtraction inside the assert, asserts off, after five hits: the HUD still says Health 3." />
+		<figcaption>Work inside the check: still 3.</figcaption>
+	</figure>
+</div>
+
+**A log line has a size limit, and going over it is an error.**
+A test ROM that logged 309 characters in one `BN_LOG` stopped before its first frame, on the error screen: "Not enough space: 309 - 255", from `bn_string.h`. A line is built in a buffer of `BN_CFG_LOG_MAX_SIZE`, 256 bytes by default. Log several short lines instead of one long one.
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/debugging/long.png" width="240" height="160" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="Butano's error screen: ERROR in bn_string.h, _append::1069, new_size <= _max_size, Not enough space: 309 - 255." />
+	<figcaption>One <code>BN_LOG</code> too long.</figcaption>
+</figure>
+
+**Logging every frame floods the log and costs CPU.**
+Three test ROMs walked the hero right for 1.5 seconds and showed the CPU used per frame. With no log, 4.6% of the frame. With one `BN_LOG` of the hero's position every frame, 5.3%, and 173 lines in the log. With ten per frame, 12.2%, and 1721 lines, too many to read. A line cost about 0.7% of a frame. On a real GBA it's still built and written, just to an address nobody reads (worked out from Butano's `bn_hw_log.h`). Log when something changes.
+
+<div style={{ display: 'grid', gap: '0.5rem', justifyItems: 'center' }}>
+	{[{ name: '0', text: 'no log: 4.6%' }, { name: '1', text: '1 line a frame: 5.3%' }, { name: '10', text: '10 lines a frame: 12.2%' }].map((item) => (
+		<figure style={{ margin: 0, textAlign: 'center' }}>
+			<img src={`/images/debugging/flood_${item.name}.png`} width="240" height="40" style={{ imageRendering: 'pixelated' }} alt={`The top of the screen, CPU in tenths of a percent: ${item.text}.`} />
+			<figcaption>{item.text}</figcaption>
+		</figure>
+	))}
+</div>
+
+**A small function can vanish from the stack trace.**
+A test ROM without `[[gnu::noinline]]` stopped on the same error screen, still naming `damage` and line 20, because that comes from the check itself. But its stack trace was only `main`: the compiler had pasted `damage` into `main`, so at run time there was no call to list. When a trace looks too short, the missing functions were probably inlined.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '300px' }}>
+		<img src="/images/debugging/stack.png" width="300" height="124" style={{ imageRendering: 'pixelated' }} alt="The snippet's log: the stack trace lists _Z6damageii, then main." />
+		<figcaption>The snippet: <code>damage</code>, then <code>main</code>.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '300px' }}>
+		<img src="/images/debugging/stack_inline.png" width="300" height="124" style={{ imageRendering: 'pixelated' }} alt="The test ROM's log: the stack trace lists only main." />
+		<figcaption>Inlined: only <code>main</code>.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Performance](/structure/profiler/), for the CPU on screen and `bn::profiler`, and [Files and headers](/structure/files/), for the compiler's and linker's errors, before the game runs.
+- Butano example: [`log`](https://github.com/GValiente/butano/blob/master/examples/log/src/main.cpp), which logs every kind of value and a custom type.
+- Headers: [`bn_log.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_log.h), [`bn_assert.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_assert.h), and the flags in [`bn_config_log.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_log.h) and [`bn_config_assert.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_config_assert.h).
+- cppreference: [`[[assume]]`](https://en.cppreference.com/w/cpp/language/attributes/assume), what a disabled `BN_ASSERT` becomes.

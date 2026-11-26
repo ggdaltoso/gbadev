@@ -123,7 +123,7 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
    - [x] Random without streaks: a shuffle bag, so the same thing doesn't come up three times in a row.
    - [x] Camera dead zone and look-ahead: the camera moves only when the hero leaves a box, and shows more ahead.
 11. **Technique:**
-   - [ ] Debugging: `BN_LOG` in mGBA's log, `BN_ASSERT`, and reading Butano's error screen.
+   - [x] Debugging: `BN_LOG` in mGBA's log, `BN_ASSERT`, and reading Butano's error screen.
    - [ ] Where memory lives: IWRAM, EWRAM and ROM, `constexpr` vs globals, big arrays and stack overflow, measured.
    - [ ] A floor in perspective (Mode 7): a tilted floor like a racing game, with H-Blank and affine backgrounds.
 
