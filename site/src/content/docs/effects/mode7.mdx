@@ -1,0 +1,180 @@
+---
+title: A floor in perspective (Mode 7)
+description: A tilted floor like a racing game's, from one affine background whose scale and position change on every screen line through H-Blank effects, with the sky off the map and the cost measured.
+sidebar:
+  order: 6.5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import Rom from '../../../components/Rom.astro';
+import mode7 from '../../../../../snippets/mode7/src/main.cpp?raw';
+
+export const rays = [
+	{ below: 12, distance: 341 },
+	{ below: 24, distance: 171 },
+	{ below: 48, distance: 85 },
+	{ below: 111, distance: 37 },
+];
+export const marks = [
+	{ line: 60, scale: '2.67' },
+	{ line: 90, scale: '0.76' },
+	{ line: 150, scale: '0.31' },
+];
+
+## When to use it
+
+For a floor that stretches to the horizon: a racing game's track, a world map seen from an airship, a battle arena seen at an angle. The GBA has no 3D, but an affine background can be scaled and moved differently on every line of the screen, and that's enough to tilt a flat map into a floor. It builds on [Rotation and scaling](/effects/affine/), for affine backgrounds, and [H-Blank effects](/effects/hblank/), for changing something on every line.
+
+## How to think about it
+
+**Each line of the screen is a slice of the floor at its own distance.** Picture the eye a little above a flat floor, looking at the screen. The line just under the horizon looks almost straight ahead, and meets the floor far away. The bottom line looks down, and meets it right in front. The distance is one division: the camera's height times the distance to the screen, divided by how many lines below the horizon the line is.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 440 170" role="img" aria-label="A side view. An eye 32 pixels above a floor looks at a screen. Rays through four screen lines reach the floor: 12 lines below the horizon at 341 pixels away, 24 lines at 171, 48 at 85 and 111 at 37. Lower lines on the screen meet the floor closer." style={{ display: 'block', width: '100%', maxWidth: '600px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			<path d="M 10 140 L 430 140" stroke="currentColor" />
+			<text x="430" y="156" text-anchor="end">the floor</text>
+			<circle cx="60" cy="40" r="4" fill="#1e7cb8" />
+			<text x="60" y="28" text-anchor="middle" fill="#1e7cb8">eye</text>
+			<path d="M 60 40 L 60 140" stroke="#1e7cb8" stroke-dasharray="3 3" />
+			<text x="54" y="95" text-anchor="end" fill="#1e7cb8">height 32</text>
+			<path d="M 84 20 L 84 120" stroke="currentColor" stroke-width="3" />
+			<text x="84" y="14" text-anchor="middle">screen</text>
+			{rays.map((ray) => {
+				const x = 60 + ray.distance * 1.1;
+				return (
+					<g>
+						<path d={`M 60 40 L ${Math.min(x, 425)} ${x > 425 ? 40 + (100 * 365) / (x - 60) : 140}`} stroke="#ff4d8d" />
+						{x <= 425 && <text x={x} y="134" text-anchor="middle" fill="#ff4d8d">{ray.distance}</text>}
+					</g>
+				);
+			})}
+			<text x="425" y="70" text-anchor="end" fill="#ff4d8d">12 lines below: 341</text>
+		</g>
+	</svg>
+	<figcaption>The snippet's numbers: height 32, screen 128 pixels from the eye. Distances in map pixels, drawn to scale except the farthest and the screen's distance.</figcaption>
+</figure>
+
+**Far lines squeeze more map into each pixel.** A line twice as far away shows twice as much of the floor across the same 240 pixels. That's the line's scale: its distance divided by the distance to the screen. Seen from above, the screen covers a trapezoid of the map: narrow at the bottom of the screen, near the car, and wide at the top, far away.
+
+<div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '300px' }}>
+		<svg viewBox="0 0 480 320" role="img" aria-label="The snippet's screen, with marks on three lines. Line 60: one screen pixel is 2.67 map pixels. Line 90: 0.76. Line 150: 0.31." style={{ display: 'block', width: '100%' }}>
+			<image href="/images/mode7/lines.png" x="0" y="0" width="480" height="320" style={{ imageRendering: 'pixelated' }} />
+			<g font-size="20" font-weight="bold">
+				{marks.map((mark) => (
+					<g>
+						<path d={`M 0 ${mark.line * 2} L 480 ${mark.line * 2}`} stroke="#ff4d8d" stroke-width="3" />
+						<text x="472" y={mark.line * 2 - 6} text-anchor="end" fill="#ffffff" stroke="#000000" stroke-width="4" paint-order="stroke">×{mark.scale}</text>
+					</g>
+				))}
+			</g>
+		</svg>
+		<figcaption>Map pixels per screen pixel, on three lines.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '300px' }}>
+		<img src="/images/mode7/footprint.png" width="300" height="284" alt="The track from above. The blue dot is the camera on the start line, facing right. A pink trapezoid starts just ahead of it, narrow, and widens to the right across the corner: the part of the map the screen shows. Its near edge is the line 111 below the horizon, its far edge the line 12; the lines inside are 48 and 24." />
+		<figcaption>From above: what the screen sees, from the blue dot.</figcaption>
+	</figure>
+</div>
+
+**Four numbers per line, rewritten in every H-Blank.** An affine background has a matrix and a starting point. The hardware walks the map from the starting point, one step per pixel to the right. Between lines, an H-Blank effect replaces four registers: `pa` and `pc` are the step, the line's scale turned to face the camera's right, and `dx` and `dy` are where the line's leftmost pixel lands on the map. The snippet fills four arrays of 160 values every frame and hands them to Butano's H-Blank effects with `reload_values_ref()`.
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 440 120" role="img" aria-label="One screen line of 240 pixels, mapped onto the map: the first pixel lands at dx, dy, and each pixel to the right adds pa, pc. The line ends 240 steps later." style={{ display: 'block', width: '100%', maxWidth: '560px', marginInline: 'auto' }}>
+		<g font-size="11" fill="currentColor">
+			<path d="M 40 90 L 400 30" stroke="#ff4d8d" stroke-width="3" />
+			{[0, 1, 2, 3, 4, 5, 6].map((step) => (
+				<circle cx={40 + step * 60} cy={90 - step * 10} r="4" fill="#ff4d8d" />
+			))}
+			<text x="40" y="110" text-anchor="middle">(dx, dy)</text>
+			<text x="40" y="78" text-anchor="middle">pixel 0</text>
+			<path d="M 100 92 L 160 82" stroke="#1e7cb8" stroke-width="2" />
+			<text x="130" y="104" text-anchor="middle" fill="#1e7cb8">+ (pa, pc) per pixel</text>
+			<text x="400" y="20" text-anchor="middle">pixel 239</text>
+			<text x="10" y="20">on the map:</text>
+		</g>
+	</svg>
+	<figcaption>One screen line, on the map. The registers hold 8 bits after the point, so <code>bn::fixed</code>'s 12 lose 4: <code>.data() &gt;&gt; 4</code>.</figcaption>
+</figure>
+
+**The floor costs CPU on every frame.** 160 lines, each with a division and a few multiplications, worked out again every frame because the camera moves. Logged with `bn::core::last_cpu_usage()`, the snippet used 19.6% of each frame. With `update_floor` moved to IWRAM by `BN_CODE_IWRAM`, as in [Where memory lives](/structure/memory/), 16.1%. Both include the log line itself, about 0.7% (from [Debugging](/structure/debugging/)).
+
+<figure style={{ textAlign: 'center' }}>
+	<svg viewBox="0 0 400 70" role="img" aria-label="CPU per frame: 19.6% with the code in ROM, 16.1% with update_floor in IWRAM." style={{ display: 'block', width: '100%', maxWidth: '520px', marginInline: 'auto' }}>
+		<g font-size="10" fill="currentColor">
+			{[{ label: 'code in ROM', cpu: 19.6 }, { label: 'in IWRAM', cpu: 16.1 }].map((bar, index) => (
+				<g>
+					<text x="90" y={24 + index * 26} text-anchor="end">{bar.label}</text>
+					<rect x="96" y={12 + index * 26} width={bar.cpu * 12} height="18" fill={index ? '#2f9e36' : '#ff4d8d'} />
+					<text x={102 + bar.cpu * 12} y={24 + index * 26}>{bar.cpu}%</text>
+				</g>
+			))}
+		</g>
+	</svg>
+	<figcaption>Measured: CPU per frame while driving, from the emulator's log.</figcaption>
+</figure>
+
+## The smallest thing that works
+
+**Up** drives forward, **Down** backs up, **Left** and **Right** turn. The track is one 1024x1024 affine background, and the car is a sprite that stays at the bottom of the screen: the floor moves, not the car.
+
+<Code code={mode7} lang="cpp" title="snippets/mode7/src/main.cpp" />
+
+<figure style={{ textAlign: 'center' }}>
+	<img src="/images/mode7/demo.gif" width="480" height="320" style={{ imageRendering: 'pixelated', marginInline: 'auto' }} alt="The red coupe drives over the start line, turns left into the diagonal, drives along it with the curbs passing on the right, and turns left again onto the next straight. The floor stretches to the horizon under a blue sky." />
+	<figcaption>Two corners of the track. Captured from the emulator (2x).</figcaption>
+</figure>
+
+<Rom name="mode7" />
+
+Some of the C++ in the snippet:
+
+| In the code | Why |
+|---|---|
+| `bn::fixed distance = camera_height * focal / below;` | The whole trick: a line `below` lines under the horizon sees the floor this far ahead. |
+| `bn::fixed forward_y = -bn::degrees_lut_sin(angle);` | Angles count counterclockwise with y up, but the map's y grows down, so y flips. |
+| `bn::fixed right_x = -forward_y;` | The direction across the screen: forward turned a quarter to the right. |
+| `floor.dx[line] = (...).data() >> 4;` | `bn::fixed` keeps 12 bits after the point; the register wants 8. |
+| `bn::affine_bg_pa_register_hbe_ptr::create(track, floor.pa)` | Butano writes `floor.pa[line]` to the register before each line is drawn, as long as the H-Blank effect is alive. |
+| `track.set_wrapping_enabled(false);` | Off the map is transparent, so the lines above the horizon show the sky color. |
+| `car.set_horizontal_flip(turn > 0);` | One turning frame serves both sides, mirrored. |
+
+Art: the car is [Coupe' Car](https://opengameart.org/content/coupe-car) by Chasersgaming, CC0, cut and the track drawn by [`snippets/tools/mode7_assets.py`](https://github.com/ggdaltoso/gbadev/blob/main/snippets/tools/mode7_assets.py).
+
+## Pitfalls
+
+**With wrapping on, the sky fills with grass.**
+A test ROM without `set_wrapping_enabled(false)` drew the whole sky green: the lines above the horizon point at -4096, and with wrapping the map repeats out there too. Near the horizon, the repeated track showed as a band of noise. Turn wrapping off, or point the sky lines somewhere transparent.
+
+**Without `reload_values_ref()`, the floor freezes.**
+A test ROM that updated the arrays every frame but never called `reload_values_ref()` showed the first frame forever: the car drove and turned, and the floor didn't move. Butano copies the values when told to, not every frame (worked out from what was seen).
+
+**Forget that the map's y grows down, and left turns right.**
+A test ROM with `forward_y = bn::degrees_lut_sin(angle)`, without the minus, looked right going straight. But with the same keys as the snippet, left turned the car the other way on the map, and it ended on the grass outside the track, where the snippet was still on the road.
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', justifyItems: 'center' }}>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/mode7/snippet.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="The snippet after driving and turning left: the road curving ahead." />
+		<figcaption>The snippet, after the same keys.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/mode7/wrap.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="Wrapping on: a green sky, and a band of noise at the horizon." />
+		<figcaption>Wrapping on: a green sky.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/mode7/noreload.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="No reload: the start line still under the car after driving and turning." />
+		<figcaption>No reload: still at the start line.</figcaption>
+	</figure>
+	<figure style={{ margin: 0, textAlign: 'center', width: '240px' }}>
+		<img src="/images/mode7/mirror.png" width="240" height="160" style={{ imageRendering: 'pixelated' }} alt="y not flipped: the car heading onto the grass past the track's edge." />
+		<figcaption>y not flipped: off the track.</figcaption>
+	</figure>
+</div>
+
+## Read more
+
+- Guide pages: [Rotation and scaling](/effects/affine/), [H-Blank effects](/effects/hblank/), and [Where memory lives](/structure/memory/), for `BN_CODE_IWRAM`.
+- Butano examples: [`mode_7`](https://github.com/GValiente/butano/blob/master/examples/mode_7/src/main.cpp), the same idea in integer math, with the camera's height on A and B, and [`world_map`](https://github.com/GValiente/butano/blob/master/examples/world_map/src/main.cpp), a map tilted by scaling each line.
+- Headers: [`bn_affine_bg_pa_register_hbe_ptr.h`](https://github.com/GValiente/butano/blob/master/butano/include/bn_affine_bg_pa_register_hbe_ptr.h), and the same for `pc`, `dx` and `dy`.
+- Tonc: [Mode 7, part 1](https://gbadev.net/tonc/mode7.html), the math behind it.

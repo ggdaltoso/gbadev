@@ -125,6 +125,6 @@ The topics came from the minigames of the owner's game ("Lucas vs Trabalho", `~/
 11. **Technique:**
    - [x] Debugging: `BN_LOG` in mGBA's log, `BN_ASSERT`, and reading Butano's error screen.
    - [x] Where memory lives: IWRAM, EWRAM and ROM, `constexpr` vs globals, big arrays and stack overflow, measured.
-   - [ ] A floor in perspective (Mode 7): a tilted floor like a racing game, with H-Blank and affine backgrounds.
+   - [x] A floor in perspective (Mode 7): a tilted floor like a racing game, with H-Blank and affine backgrounds.
 
 Art for these: Kenney packs (CC0) the owner downloaded to `~/Downloads/kenney_*.zip`. Copy only the pack a lesson uses into `assets/kenney-<pack>/`, with a `CREDITS.md`.

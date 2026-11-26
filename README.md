@@ -6,7 +6,7 @@ Butano's [official docs](https://gvaliente.github.io/butano/) are a complete API
 
 It covers topics any GBA game can use. When a topic fits one kind of game best, its example comes from that genre: gravity is shown in a platformer, an enemy formation in a shooter. It started from the questions that came up in [gg-game](https://github.com/ggdaltoso/gg-game), a set of lessons for learning GBA development with Butano.
 
-> Status: the first seventy-seven pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
+> Status: the first seventy-eight pages are live at [gbadev.ggdaltoso.dev](https://gbadev.ggdaltoso.dev).
 
 ## Building
 
@@ -93,6 +93,7 @@ assets/      CC0 art only, with CREDITS.md per pack
 15. **Rotation and scaling:** affine sprites and backgrounds.
 16. **H-Blank effects:** a setting that changes line by line.
 17. **HDMA:** a hardware copy on every line, for what H-Blank effects don't cover.
+78. **A floor in perspective (Mode 7):** one affine background scaled and moved differently on every screen line by H-Blank effects, each line's distance from one division, the sky off the map, and the cost measured.
 28. **Particles:** sparks as small tweens with random numbers, a fixed number of slots where the oldest makes room, and what particles cost per frame.
 30. **Screen shake:** trauma that adds up with each hit and drains, a random offset the size of trauma squared, and a camera that gets the shake last.
 31. **Animated tiles:** water and fountains that move all over a background by copying a few tiles per frame, copies that share tiles, and phases that need their own.
